@@ -27,6 +27,8 @@ import {ScrollChain} from "../../src/L1/rollup/ScrollChain.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
 import {ZkEvmVerifierPostEuclid} from "../../src/libraries/verifier/ZkEvmVerifierPostEuclid.sol";
 
+import {ScrollChainMockFinalize} from "../../src/mocks/ScrollChainMockFinalize.sol";
+
 // solhint-disable max-states-count
 // solhint-disable state-visibility
 // solhint-disable var-name-mixedcase
@@ -122,7 +124,7 @@ contract DeployL1BridgeContracts is Script {
     }
 
     function deployScrollChain() internal {
-        ScrollChain impl = new ScrollChain(
+        ScrollChainMockFinalize impl = new ScrollChainMockFinalize(
             CHAIN_ID_L2,
             L1_MESSAGE_QUEUE_V1_PROXY_ADDR,
             L1_MESSAGE_QUEUE_V2_PROXY_ADDR,
