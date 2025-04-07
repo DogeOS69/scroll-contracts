@@ -92,8 +92,8 @@ abstract contract Configuration is Script {
     string internal ADMIN_SYSTEM_DASHBOARD_URI;
     string internal GRAFANA_URI;
 
-    uint256 internal FINALIZE_BATCH_DEADLINE_SEC;
-    uint256 internal RELAY_MESSAGE_DEADLINE_SEC;
+    uint256 internal FINALIZE_BATCH_DEADLINE_SEC = 10000;
+    uint256 internal RELAY_MESSAGE_DEADLINE_SEC = 10000;
 
     /**********************
      * Internal interface *
@@ -117,28 +117,28 @@ abstract contract Configuration is Script {
         CHAIN_ID_L2 = uint64(cfg.readUint(".general.CHAIN_ID_L2"));
 
         MAX_TX_IN_CHUNK = cfg.readUint(".rollup.MAX_TX_IN_CHUNK");
-        MAX_BLOCK_IN_CHUNK = cfg.readUint(".rollup.MAX_BLOCK_IN_CHUNK");
-        MAX_BATCH_IN_BUNDLE = cfg.readUint(".rollup.MAX_BATCH_IN_BUNDLE");
-        MAX_L1_MESSAGE_GAS_LIMIT = cfg.readUint(".rollup.MAX_L1_MESSAGE_GAS_LIMIT");
+        //MAX_BLOCK_IN_CHUNK = cfg.readUint(".rollup.MAX_BLOCK_IN_CHUNK");
+        //MAX_BATCH_IN_BUNDLE = cfg.readUint(".rollup.MAX_BATCH_IN_BUNDLE");
+        // MAX_L1_MESSAGE_GAS_LIMIT = cfg.readUint(".rollup.MAX_L1_MESSAGE_GAS_LIMIT");
 
         L1_CONTRACT_DEPLOYMENT_BLOCK = cfg.readUint(".general.L1_CONTRACT_DEPLOYMENT_BLOCK");
 
         ALTERNATIVE_GAS_TOKEN_ENABLED = cfg.readBool(".gas-token.ALTERNATIVE_GAS_TOKEN_ENABLED");
 
-        TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
-        TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
+        // TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
+        // TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
 
         DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
         L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
         L1_FINALIZE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY");
-        L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
+        // L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
+        // L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
         L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
         L1_FINALIZE_SENDER_ADDR = cfg.readAddress(".accounts.L1_FINALIZE_SENDER_ADDR");
-        L1_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L1_GAS_ORACLE_SENDER_ADDR");
-        L2_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L2_GAS_ORACLE_SENDER_ADDR");
+        // L1_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L1_GAS_ORACLE_SENDER_ADDR");
+        // L2_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L2_GAS_ORACLE_SENDER_ADDR");
 
         OWNER_ADDR = cfg.readAddress(".accounts.OWNER_ADDR");
 
@@ -154,22 +154,22 @@ abstract contract Configuration is Script {
 
         L1_FEE_VAULT_ADDR = cfg.readAddress(".contracts.L1_FEE_VAULT_ADDR");
 
-        CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
-        BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
-        BUNDLE_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BUNDLE_COLLECTION_TIME_SEC");
-        COORDINATOR_JWT_SECRET_KEY = cfg.readString(".coordinator.COORDINATOR_JWT_SECRET_KEY");
+        // CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
+        // BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
+        // BUNDLE_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BUNDLE_COLLECTION_TIME_SEC");
+        // COORDINATOR_JWT_SECRET_KEY = cfg.readString(".coordinator.COORDINATOR_JWT_SECRET_KEY");
 
-        EXTERNAL_RPC_URI_L1 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L1");
-        EXTERNAL_RPC_URI_L2 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L2");
-        BRIDGE_API_URI = cfg.readString(".frontend.BRIDGE_API_URI");
-        ROLLUPSCAN_API_URI = cfg.readString(".frontend.ROLLUPSCAN_API_URI");
-        EXTERNAL_EXPLORER_URI_L1 = cfg.readString(".frontend.EXTERNAL_EXPLORER_URI_L1");
-        EXTERNAL_EXPLORER_URI_L2 = cfg.readString(".frontend.EXTERNAL_EXPLORER_URI_L2");
-        ADMIN_SYSTEM_DASHBOARD_URI = cfg.readString(".frontend.ADMIN_SYSTEM_DASHBOARD_URI");
-        GRAFANA_URI = cfg.readString(".frontend.GRAFANA_URI");
+        //EXTERNAL_RPC_URI_L1 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L1");
+        // EXTERNAL_RPC_URI_L2 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L2");
+        // BRIDGE_API_URI = cfg.readString(".frontend.BRIDGE_API_URI");
+        // ROLLUPSCAN_API_URI = cfg.readString(".frontend.ROLLUPSCAN_API_URI");
+        // EXTERNAL_EXPLORER_URI_L1 = cfg.readString(".frontend.EXTERNAL_EXPLORER_URI_L1");
+        // EXTERNAL_EXPLORER_URI_L2 = cfg.readString(".frontend.EXTERNAL_EXPLORER_URI_L2");
+        // ADMIN_SYSTEM_DASHBOARD_URI = cfg.readString(".frontend.ADMIN_SYSTEM_DASHBOARD_URI");
+        // GRAFANA_URI = cfg.readString(".frontend.GRAFANA_URI");
 
-        FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
-        RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
+        // FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
+        // RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
 
         VERIFIER_DIGEST_1 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_1"));
         VERIFIER_DIGEST_2 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_2"));
@@ -230,8 +230,8 @@ abstract contract Configuration is Script {
         verifyAccount("DEPLOYER", DEPLOYER_PRIVATE_KEY, DEPLOYER_ADDR);
         verifyAccount("L1_COMMIT_SENDER", L1_COMMIT_SENDER_PRIVATE_KEY, L1_COMMIT_SENDER_ADDR);
         verifyAccount("L1_FINALIZE_SENDER", L1_FINALIZE_SENDER_PRIVATE_KEY, L1_FINALIZE_SENDER_ADDR);
-        verifyAccount("L1_GAS_ORACLE_SENDER", L1_GAS_ORACLE_SENDER_PRIVATE_KEY, L1_GAS_ORACLE_SENDER_ADDR);
-        verifyAccount("L2_GAS_ORACLE_SENDER", L2_GAS_ORACLE_SENDER_PRIVATE_KEY, L2_GAS_ORACLE_SENDER_ADDR);
+        // verifyAccount("L1_GAS_ORACLE_SENDER", L1_GAS_ORACLE_SENDER_PRIVATE_KEY, L1_GAS_ORACLE_SENDER_ADDR);
+        // verifyAccount("L2_GAS_ORACLE_SENDER", L2_GAS_ORACLE_SENDER_PRIVATE_KEY, L2_GAS_ORACLE_SENDER_ADDR);
     }
 
     function verifyAccount(

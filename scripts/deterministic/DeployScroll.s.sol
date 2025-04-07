@@ -361,10 +361,10 @@ contract DeployScroll is DeterministicDeployment {
         deployL1GatewayRouter();
         deployL1ETHGatewayProxy();
         deployL1WETHGatewayProxy();
-        deployL1StandardERC20GatewayProxy();
-        deployL1CustomERC20GatewayProxy();
-        deployL1ERC721GatewayProxy();
-        deployL1ERC1155GatewayProxy();
+        // deployL1StandardERC20GatewayProxy();
+        // deployL1CustomERC20GatewayProxy();
+        // deployL1ERC721GatewayProxy();
+        // deployL1ERC1155GatewayProxy();
 
         // alternative gas token contracts
         deployGasToken();
@@ -383,26 +383,26 @@ contract DeployScroll is DeterministicDeployment {
         deployL2ScrollMessengerProxy();
         deployL2ETHGatewayProxy();
         deployL2WETHGatewayProxy();
-        deployL2StandardERC20GatewayProxy();
-        deployL2CustomERC20GatewayProxy();
-        deployL2ERC721GatewayProxy();
-        deployL2ERC1155GatewayProxy();
-        deployScrollStandardERC20Factory();
+        //deployL2StandardERC20GatewayProxy();
+        // deployL2CustomERC20GatewayProxy();
+        // deployL2ERC721GatewayProxy();
+        // deployL2ERC1155GatewayProxy();
+        //deployScrollStandardERC20Factory();
     }
 
     // @notice deployL1Contracts2ndPass deploys L1 contracts whose initialization depends on some L2 addresses.
     function deployL1Contracts2ndPass() private broadcast(Layer.L1) {
         deployL1ScrollMessenger();
-        deployL1StandardERC20Gateway();
+        // deployL1StandardERC20Gateway();
         deployL1ETHGateway();
         deployL1WETHGateway();
-        deployL1CustomERC20Gateway();
-        deployL1ERC721Gateway();
-        deployL1ERC1155Gateway();
+        // deployL1CustomERC20Gateway();
+        // deployL1ERC721Gateway();
+        // deployL1ERC1155Gateway();
 
         // alternative gas token contracts
         deployL1GasTokenGateway();
-        deployL1WrappedTokenGateway();
+        //deployL1WrappedTokenGateway();
     }
 
     // @notice deployL2Contracts2ndPass deploys L2 contracts whose initialization depends on some L1 addresses.
@@ -410,12 +410,12 @@ contract DeployScroll is DeterministicDeployment {
         // upgradable
         deployL2ScrollMessenger();
         deployL2GatewayRouter();
-        deployL2StandardERC20Gateway();
+        // deployL2StandardERC20Gateway();
         deployL2ETHGateway();
         deployL2WETHGateway();
-        deployL2CustomERC20Gateway();
-        deployL2ERC721Gateway();
-        deployL2ERC1155Gateway();
+        // deployL2CustomERC20Gateway();
+        // deployL2ERC721Gateway();
+        // deployL2ERC1155Gateway();
     }
 
     // @notice initializeL1Contracts initializes contracts deployed on L1.
@@ -426,11 +426,11 @@ contract DeployScroll is DeterministicDeployment {
         initializeL1ScrollMessenger();
         initializeEnforcedTxGateway();
         initializeL1GatewayRouter();
-        initializeL1CustomERC20Gateway();
-        initializeL1ERC1155Gateway();
-        initializeL1ERC721Gateway();
+        // initializeL1CustomERC20Gateway();
+        // initializeL1ERC1155Gateway();
+        // initializeL1ERC721Gateway();
         initializeL1ETHGateway();
-        initializeL1StandardERC20Gateway();
+        // initializeL1StandardERC20Gateway();
         initializeL1WETHGateway();
         initializeL1Whitelist();
 
@@ -452,13 +452,13 @@ contract DeployScroll is DeterministicDeployment {
         initializeL1GasPriceOracle();
         initializeL2ScrollMessenger();
         initializeL2GatewayRouter();
-        initializeL2CustomERC20Gateway();
-        initializeL2ERC1155Gateway();
-        initializeL2ERC721Gateway();
+        // initializeL2CustomERC20Gateway();
+        // initializeL2ERC1155Gateway();
+        // initializeL2ERC721Gateway();
         initializeL2ETHGateway();
-        initializeL2StandardERC20Gateway();
+        //initializeL2StandardERC20Gateway();
         initializeL2WETHGateway();
-        initializeScrollStandardERC20Factory();
+        //initializeScrollStandardERC20Factory();
         initializeL2Whitelist();
 
         transferL2ContractOwnership();
@@ -1356,7 +1356,7 @@ contract DeployScroll is DeterministicDeployment {
         if (getInitializeCount(L1_GATEWAY_ROUTER_PROXY_ADDR) == 0) {
             L1GatewayRouter(L1_GATEWAY_ROUTER_PROXY_ADDR).initialize(
                 notnull(L2_ETH_GATEWAY_COUNTERPART),
-                notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR)
+                L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR
             );
         }
     }
@@ -1477,14 +1477,14 @@ contract DeployScroll is DeterministicDeployment {
     function transferL1ContractOwnership() private {
         transferOwnership(L1_ENFORCED_TX_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_SYSTEM_CONFIG_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_ERC1155_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_ERC721_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        // transferOwnership(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        // transferOwnership(L1_ERC1155_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        // transferOwnership(L1_ERC721_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_GATEWAY_ROUTER_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_MESSAGE_QUEUE_V1_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_MESSAGE_QUEUE_V2_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_SCROLL_MESSENGER_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        // transferOwnership(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_MULTIPLE_VERSION_ROLLUP_VERIFIER_ADDR, OWNER_ADDR);
         transferOwnership(L1_PROXY_ADMIN_ADDR, OWNER_ADDR);
         transferOwnership(L1_SCROLL_CHAIN_PROXY_ADDR, OWNER_ADDR);
@@ -1535,7 +1535,7 @@ contract DeployScroll is DeterministicDeployment {
         if (getInitializeCount(L2_GATEWAY_ROUTER_PROXY_ADDR) == 0) {
             L2GatewayRouter(L2_GATEWAY_ROUTER_PROXY_ADDR).initialize(
                 notnull(L2_ETH_GATEWAY_PROXY_ADDR),
-                notnull(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR)
+                L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR
             );
         }
     }
@@ -1633,14 +1633,14 @@ contract DeployScroll is DeterministicDeployment {
 
     function transferL2ContractOwnership() private {
         transferOwnership(L1_GAS_PRICE_ORACLE_ADDR, OWNER_ADDR);
-        transferOwnership(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L2_ERC1155_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L2_ERC721_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        // transferOwnership(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        // transferOwnership(L2_ERC1155_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        // transferOwnership(L2_ERC721_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_ETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_GATEWAY_ROUTER_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_MESSAGE_QUEUE_ADDR, OWNER_ADDR);
         transferOwnership(L2_SCROLL_MESSENGER_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        // transferOwnership(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_TX_FEE_VAULT_ADDR, OWNER_ADDR);
         transferOwnership(L2_PROXY_ADMIN_ADDR, OWNER_ADDR);
         transferOwnership(L2_WHITELIST_ADDR, OWNER_ADDR);
