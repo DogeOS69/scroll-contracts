@@ -119,7 +119,7 @@ abstract contract Configuration is Script {
         MAX_TX_IN_CHUNK = cfg.readUint(".rollup.MAX_TX_IN_CHUNK");
         //MAX_BLOCK_IN_CHUNK = cfg.readUint(".rollup.MAX_BLOCK_IN_CHUNK");
         //MAX_BATCH_IN_BUNDLE = cfg.readUint(".rollup.MAX_BATCH_IN_BUNDLE");
-        // MAX_L1_MESSAGE_GAS_LIMIT = cfg.readUint(".rollup.MAX_L1_MESSAGE_GAS_LIMIT");
+        MAX_L1_MESSAGE_GAS_LIMIT = cfg.readUint(".rollup.MAX_L1_MESSAGE_GAS_LIMIT");
 
         L1_CONTRACT_DEPLOYMENT_BLOCK = cfg.readUint(".general.L1_CONTRACT_DEPLOYMENT_BLOCK");
 
@@ -144,7 +144,7 @@ abstract contract Configuration is Script {
 
         L2GETH_SIGNER_ADDRESS = cfg.readAddress(".sequencer.L2GETH_SIGNER_ADDRESS");
 
-        ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING = cfg.readString(".db.ROLLUP_EXPLORER_DB_CONNECTION_STRING");
+        //ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING = cfg.readString(".db.ROLLUP_EXPLORER_DB_CONNECTION_STRING");
 
         L2_MAX_ETH_SUPPLY = cfg.readUint(".genesis.L2_MAX_ETH_SUPPLY");
         L2_DEPLOYER_INITIAL_BALANCE = cfg.readUint(".genesis.L2_DEPLOYER_INITIAL_BALANCE");
