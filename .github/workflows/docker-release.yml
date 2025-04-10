@@ -45,7 +45,7 @@ jobs:
       - name: Build deploy image
         id: build_deploy_image
         env:
-          REPOSITORY: shuunifra/scroll-stack-contracts
+          REPOSITORY: dogeos69/scroll-stack-contracts
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           platforms: linux/amd64,linux/arm64
@@ -58,7 +58,7 @@ jobs:
       - name: Build gen image
         id: build_gen_image
         env:
-          REPOSITORY: shuunifra/scroll-stack-contracts
+          REPOSITORY: dogeos69/scroll-stack-contracts
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           platforms: linux/amd64,linux/arm64
@@ -71,7 +71,7 @@ jobs:
       - name: Build verify image
         id: build_verify_image
         env:
-          REPOSITORY: shuunifra/scroll-stack-contracts
+          REPOSITORY: dogeos69/scroll-stack-contracts
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           platforms: linux/amd64,linux/arm64
