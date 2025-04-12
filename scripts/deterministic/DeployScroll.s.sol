@@ -114,7 +114,7 @@ contract DeployScroll is DeterministicDeployment {
     address internal L1_WETH_GATEWAY_PROXY_ADDR;
     address internal L1_WHITELIST_ADDR;
     address internal L1_PLONK_VERIFIER_ADDR;
-    address internal L1_ZKEVM_VERIFIER_V1_ADDR;
+    address internal L1_ZKEVM_VERIFIER_V2_ADDR;
     address internal L1_GAS_TOKEN_ADDR;
     address internal L1_GAS_TOKEN_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L1_GAS_TOKEN_GATEWAY_PROXY_ADDR;
@@ -556,7 +556,7 @@ contract DeployScroll is DeterministicDeployment {
             VERIFIER_DIGEST_1,
             VERIFIER_DIGEST_2
         );
-        L1_ZKEVM_VERIFIER_V1_ADDR = deploy(
+        L1_ZKEVM_VERIFIER_V2_ADDR = deploy(
             "L1_ZKEVM_VERIFIER_V1",
             type(ZkEvmVerifierPostEuclid).creationCode,
             constructorArgs
@@ -575,7 +575,7 @@ contract DeployScroll is DeterministicDeployment {
         // register V4 verifier: DarwinV2 upgrade, plonk verifier v0.13.1
         // version 6 comes from 'scripts/foundry/DeployL1BridgeContracts.s.sol:deployMultipleVersionRollupVerifier'
         _versions[0] = 6;
-        _verifiers[0] = notnull(L1_ZKEVM_VERIFIER_V1_ADDR);
+        _verifiers[0] = notnull(L1_ZKEVM_VERIFIER_V2_ADDR);
         bytes memory args = abi.encode(DEPLOYER_ADDR, _versions, _verifiers);
         L1_MULTIPLE_VERSION_ROLLUP_VERIFIER_ADDR = deploy(
             "L1_MULTIPLE_VERSION_ROLLUP_VERIFIER",
