@@ -48,7 +48,7 @@ get_source_code_name() {
       L1_SCROLL_MESSENGER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       L1_ENFORCED_TX_GATEWAY_IMPLEMENTATION_ADDR) echo EnforcedTxGateway ;;
       L1_ENFORCED_TX_GATEWAY_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
-      L1_ZKEVM_VERIFIER_V1_ADDR) echo ZkEvmVerifierV2 ;;
+      L1_ZKEVM_VERIFIER_V2_ADDR) echo ZkEvmVerifierV2 ;;
       L1_MULTIPLE_VERSION_ROLLUP_VERIFIER_ADDR ) echo MultipleVersionRollupVerifierSetOwner ;;
       L1_MESSAGE_QUEUE_V1_IMPLEMENTATION_ADDR) echo L1MessageQueueV1WithGasPriceOracle ;;
       L1_MESSAGE_QUEUE_V1_PROXY_ADDR) echo TransparentUpgradeableProxy ;;

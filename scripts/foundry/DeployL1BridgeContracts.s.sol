@@ -96,7 +96,7 @@ contract DeployL1BridgeContracts is Script {
     function deployZkEvmVerifier() internal {
         zkEvmVerifier = new ZkEvmVerifierPostEuclid(L1_PLONK_VERIFIER_ADDR, VERIFIER_DIGEST_1, VERIFIER_DIGEST_2);
 
-        logAddress("L1_ZKEVM_VERIFIER_V1_ADDR", address(zkEvmVerifier));
+        logAddress("L1_ZKEVM_VERIFIER_V2_ADDR", address(zkEvmVerifier));
     }
 
     function deployMultipleVersionRollupVerifier() internal {
