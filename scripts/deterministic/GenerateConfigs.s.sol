@@ -273,13 +273,13 @@ contract GenerateBalanceCheckerConfig is DeployScroll {
         vm.writeJson(vm.toString(L1_FINALIZE_SENDER_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[1].address");
 
         vm.writeJson(L1_RPC_ENDPOINT, BALANCE_CHECKER_CONFIG_PATH, ".addresses[2].rpc_url");
-        // vm.writeJson(vm.toString(L1_GAS_ORACLE_SENDER_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[2].address");
+        vm.writeJson(vm.toString(L1_GAS_ORACLE_SENDER_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[2].address");
 
         vm.writeJson(L1_RPC_ENDPOINT, BALANCE_CHECKER_CONFIG_PATH, ".addresses[3].rpc_url");
         vm.writeJson(vm.toString(L1_FEE_VAULT_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[3].address");
 
         vm.writeJson(L2_RPC_ENDPOINT, BALANCE_CHECKER_CONFIG_PATH, ".addresses[4].rpc_url");
-        // vm.writeJson(vm.toString(L2_GAS_ORACLE_SENDER_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[4].address");
+        vm.writeJson(vm.toString(L2_GAS_ORACLE_SENDER_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[4].address");
 
         vm.writeJson(L2_RPC_ENDPOINT, BALANCE_CHECKER_CONFIG_PATH, ".addresses[5].rpc_url");
         vm.writeJson(vm.toString(L2_TX_FEE_VAULT_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[5].address");
