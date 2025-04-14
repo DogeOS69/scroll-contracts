@@ -553,7 +553,7 @@ contract DeployScroll is DeterministicDeployment {
             VERIFIER_DIGEST_2
         );
         L1_ZKEVM_VERIFIER_V2_ADDR = deploy(
-            "L1_ZKEVM_VERIFIER_V1",
+            "L1_ZKEVM_VERIFIER_V2",
             type(ZkEvmVerifierPostEuclid).creationCode,
             constructorArgs
         );
