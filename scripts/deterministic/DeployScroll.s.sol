@@ -547,10 +547,6 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deployL1ZkEvmVerifier() private {
-        //TODO shu@unifra.io WHERE is VERIFIER_DIGEST_1
-        bytes32 VERIFIER_DIGEST_1 = 0x0000000000000000111111111111111100000000000000001111111111111111;
-        bytes32 VERIFIER_DIGEST_2 = 0x0000000000000000111111111111111100000000000000001111111111111112;
-
         bytes memory constructorArgs = abi.encode(
             notnull(L1_PLONK_VERIFIER_ADDR),
             VERIFIER_DIGEST_1,

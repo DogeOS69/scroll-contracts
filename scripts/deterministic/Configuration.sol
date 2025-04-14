@@ -43,6 +43,9 @@ abstract contract Configuration is Script {
     bool internal TEST_ENV_MOCK_FINALIZE_ENABLED;
     uint256 internal TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC;
 
+    bytes32 internal VERIFIER_DIGEST_1;
+    bytes32 internal VERIFIER_DIGEST_2;
+
     // accounts
     uint256 internal DEPLOYER_PRIVATE_KEY;
     uint256 internal L1_COMMIT_SENDER_PRIVATE_KEY;
@@ -167,6 +170,9 @@ abstract contract Configuration is Script {
 
         FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
         RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
+
+        VERIFIER_DIGEST_1 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_1"));
+        VERIFIER_DIGEST_2 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_2"));
 
         runSanityCheck();
     }
