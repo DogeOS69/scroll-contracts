@@ -125,8 +125,8 @@ abstract contract Configuration is Script {
 
         ALTERNATIVE_GAS_TOKEN_ENABLED = cfg.readBool(".gas-token.ALTERNATIVE_GAS_TOKEN_ENABLED");
 
-        // TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
-        // TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
+        TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
+        TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
 
         DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
         L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
@@ -168,8 +168,8 @@ abstract contract Configuration is Script {
         // ADMIN_SYSTEM_DASHBOARD_URI = cfg.readString(".frontend.ADMIN_SYSTEM_DASHBOARD_URI");
         // GRAFANA_URI = cfg.readString(".frontend.GRAFANA_URI");
 
-        // FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
-        // RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
+        FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
+        RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
 
         VERIFIER_DIGEST_1 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_1"));
         VERIFIER_DIGEST_2 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_2"));
