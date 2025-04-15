@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e # Exit immediately if a command exits with a non-zero status.
 
-IMAGE_REPO="shuunifra/scroll-stack-contracts"
+IMAGE_REPO="dogeos69/scroll-stack-contracts"
 latest_commit=$(git log -1 --pretty=format:%H)
 tag=${latest_commit}
 echo "Using Docker image tag base: $tag for repo: $IMAGE_REPO"
