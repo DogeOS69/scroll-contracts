@@ -5,18 +5,18 @@ export FOUNDRY_BYTECODE_HASH="none"
 
 # extract values from config file
 config_file="./volume/config.toml"
-CHAIN_ID_L1=$(grep -E "^CHAIN_ID_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2-)
-CHAIN_ID_L2=$(grep -E "^CHAIN_ID_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2-)
-RPC_URI_L1=$(grep -E "^RPC_URI_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-RPC_URI_L2=$(grep -E "^RPC_URI_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-VERIFIER_TYPE_L1=$(grep -E "^VERIFIER_TYPE_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-VERIFIER_TYPE_L2=$(grep -E "^VERIFIER_TYPE_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-EXPLORER_URI_L1=$(grep -E "^EXPLORER_URI_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-EXPLORER_URI_L2=$(grep -E "^EXPLORER_URI_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-EXPLORER_API_KEY_L1=$(grep -E "^EXPLORER_API_KEY_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-EXPLORER_API_KEY_L2=$(grep -E "^EXPLORER_API_KEY_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-ALTERNATIVE_GAS_TOKEN_ENABLED=$(grep -E "^ALTERNATIVE_GAS_TOKEN_ENABLED =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2-)
-TEST_ENV_MOCK_FINALIZE_ENABLED=$(grep -E "^TEST_ENV_MOCK_FINALIZE_ENABLED =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2-)
+CHAIN_ID_L1=$(grep -E "^[ \t]*CHAIN_ID_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '_'| tr -d '"')
+CHAIN_ID_L2=$(grep -E "^[ \t]*CHAIN_ID_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '_'| tr -d '"')
+RPC_URI_L1=$(grep -E "^[ \t]*RPC_URI_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
+RPC_URI_L2=$(grep -E "^[ \t]*RPC_URI_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
+VERIFIER_TYPE_L1=$(grep -E "^[ \t]*VERIFIER_TYPE_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
+VERIFIER_TYPE_L2=$(grep -E "^[ \t]*VERIFIER_TYPE_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
+EXPLORER_URI_L1=$(grep -E "^[ \t]*EXPLORER_URI_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
+EXPLORER_URI_L2=$(grep -E "^[ \t]*EXPLORER_URI_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
+EXPLORER_API_KEY_L1=$(grep -E "^[ \t]*EXPLORER_API_KEY_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
+EXPLORER_API_KEY_L2=$(grep -E "^[ \t]*EXPLORER_API_KEY_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
+ALTERNATIVE_GAS_TOKEN_ENABLED=$(grep -E "^[ \t]*ALTERNATIVE_GAS_TOKEN_ENABLED =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2-)
+TEST_ENV_MOCK_FINALIZE_ENABLED=$(grep -E "^[ \t]*TEST_ENV_MOCK_FINALIZE_ENABLED =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2-)
 
 # extract contract name and address
 extract_contract_info() {
@@ -45,6 +45,9 @@ get_source_code_name() {
       # L1_MULTIPLE_VERSION_ROLLUP_VERIFIER_ADDR ) echo MultipleVersionRollupVerifierSetOwner ;;
       # L1_GAS_PRICE_ORACLE_ADDR) echo L1GasPriceOracle ;;
       # L1_MESSAGE_QUEUE_V2_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
+      # L1_MESSAGE_QUEUE_V2_IMPLEMENTATION_ADDR) echo L1MessageQueueV2 ;;
+      # L1_SYSTEM_CONFIG_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
+      # L1_SYSTEM_CONFIG_IMPLEMENTATION_ADDR) echo SystemConfig ;;
 
       # Smart Contracts Verified on L2 Successfully
       L2_MESSAGE_QUEUE_ADDR) echo L2MessageQueue ;;
@@ -92,11 +95,11 @@ get_source_code_name() {
       # L1_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR) echo L1CustomERC20Gateway ;;
       # L1_ERC721_GATEWAY_IMPLEMENTATION_ADDR) echo L1ERC721Gateway ;;
       # L1_ERC1155_GATEWAY_IMPLEMENTATION_ADDR ) echo L1ERC1155Gateway ;;
-      # L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR) echo L2ScrollMessenger ;;
-      # L2_GATEWAY_ROUTER_IMPLEMENTATION_ADDR) echo L2GatewayRouter ;;
-      # L2_GATEWAY_ROUTER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
+      L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR) echo L2ScrollMessenger ;;
+      L2_GATEWAY_ROUTER_IMPLEMENTATION_ADDR) echo L2GatewayRouter ;;
+      L2_GATEWAY_ROUTER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       # L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR) echo L2StandardERC20Gateway ;;
-      # L2_ETH_GATEWAY_IMPLEMENTATION_ADDR) echo L2ETHGateway ;;
+      L2_ETH_GATEWAY_IMPLEMENTATION_ADDR) echo L2ETHGateway ;;
       # L2_WETH_GATEWAY_IMPLEMENTATION_ADDR) echo L2WETHGateway ;;
       # L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR) echo L2CustomERC20Gateway ;;
       # L2_ERC721_GATEWAY_IMPLEMENTATION_ADDR) echo L2ERC721Gateway ;;
@@ -147,6 +150,7 @@ while IFS= read -r line; do
   echo "verifing contract $contract_name with address $contract_addr on $layer"
   EXTRA_PARAMS=""
   if [[ "$layer" == "L1" ]]; then
+    echo "skip L1 verification"
     if [[ "$VERIFIER_TYPE_L1" == "etherscan" ]]; then
       EXTRA_PARAMS="--api-key $EXPLORER_API_KEY_L1"
     elif [[ "$VERIFIER_TYPE_L1" == "blockscout" ]]; then
