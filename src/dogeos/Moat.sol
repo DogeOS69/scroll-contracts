@@ -3,7 +3,7 @@
 pragma solidity =0.8.24;
 
 import { OwnableBase } from "../libraries/common/OwnableBase.sol";
-import { ReentrancyGuard } from "../../lib/solmate/src/utils/ReentrancyGuard.sol";
+import { ReentrancyGuard } from "solmate/utils/ReentrancyGuard.sol";
 import { IL2ScrollMessenger } from "../L2/IL2ScrollMessenger.sol";
 import { IBasculeVerifier } from "./IBasculeVerifier.sol";
 
@@ -116,12 +116,12 @@ contract Moat is OwnableBase, ReentrancyGuard {
      * @notice Handles execution of a verified L1->L2 message.
      * @dev Must be called by the designated L2 messenger. Requires message verification via Bascule.
      * Relays the call (and value) to the target address.
-     * @param _l1Sender The original L1 sender address (passed by the messenger).
+     * @param _l1Sender The original L1 sender address (passed by the messenger). Unsure if used in future depositID.
      * @param _target The target contract address on L2.
      * @param _data The calldata for the target contract.
      */
     function handleL1Message(
-        address _l1Sender,
+        address /* _l1Sender */, // Unsure if used in future depositID or if we want an Event using it.
         address _target,
         bytes calldata _data
     ) external payable nonReentrant {
@@ -182,7 +182,7 @@ contract Moat is OwnableBase, ReentrancyGuard {
         address payable feeRecip = payable(feeRecipient);
         if (feeRecip != address(0) && fee > 0) {
             // Use call to avoid potential gas stipend issues with transfer()
-            (bool success, ) = feeRecip.call{ value: fee }("");
+            feeRecip.call{ value: fee }("");
             // If fee transfer fails, it shouldn't block the withdrawal, maybe just emit an event?
             // For now, we'll proceed regardless of fee transfer success.
             // require(success, "Fee transfer failed"); // Uncomment if fee transfer failure should revert.
