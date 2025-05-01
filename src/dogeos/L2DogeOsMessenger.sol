@@ -45,11 +45,11 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
 
     /**
      * @notice Overrides the L1 -> L2 message execution logic.
-     * Routes messages intended for non-Moat addresses through the Moat.
+     * Ensures that messages relayed via this messenger are only executed if targeting the MOAT address.
      * @param _from The L1 sender address.
      * @param _to The originally intended L2 recipient address.
      * @param _value The ETH value sent with the message.
-     * @param _message The message calldata.
+     * @param _message The encoded calldata intended for the target (_to).
      * @param _xDomainCalldataHash The hash of the cross-domain message calldata.
      */
     function _executeMessage(
@@ -59,14 +59,19 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         bytes memory _message,
         bytes32 _xDomainCalldataHash
     ) internal virtual override {
-
         // Only allow messages destined for the Moat address.
         if (_to != MOAT) {
             revert ErrorNotMoatAddress(_to, MOAT);
         }
 
         // If the message is for the Moat, proceed with original execution logic.
-        super._executeMessage(_from, _to, _value, _message, _xDomainCalldataHash);
+        super._executeMessage({ 
+            _from: _from,
+            _to: _to,
+            _value: _value,
+            _message: _message,
+            _xDomainCalldataHash: _xDomainCalldataHash 
+        });
     }
 
     /**
@@ -82,7 +87,7 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         uint256 _value,
         bytes memory _message,
         uint256 _gasLimit
-    ) internal virtual override nonReentrant {
+    ) internal virtual override {
         // Require that the caller is the MOAT contract.
         if (msg.sender != MOAT) {
             revert ErrorSenderNotMoat(msg.sender, MOAT);

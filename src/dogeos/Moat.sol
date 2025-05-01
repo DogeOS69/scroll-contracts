@@ -27,11 +27,12 @@ contract Moat is OwnableBase, ReentrancyGuard {
     event FeeRecipientUpdated(address indexed oldRecip, address indexed newRecip);
     event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
+    event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
 
     // --- State Variables --- //
 
     /// @notice The L2 messenger contract used for L2->L1 communication.
-    address public immutable MESSENGER;
+    address public messenger;
 
     /// @notice The Bascule verifier contract for checking L1 message validity.
     address public basculeVerifier;
@@ -49,18 +50,28 @@ contract Moat is OwnableBase, ReentrancyGuard {
 
     /**
      * @notice Constructor
-     * @param _messenger The address of the L2DogeOsMessenger.
      * @param _initialOwner The initial owner of the Moat contract.
      */
-    constructor(address _messenger, address _initialOwner) {
-        if (_messenger == address(0)) {
-            revert ErrorZeroAddress();
-        }
-        MESSENGER = _messenger;
+    constructor(address _initialOwner) {
+        // Messenger address must be set separately via updateMessenger()
         _transferOwnership(_initialOwner); // Initialize ownership
     }
 
     // --- Setters (Owner Restricted) --- //
+
+    /**
+     * @notice Update the L2 messenger contract address.
+     * @dev Can only be called by the owner. Emits a {MessengerUpdated} event.
+     * @param _newMessenger The new L2 messenger address.
+     */
+    function updateMessenger(address _newMessenger) external onlyOwner {
+        if (_newMessenger == address(0)) {
+            revert ErrorZeroAddress();
+        }
+        address oldMessenger = messenger;
+        messenger = _newMessenger;
+        emit MessengerUpdated(oldMessenger, _newMessenger);
+    }
 
     /**
      * @notice Update the withdrawal fee.
@@ -121,12 +132,15 @@ contract Moat is OwnableBase, ReentrancyGuard {
      * @param _data The calldata for the target contract.
      */
     function handleL1Message(
-        address /* _l1Sender */, // Unsure if used in future depositID or if we want an Event using it.
+        address _l1Sender, // Unsure if used in future depositID or if we want an Event using it.
         address _target,
         bytes calldata _data
     ) external payable nonReentrant {
         // Check 1: Caller must be the messenger this Moat is configured for.
-        address _messenger = MESSENGER;
+        address _messenger = messenger;
+        if (_messenger == address(0)) {
+            revert ErrorZeroAddress();
+        }
         if (msg.sender != _messenger) {
             revert ErrorOnlyMessenger(msg.sender, _messenger);
         }
@@ -155,13 +169,9 @@ contract Moat is OwnableBase, ReentrancyGuard {
      * @notice Initiates a withdrawal from L2 to L1 via the L2 messenger.
      * @dev Requires withdrawal fee and minimum amount checks.
      * @param _target The recipient address on L1.
-     * @param _gasLimit Gas limit for the L1 execution of the message.
-     * @param _data The calldata for the L1 target contract.
      */
     function withdrawToL1(
-        address _target,
-        uint256 _gasLimit,
-        bytes calldata _data
+        address _target
     ) external payable nonReentrant {
         uint256 fee = withdrawalFee;
         uint256 minAmount = minWithdrawalAmount;
@@ -189,11 +199,11 @@ contract Moat is OwnableBase, ReentrancyGuard {
         }
 
         // Send the message via the L2 messenger.
-        IL2ScrollMessenger(MESSENGER).sendMessage{ value: amountAfterFee }(
+        IL2ScrollMessenger(messenger).sendMessage{ value: amountAfterFee }(
             _target,
             amountAfterFee, // Send the value after fee deduction
-            _data,
-            _gasLimit
+            bytes(""), 
+            0
         );
 
         // Emit event.
