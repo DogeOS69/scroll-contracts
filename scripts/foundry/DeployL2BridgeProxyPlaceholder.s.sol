@@ -56,7 +56,7 @@ contract DeployL2BridgeProxyPlaceholder is Script {
             new bytes(0)
         );
 
-        logAddress("L2_SCROLL_MESSENGER_PROXY_ADDR", address(proxy));
+        logAddress("L2_DOGEOS_MESSENGER_PROXY_ADDR", address(proxy));
     }
 
     function deployL2StandardERC20Gateway() internal {

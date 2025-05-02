@@ -73,8 +73,8 @@ abstract contract Configuration is Script {
 
     // contracts
     string internal DEPLOYMENT_SALT;
-
     address internal L1_FEE_VAULT_ADDR;
+    address internal L2_FEE_RECIPIENT;
 
     // coordinator
     string internal CHUNK_COLLECTION_TIME_SEC;
@@ -153,6 +153,7 @@ abstract contract Configuration is Script {
         DEPLOYMENT_SALT = cfg.readString(".contracts.DEPLOYMENT_SALT");
 
         L1_FEE_VAULT_ADDR = cfg.readAddress(".contracts.L1_FEE_VAULT_ADDR");
+        L2_FEE_RECIPIENT = cfg.readAddress(".contracts.L2_FEE_RECIPIENT");
 
         // CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
         // BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");

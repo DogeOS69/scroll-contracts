@@ -44,8 +44,8 @@ contract InitializeL2BridgeContracts is Script {
     address L2_WHITELIST_ADDR = vm.envAddress("L2_WHITELIST_ADDR");
     address L2_MESSAGE_QUEUE_ADDR = vm.envAddress("L2_MESSAGE_QUEUE_ADDR");
 
-    address L2_SCROLL_MESSENGER_PROXY_ADDR = vm.envAddress("L2_SCROLL_MESSENGER_PROXY_ADDR");
-    address L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR = vm.envAddress("L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR");
+    address L2_DOGEOS_MESSENGER_PROXY_ADDR = vm.envAddress("L2_DOGEOS_MESSENGER_PROXY_ADDR");
+    address L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = vm.envAddress("L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR");
     address L2_GATEWAY_ROUTER_PROXY_ADDR = vm.envAddress("L2_GATEWAY_ROUTER_PROXY_ADDR");
     address L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR");
     address L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR = vm.envAddress("L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR");
@@ -71,21 +71,21 @@ contract InitializeL2BridgeContracts is Script {
         // otherwise the contract owner would become ProxyAdmin.
 
         // initialize L2MessageQueue
-        L2MessageQueue(L2_MESSAGE_QUEUE_ADDR).initialize(L2_SCROLL_MESSENGER_PROXY_ADDR);
+        L2MessageQueue(L2_MESSAGE_QUEUE_ADDR).initialize(L2_DOGEOS_MESSENGER_PROXY_ADDR);
 
         // initialize L2TxFeeVault
-        L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).updateMessenger(L2_SCROLL_MESSENGER_PROXY_ADDR);
+        L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
 
         // initialize L1GasPriceOracle
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).updateWhitelist(L2_WHITELIST_ADDR);
 
         // initialize L2ScrollMessenger
         proxyAdmin.upgrade(
-            ITransparentUpgradeableProxy(L2_SCROLL_MESSENGER_PROXY_ADDR),
-            L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR
+            ITransparentUpgradeableProxy(L2_DOGEOS_MESSENGER_PROXY_ADDR),
+            L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR
         );
 
-        L2ScrollMessenger(payable(L2_SCROLL_MESSENGER_PROXY_ADDR)).initialize(L1_SCROLL_MESSENGER_PROXY_ADDR);
+        L2ScrollMessenger(payable(L2_DOGEOS_MESSENGER_PROXY_ADDR)).initialize(L1_SCROLL_MESSENGER_PROXY_ADDR);
 
         // initialize L2GatewayRouter
         L2GatewayRouter(L2_GATEWAY_ROUTER_PROXY_ADDR).initialize(
@@ -102,7 +102,7 @@ contract InitializeL2BridgeContracts is Script {
         L2CustomERC20Gateway(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR).initialize(
             L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR,
             L2_GATEWAY_ROUTER_PROXY_ADDR,
-            L2_SCROLL_MESSENGER_PROXY_ADDR
+            L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
 
         // initialize L2ERC1155Gateway
@@ -113,7 +113,7 @@ contract InitializeL2BridgeContracts is Script {
 
         L2ERC1155Gateway(L2_ERC1155_GATEWAY_PROXY_ADDR).initialize(
             L1_ERC1155_GATEWAY_PROXY_ADDR,
-            L2_SCROLL_MESSENGER_PROXY_ADDR
+            L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
 
         // initialize L2ERC721Gateway
@@ -124,7 +124,7 @@ contract InitializeL2BridgeContracts is Script {
 
         L2ERC721Gateway(L2_ERC721_GATEWAY_PROXY_ADDR).initialize(
             L1_ERC721_GATEWAY_PROXY_ADDR,
-            L2_SCROLL_MESSENGER_PROXY_ADDR
+            L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
 
         // initialize L2ETHGateway
@@ -133,7 +133,7 @@ contract InitializeL2BridgeContracts is Script {
         L2ETHGateway(L2_ETH_GATEWAY_PROXY_ADDR).initialize(
             L1_ETH_GATEWAY_PROXY_ADDR,
             L2_GATEWAY_ROUTER_PROXY_ADDR,
-            L2_SCROLL_MESSENGER_PROXY_ADDR
+            L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
 
         // initialize L2StandardERC20Gateway
@@ -145,7 +145,7 @@ contract InitializeL2BridgeContracts is Script {
         L2StandardERC20Gateway(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR).initialize(
             L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR,
             L2_GATEWAY_ROUTER_PROXY_ADDR,
-            L2_SCROLL_MESSENGER_PROXY_ADDR,
+            L2_DOGEOS_MESSENGER_PROXY_ADDR,
             L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR
         );
 
@@ -158,7 +158,7 @@ contract InitializeL2BridgeContracts is Script {
         L2WETHGateway(payable(L2_WETH_GATEWAY_PROXY_ADDR)).initialize(
             L1_WETH_GATEWAY_PROXY_ADDR,
             L2_GATEWAY_ROUTER_PROXY_ADDR,
-            L2_SCROLL_MESSENGER_PROXY_ADDR
+            L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
 
         // set WETH gateway in router
