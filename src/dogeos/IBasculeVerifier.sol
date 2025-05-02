@@ -14,5 +14,5 @@ interface IBasculeVerifier {
      * @param depositID Unique identifier of the deposit on another chain.
      * @param withdrawalAmount Amount of the withdrawal.
      */
-    function validateWithdrawal(bytes32 depositID, uint256 withdrawalAmount) external; // Not view, as implementation might change state (though IBascule's doesn't)
+    function validateWithdrawal(bytes32 depositID, uint256 withdrawalAmount) external;
 } 

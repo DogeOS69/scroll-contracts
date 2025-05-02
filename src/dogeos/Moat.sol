@@ -192,7 +192,7 @@ contract Moat is OwnableBase, ReentrancyGuard {
         address payable feeRecip = payable(feeRecipient);
         if (feeRecip != address(0) && fee > 0) {
             // Use call to avoid potential gas stipend issues with transfer()
-            feeRecip.call{ value: fee }("");
+            (bool success, ) = feeRecip.call{ value: fee }("");
             // If fee transfer fails, it shouldn't block the withdrawal, maybe just emit an event?
             // For now, we'll proceed regardless of fee transfer success.
             // require(success, "Fee transfer failed"); // Uncomment if fee transfer failure should revert.

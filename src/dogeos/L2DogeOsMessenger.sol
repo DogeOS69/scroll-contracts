@@ -28,17 +28,17 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
      * @notice Constructor
      * @param _counterpart The address of the L1 counterpart messenger.
      * @param _messageQueue The address of the L2 Message Queue predeploy.
-     * @param _initialMoat The initial address of the DogeOS Moat contract.
+     * @param _moat The address of the DogeOS Moat contract.
      */
     constructor(
         address _counterpart,
         address _messageQueue,
-        address _initialMoat
+        address _moat
     ) L2ScrollMessenger(_counterpart, _messageQueue) {
-        if (_initialMoat == address(0)) {
+        if (_moat == address(0)) {
             revert ErrorZeroMoatAddress();
         }
-        MOAT = _initialMoat;
+        MOAT = _moat;
     }
 
     // --- Overridden Internal Functions --- //
