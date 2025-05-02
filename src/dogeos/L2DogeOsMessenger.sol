@@ -21,6 +21,7 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
     /// @notice The immutable address of the DogeOS Moat contract.
     /// @dev Only messages directed to this address will be executed.
     address public immutable MOAT;
+    address public immutable FEE_VAULT;
 
     // --- Constructor --- //
 
@@ -29,16 +30,19 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
      * @param _counterpart The address of the L1 counterpart messenger.
      * @param _messageQueue The address of the L2 Message Queue predeploy.
      * @param _moat The address of the DogeOS Moat contract.
+     * @param _feeVault The address of the L2TxFeeVault contract.
      */
     constructor(
         address _counterpart,
         address _messageQueue,
-        address _moat
+        address _moat,
+        address _feeVault
     ) L2ScrollMessenger(_counterpart, _messageQueue) {
         if (_moat == address(0)) {
             revert ErrorZeroMoatAddress();
         }
         MOAT = _moat;
+        FEE_VAULT = _feeVault;
     }
 
     // --- Overridden Internal Functions --- //
@@ -89,7 +93,7 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         uint256 _gasLimit
     ) internal virtual override {
         // Require that the caller is the MOAT contract.
-        if (msg.sender != MOAT) {
+        if (msg.sender != MOAT || msg.sender != FEE_VAULT) {
             revert ErrorSenderNotMoat(msg.sender, MOAT);
         }
 
