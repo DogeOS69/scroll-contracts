@@ -127,14 +127,12 @@ contract Moat is OwnableBase, ReentrancyGuard {
      * @notice Handles execution of a verified L1->L2 message.
      * @dev Must be called by the designated L2 messenger. Requires message verification via Bascule.
      * Relays the call (and value) to the target address.
-     * @param _l1Sender The original L1 sender address (passed by the messenger). Unsure if used in future depositID.
-     * @param _target The target contract address on L2.
-     * @param _data The calldata for the target contract.
+     * @param _target The target receipient address on L2.
+     * @param _depositID The L1 deposit ID (expected to be bytes32).
      */
     function handleL1Message(
-        address _l1Sender, // Unsure if used in future depositID or if we want an Event using it.
         address _target,
-        bytes calldata _data
+        bytes calldata _depositID
     ) external payable nonReentrant {
         // Check 1: Caller must be the messenger this Moat is configured for.
         address _messenger = messenger;
@@ -148,18 +146,19 @@ contract Moat is OwnableBase, ReentrancyGuard {
         // Check 2: Message must be verified by the Bascule verifier (if configured).
         address _verifier = basculeVerifier;
         if (_verifier != address(0)) {
-            // Assuming _data is the bytes32 depositID
-            if (_data.length != 32) {
-                revert ErrorInvalidDataLength(_data.length);
+            // Assuming _depositID is the bytes32 depositID
+            if (_depositID.length != 32) {
+                revert ErrorInvalidDataLength(_depositID.length);
             }
-            bytes32 depositID = bytes32(_data);
+            bytes32 depositID = bytes32(_depositID);
             uint256 withdrawalAmount = msg.value;
             // validateWithdrawal is expected to revert on failure
             IBasculeVerifier(_verifier).validateWithdrawal(depositID, withdrawalAmount);
         }
 
         // Execute the call to the target contract.
-        (bool ok, ) = _target.call{ value: msg.value }(_data);
+        // Forward the original _depositID calldata to the target
+        (bool ok, ) = _target.call{ value: msg.value }(_depositID);
         if (!ok) {
             revert ErrorTargetRevert();
         }

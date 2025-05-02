@@ -127,15 +127,13 @@ contract L2DogeOsMessengerTest is Test {
     // Test that relayMessage succeeds when called by the counterparty and _to is the Moat.
     function testRelayToMoatSuccess() external {
         address l1Sender = address(0xabc);
-        address finalTarget = address(0xdef); // The contract Moat should call
+        address finalTarget = address(0xdef);
         address targetMoat = address(_moat);
-        uint256 value = 1 ether; // Send some value
+        uint256 value = 1 ether;
         uint256 nonce = 456;
-        // Example deposit ID, ensure it's bytes32 for Moat.handleL1Message
         bytes memory finalCalldata = abi.encode(bytes32(uint256(0x12345)));
         bytes memory message = abi.encodeWithSignature(
-            "handleL1Message(address,address,bytes)",
-            l1Sender,
+            "handleL1Message(address,bytes)",
             finalTarget,
             finalCalldata
         );
@@ -249,8 +247,7 @@ contract L2DogeOsMessengerTest is Test {
 
         bytes memory finalCalldata = abi.encode(depositID);
         bytes memory message = abi.encodeWithSignature(
-            "handleL1Message(address,address,bytes)",
-            l1Sender,
+            "handleL1Message(address,bytes)",
             finalTarget,
             finalCalldata
         );
@@ -302,9 +299,8 @@ contract L2DogeOsMessengerTest is Test {
 
         // The message intends to call handleL1Message on Moat, which will then call the revertingTarget
         bytes memory message = abi.encodeWithSignature(
-            "handleL1Message(address,address,bytes)",
-            l1Sender,
-            address(revertingTarget), // Final target is the reverting contract
+            "handleL1Message(address,bytes)",
+            address(revertingTarget),
             finalCalldata
         );
 
