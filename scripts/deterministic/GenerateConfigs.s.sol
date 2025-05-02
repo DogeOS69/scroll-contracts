@@ -285,7 +285,7 @@ contract GenerateBalanceCheckerConfig is DeployScroll {
         vm.writeJson(vm.toString(L2_TX_FEE_VAULT_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[5].address");
 
         vm.writeJson(L2_RPC_ENDPOINT, BALANCE_CHECKER_CONFIG_PATH, ".addresses[6].rpc_url");
-        vm.writeJson(vm.toString(L2_FEE_RECIPIENT), BALANCE_CHECKER_CONFIG_PATH, ".addresses[6].address");
+        vm.writeJson(vm.toString(L2_FEE_RECIPIENT_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[6].address");
     }
 }
 

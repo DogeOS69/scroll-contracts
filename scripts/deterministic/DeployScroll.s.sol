@@ -1291,8 +1291,7 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deployL2Moat() private {
-        bytes memory args = abi.encode(notnull(DEPLOYER_ADDR));
-
+        bytes memory args = abi.encode(notnull(msg.sender));
         L2_MOAT_IMPLEMENTATION_ADDR = deploy("L2_MOAT_IMPLEMENTATION", type(Moat).creationCode, args);
 
         upgrade(L2_PROXY_ADMIN_ADDR, L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR);
@@ -1667,10 +1666,16 @@ contract DeployScroll is DeterministicDeployment {
 
     function initializeMoat() private {
         Moat moat = Moat(payable(L2_MOAT_PROXY_ADDR));
+        console.log("Moat owner=", moat.owner());
+        console.log("caller=", msg.sender);
         moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
         moat.setFee(1e17);
         moat.setMinWithdrawal(1e18);
-        moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
+        if (L2_FEE_RECIPIENT_ADDR != 0x0000000000000000000000000000000000000000) {
+            moat.setFeeRecipient(L2_FEE_RECIPIENT_ADDR);
+        } else {
+            moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
+        }
         moat.setBascule(L2_BASCULE_MOCK_VERIFIER_ADDR);
     }
 
@@ -1693,7 +1698,8 @@ contract DeployScroll is DeterministicDeployment {
         }
 
         //TODO: Maybe Moat should inherit from OwnableUpgradeable like other contracts
-        Moat(L2_MOAT_PROXY_ADDR).transferOwnership(OWNER_ADDR);
+        Moat moat = Moat(L2_MOAT_PROXY_ADDR);
+        moat.transferOwnership(OWNER_ADDR);
     }
 
     function initializeSystemConfig() private {
