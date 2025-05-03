@@ -104,6 +104,9 @@ get_source_code_name() {
       # L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR) echo L2CustomERC20Gateway ;;
       # L2_ERC721_GATEWAY_IMPLEMENTATION_ADDR) echo L2ERC721Gateway ;;
       # L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR) echo L2ERC1155Gateway ;;
+      L2_MOAT_IMPLEMENTATION_ADDR) echo Moat ;;
+      L2_MOAT_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
+      L2_BASCULE_MOCK_VERIFIER_ADDR) echo BasculeMockVerifier ;;
       *) echo "" ;; # default: return void string
     esac
   fi
