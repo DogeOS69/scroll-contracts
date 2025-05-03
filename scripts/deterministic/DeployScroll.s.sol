@@ -408,7 +408,6 @@ contract DeployScroll is DeterministicDeployment {
 
         // alternative gas token contracts
         deployL1GasTokenGateway();
-        deployL2Moat();
         //deployL1WrappedTokenGateway();
     }
 
@@ -424,6 +423,7 @@ contract DeployScroll is DeterministicDeployment {
         // deployL2ERC721Gateway();
         // deployL2ERC1155Gateway();
         deployL2BasculeMockVerifier();
+        deployL2Moat();
     }
 
     // @notice initializeL1Contracts initializes contracts deployed on L1.
@@ -468,7 +468,7 @@ contract DeployScroll is DeterministicDeployment {
         initializeL2WETHGateway();
         //initializeScrollStandardERC20Factory();
         initializeL2Whitelist();
-        initializeMoat();
+        initializeL2Moat();
         transferL2ContractOwnership();
     }
 
@@ -1291,7 +1291,7 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deployL2Moat() private {
-        bytes memory args = abi.encode(notnull(msg.sender));
+        bytes memory args = new bytes(0);
         L2_MOAT_IMPLEMENTATION_ADDR = deploy("L2_MOAT_IMPLEMENTATION", type(Moat).creationCode, args);
 
         upgrade(L2_PROXY_ADMIN_ADDR, L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR);
@@ -1664,14 +1664,14 @@ contract DeployScroll is DeterministicDeployment {
         }
     }
 
-    function initializeMoat() private {
-        Moat moat = Moat(payable(L2_MOAT_PROXY_ADDR));
-        console.log("Moat owner=", moat.owner());
-        console.log("caller=", msg.sender);
+    function initializeL2Moat() private {
+        Moat moat = Moat(L2_MOAT_PROXY_ADDR);
+        //must initialize first, the following calls will revert if owner is not current caller
+        moat.initialize(DEPLOYER_ADDR);
         moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
-        moat.setFee(1e17);
-        moat.setMinWithdrawal(1e18);
-        if (L2_FEE_RECIPIENT_ADDR != 0x0000000000000000000000000000000000000000) {
+        moat.setFee(0.1 ether);
+        moat.setMinWithdrawal(1 ether);
+        if (L2_FEE_RECIPIENT_ADDR != address(0)) {
             moat.setFeeRecipient(L2_FEE_RECIPIENT_ADDR);
         } else {
             moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
