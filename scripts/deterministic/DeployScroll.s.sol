@@ -1157,7 +1157,8 @@ contract DeployScroll is DeterministicDeployment {
         bytes memory args = abi.encode(
             notnull(L1_SCROLL_MESSENGER_PROXY_ADDR),
             notnull(L2_MESSAGE_QUEUE_ADDR),
-            notnull(L2_MOAT_PROXY_ADDR)
+            notnull(L2_MOAT_PROXY_ADDR),
+            notnull(L2_TX_FEE_VAULT_ADDR)
         );
 
         L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = deploy(
