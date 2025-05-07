@@ -58,7 +58,8 @@ contract L2DogeOsMessengerTest is Test {
         _l2Messenger = new L2DogeOsMessenger(
             address(_l1Messenger), // counterpart
             address(_l2MessageQueue), // messageQueue
-            address(_moat) // initialMoat
+            address(_moat), // initialMoat
+            address(0xfee)
         );
 
         // Link Moat back to Messenger (requires owner call)
