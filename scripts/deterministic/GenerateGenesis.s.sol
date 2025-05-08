@@ -158,7 +158,7 @@ contract GenerateGenesis is DeployScroll {
         if (!ALTERNATIVE_GAS_TOKEN_ENABLED) {
             L2TxFeeVault _vault = new L2TxFeeVault(DEPLOYER_ADDR, L1_FEE_VAULT_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT);
             vm.prank(DEPLOYER_ADDR);
-            _vault.updateMessenger(L2_SCROLL_MESSENGER_PROXY_ADDR);
+            _vault.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
             _vaultAddr = address(_vault);
         } else {
             L2TxFeeVaultWithGasToken _vault = new L2TxFeeVaultWithGasToken(
@@ -200,7 +200,7 @@ contract GenerateGenesis is DeployScroll {
     }
 
     function setL2ScrollMessenger() internal {
-        vm.deal(L2_SCROLL_MESSENGER_PROXY_ADDR, L2_SCROLL_MESSENGER_INITIAL_BALANCE);
+        vm.deal(L2_DOGEOS_MESSENGER_PROXY_ADDR, L2_SCROLL_MESSENGER_INITIAL_BALANCE);
     }
 
     function setL2Deployer() internal {
@@ -244,14 +244,14 @@ contract GenerateGenesis is DeployScroll {
             vm.toString(L1_MESSAGE_QUEUE_V1_PROXY_ADDR),
             GENESIS_JSON_PATH,
             ".config.scroll.l1Config.l1MessageQueueAddress"
-        );        
-	
-	vm.writeJson(
+        );
+
+        vm.writeJson(
             vm.toString(L1_SCROLL_CHAIN_PROXY_ADDR),
             GENESIS_JSON_PATH,
             ".config.scroll.l1Config.scrollChainAddress"
-	);
-	
+        );
+
         vm.writeJson(
             vm.toString(L1_MESSAGE_QUEUE_V2_PROXY_ADDR),
             GENESIS_JSON_PATH,

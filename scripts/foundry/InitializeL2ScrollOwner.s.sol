@@ -49,7 +49,7 @@ contract InitializeL2ScrollOwner is Script {
     address L2_WHITELIST_ADDR = vm.envAddress("L2_WHITELIST_ADDR");
     address L2_MESSAGE_QUEUE_ADDR = vm.envAddress("L2_MESSAGE_QUEUE_ADDR");
 
-    address L2_SCROLL_MESSENGER_PROXY_ADDR = vm.envAddress("L2_SCROLL_MESSENGER_PROXY_ADDR");
+    address L2_DOGEOS_MESSENGER_PROXY_ADDR = vm.envAddress("L2_DOGEOS_MESSENGER_PROXY_ADDR");
     address L2_GATEWAY_ROUTER_PROXY_ADDR = vm.envAddress("L2_GATEWAY_ROUTER_PROXY_ADDR");
     address L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR");
     address L2_DAI_GATEWAY_PROXY_ADDR = vm.envAddress("L2_DAI_GATEWAY_PROXY_ADDR");
@@ -96,7 +96,7 @@ contract InitializeL2ScrollOwner is Script {
         Ownable(L1_GAS_PRICE_ORACLE_ADDR).transferOwnership(address(owner));
         Ownable(L2_TX_FEE_VAULT_ADDR).transferOwnership(address(owner));
         Ownable(L2_WHITELIST_ADDR).transferOwnership(address(owner));
-        Ownable(L2_SCROLL_MESSENGER_PROXY_ADDR).transferOwnership(address(owner));
+        Ownable(L2_DOGEOS_MESSENGER_PROXY_ADDR).transferOwnership(address(owner));
         Ownable(L2_GATEWAY_ROUTER_PROXY_ADDR).transferOwnership(address(owner));
         Ownable(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR).transferOwnership(address(owner));
         Ownable(L2_DAI_GATEWAY_PROXY_ADDR).transferOwnership(address(owner));
@@ -169,8 +169,8 @@ contract InitializeL2ScrollOwner is Script {
         // no delay, scroll multisig and emergency multisig
         _selectors = new bytes4[](1);
         _selectors[0] = ScrollMessengerBase.setPause.selector;
-        owner.updateAccess(L2_SCROLL_MESSENGER_PROXY_ADDR, _selectors, SCROLL_MULTISIG_NO_DELAY_ROLE, true);
-        owner.updateAccess(L2_SCROLL_MESSENGER_PROXY_ADDR, _selectors, EMERGENCY_MULTISIG_NO_DELAY_ROLE, true);
+        owner.updateAccess(L2_DOGEOS_MESSENGER_PROXY_ADDR, _selectors, SCROLL_MULTISIG_NO_DELAY_ROLE, true);
+        owner.updateAccess(L2_DOGEOS_MESSENGER_PROXY_ADDR, _selectors, EMERGENCY_MULTISIG_NO_DELAY_ROLE, true);
     }
 
     function configL2GatewayRouter() internal {
