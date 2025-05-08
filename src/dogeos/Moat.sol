@@ -64,7 +64,7 @@ contract Moat is OwnableBase, ReentrancyGuard {
      * @notice Initialize the Moat contract owner.
      * @param _initialOwner The new owner of the Moat contract.
      */
-    function initialize(address _initialOwner) public {
+    function initialize(address _initialOwner) external {
         require(owner == address(0), "Moat already initialized");
         _transferOwnership(_initialOwner);
     }
