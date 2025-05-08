@@ -25,7 +25,7 @@ contract DeployLidoGateway is Script {
     address L1_GATEWAY_ROUTER_PROXY_ADDR = vm.envAddress("L1_GATEWAY_ROUTER_PROXY_ADDR");
     address L1_LIDO_GATEWAY_PROXY_ADDR = vm.envAddress("L1_LIDO_GATEWAY_PROXY_ADDR");
 
-    address L2_SCROLL_MESSENGER_PROXY_ADDR = vm.envAddress("L2_SCROLL_MESSENGER_PROXY_ADDR");
+    address L2_DOGEOS_MESSENGER_PROXY_ADDR = vm.envAddress("L2_DOGEOS_MESSENGER_PROXY_ADDR");
     address L2_GATEWAY_ROUTER_PROXY_ADDR = vm.envAddress("L2_GATEWAY_ROUTER_PROXY_ADDR");
     address L2_LIDO_GATEWAY_PROXY_ADDR = vm.envAddress("L2_LIDO_GATEWAY_PROXY_ADDR");
 
@@ -49,7 +49,7 @@ contract DeployLidoGateway is Script {
                 L2_WSTETH_ADDR,
                 L1_LIDO_GATEWAY_PROXY_ADDR,
                 L2_GATEWAY_ROUTER_PROXY_ADDR,
-                L2_SCROLL_MESSENGER_PROXY_ADDR
+                L2_DOGEOS_MESSENGER_PROXY_ADDR
             );
             logAddress("L2_LIDO_GATEWAY_IMPLEMENTATION_ADDR", address(gateway));
         }

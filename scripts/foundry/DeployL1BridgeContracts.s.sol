@@ -52,7 +52,7 @@ contract DeployL1BridgeContracts is Script {
     address L1_SYSTEM_CONFIG_PROXY_ADDR = vm.envAddress("L1_SYSTEM_CONFIG_PROXY_ADDR");
     address L1_FEE_VAULT_ADDR = vm.envAddress("L1_FEE_VAULT_ADDR");
 
-    address L2_SCROLL_MESSENGER_PROXY_ADDR = vm.envAddress("L2_SCROLL_MESSENGER_PROXY_ADDR");
+    address L2_DOGEOS_MESSENGER_PROXY_ADDR = vm.envAddress("L2_DOGEOS_MESSENGER_PROXY_ADDR");
     address L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR");
     address L2_ERC721_GATEWAY_PROXY_ADDR = vm.envAddress("L2_ERC721_GATEWAY_PROXY_ADDR");
     address L2_ERC1155_GATEWAY_PROXY_ADDR = vm.envAddress("L2_ERC1155_GATEWAY_PROXY_ADDR");
@@ -153,7 +153,7 @@ contract DeployL1BridgeContracts is Script {
 
     function deployL1ScrollMessenger() internal {
         L1ScrollMessenger impl = new L1ScrollMessenger(
-            L2_SCROLL_MESSENGER_PROXY_ADDR,
+            L2_DOGEOS_MESSENGER_PROXY_ADDR,
             L1_SCROLL_CHAIN_PROXY_ADDR,
             L1_MESSAGE_QUEUE_V1_PROXY_ADDR,
             L1_MESSAGE_QUEUE_V2_PROXY_ADDR

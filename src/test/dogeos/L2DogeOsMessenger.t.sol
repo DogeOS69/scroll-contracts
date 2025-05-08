@@ -50,13 +50,15 @@ contract L2DogeOsMessengerTest is Test {
 
         // Moat needs owner at deployment
         address moatOwner = address(this);
-        _moat = new Moat(moatOwner);
+        _moat = new Moat();
+        _moat.initialize(moatOwner);
 
         // Messenger needs Moat address at deployment
         _l2Messenger = new L2DogeOsMessenger(
             address(_l1Messenger), // counterpart
             address(_l2MessageQueue), // messageQueue
-            address(_moat) // initialMoat
+            address(_moat), // initialMoat
+            address(0xfee)
         );
 
         // Link Moat back to Messenger (requires owner call)

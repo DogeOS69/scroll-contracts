@@ -92,8 +92,8 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         bytes memory _message,
         uint256 _gasLimit
     ) internal virtual override {
-        // Require that the caller is the MOAT contract.
-        if (msg.sender != MOAT || msg.sender != FEE_VAULT) {
+        // Require that the caller is the MOAT contract or the fee vault.
+        if (msg.sender != MOAT && msg.sender != FEE_VAULT) {
             revert ErrorSenderNotMoat(msg.sender, MOAT);
         }
 

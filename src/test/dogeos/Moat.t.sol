@@ -123,7 +123,8 @@ contract MoatTest is Test {
 
         // Deploy Moat (owned by _owner)
         vm.prank(_owner);
-        _moat = new Moat(_owner);
+        _moat = new Moat();
+        _moat.initialize(_owner);
 
         // Deploy Mock Messenger (simpler constructor)
         _mockMessenger = new MockScrollMessenger(
