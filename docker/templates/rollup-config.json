@@ -1,34 +1,27 @@
 {
   "l1_config": {
-    "endpoint": null,
+    "endpoint": "https://rpc.ankr.com/eth",
     "start_height": 0,
     "relayer_config": {
-      "gas_price_oracle_contract_address": null,
+      "gas_price_oracle_address": "0x0000000000000000000000000000000000000000",
       "sender_config": {
-        "endpoint": null,
-        "escalate_blocks": 100,
-        "escalate_multiple_num": 11,
-        "escalate_multiple_den": 10,
-        "min_gas_tip": 1,
-        "max_gas_price": 10000000000000,
-        "tx_type": "DynamicFeeTx",
-        "check_pending_time": 3,
-        "confirmations": "0x0"
+        "endpoint": "https://rpc.scroll.io",
+        "escalate_blocks": 1,
+        "confirmations": "0x0",
+        "escalate_multiple_num": 2,
+        "escalate_multiple_den": 1,
+        "max_gas_price": 1000000000000,
+        "tx_type": "LegacyTx",
+        "check_pending_time": 1,
+        "min_gas_tip": 100000000
       },
       "gas_oracle_config": {
         "min_gas_price": 0,
         "gas_price_diff": 50000,
-        "l1_base_fee_weight": 0.086,
-        "l1_blob_base_fee_weight": 0.030,
         "check_committed_batches_window_minutes": 5,
         "l1_base_fee_default": 15000000000,
         "l1_blob_base_fee_default": 1,
-        "alternative_gas_token_config": {
-          "enabled": false,
-          "mode": "Fixed",
-          "fixed_exchange_rate": 0.001,
-          "token_symbol_pair": ""
-        }
+        "l1_blob_base_fee_threshold": 0
       },
       "gas_oracle_sender_signer_config": {
         "signer_type": "PrivateKey",
@@ -39,44 +32,44 @@
     }
   },
   "l2_config": {
-    "confirmations": "0x10",
-    "endpoint": null,
-    "l2_message_queue_address": null,
+    "confirmations": "0x1",
+    "endpoint": "https://rpc.scroll.io",
+    "l2_message_queue_address": "0x0000000000000000000000000000000000000000",
     "relayer_config": {
-      "rollup_contract_address": null,
-      "gas_price_oracle_contract_address": null,
+      "rollup_contract_address": "0x0000000000000000000000000000000000000000",
+      "gas_price_oracle_address": "0x0000000000000000000000000000000000000000",
       "sender_config": {
-        "endpoint": null,
-        "escalate_blocks": 4,
-        "escalate_multiple_num": 12,
-        "escalate_multiple_den": 10,
-        "min_gas_tip": 100000000,
-        "max_gas_price": 200000000000,
-        "max_blob_gas_price": 200000000000,
-        "tx_type": "DynamicFeeTx",
-        "check_pending_time": 10,
+        "endpoint": "https://rpc.ankr.com/eth",
+        "escalate_blocks": 1,
         "confirmations": "0x0",
+        "escalate_multiple_num": 2,
+        "escalate_multiple_den": 1,
+        "max_gas_price": 1000000000000,
+        "max_blob_gas_price": 10000000000000,
+        "tx_type": "DynamicFeeTx",
+        "check_pending_time": 1,
+        "min_gas_tip": 100000000,
         "max_pending_blob_txs": 3
+      },
+      "batch_submission": {
+        "min_batches": 1,
+        "max_batches": 6,
+        "timeout": 300
       },
       "gas_oracle_config": {
         "min_gas_price": 0,
-        "gas_price_diff": 50000,
-        "alternative_gas_token_config": {
-          "enabled": false,
-          "mode": "Fixed",
-          "fixed_exchange_rate": 0.001,
-          "token_symbol_pair": ""
-        }
+        "gas_price_diff": 50000
       },
       "chain_monitor": {
-        "enabled": true,
+        "enabled": false,
         "timeout": 3,
         "try_times": 5,
-        "base_url": "http://chain-monitor:8080"
+        "base_url": "http://localhost:8750"
       },
-      "enable_test_env_bypass_features": null,
-      "finalize_batch_without_proof_timeout_sec": null,
-      "finalize_bundle_without_proof_timeout_sec": null,
+      "enable_test_env_bypass_features": true,
+      "test_env_bypass_only_until_fork_boundary": false,
+      "finalize_batch_without_proof_timeout_sec": 7200,
+      "finalize_bundle_without_proof_timeout_sec": 7200,
       "gas_oracle_sender_signer_config": {
         "signer_type": "PrivateKey",
         "private_key_signer_config": {
@@ -99,22 +92,24 @@
     },
     "chunk_proposer_config": {
       "propose_interval_milliseconds": 100,
-      "max_block_num_per_chunk": null,
-      "max_tx_num_per_chunk": null,
-      "max_l1_commit_gas_per_chunk": 5000000,
-      "max_l1_commit_calldata_size_per_chunk": 110000,
-      "chunk_timeout_sec": 2700,
-      "max_row_consumption_per_chunk": 1000000,
+      "max_block_num_per_chunk": 100,
+      "max_tx_num_per_chunk": 100,
+      "max_l2_gas_per_chunk": 20000000,
+      "max_l1_commit_gas_per_chunk": 11234567,
+      "max_l1_commit_calldata_size_per_chunk": 112345,
+      "chunk_timeout_sec": 300,
+      "max_row_consumption_per_chunk": 1048319,
       "gas_cost_increase_multiplier": 1.2,
       "max_uncompressed_batch_bytes_size": 634880
     },
     "batch_proposer_config": {
       "propose_interval_milliseconds": 1000,
-      "max_l1_commit_gas_per_batch": 5000000,
-      "max_l1_commit_calldata_size_per_batch": 110000,
-      "batch_timeout_sec": 2700,
+      "max_l1_commit_gas_per_batch": 11234567,
+      "max_l1_commit_calldata_size_per_batch": 112345,
+      "batch_timeout_sec": 300,
       "gas_cost_increase_multiplier": 1.2,
-      "max_uncompressed_batch_bytes_size": 634880
+      "max_uncompressed_batch_bytes_size": 634880,
+      "max_chunks_per_batch": 12
     },
     "bundle_proposer_config": {
       "max_batch_num_per_bundle": 20,
@@ -123,8 +118,8 @@
   },
   "db_config": {
     "driver_name": "postgres",
-    "dsn": "",
-    "maxOpenNum": 50,
+    "dsn": "postgres://localhost/scroll?sslmode=disable",
+    "maxOpenNum": 200,
     "maxIdleNum": 20
   }
 }
