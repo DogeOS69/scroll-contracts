@@ -1,5 +1,4 @@
 #!/bin/sh
-
 export FOUNDRY_EVM_VERSION="cancun"
 export FOUNDRY_BYTECODE_HASH="none"
 
@@ -43,7 +42,7 @@ get_source_code_name() {
       # L1_SCROLL_CHAIN_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       # L1_SCROLL_MESSENGER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       # L1_MULTIPLE_VERSION_ROLLUP_VERIFIER_ADDR ) echo MultipleVersionRollupVerifierSetOwner ;;
-      # L1_GAS_PRICE_ORACLE_ADDR) echo L1GasPriceOracle ;;
+      L1_GAS_PRICE_ORACLE_ADDR) echo L1GasPriceOracle ;;
       # L1_MESSAGE_QUEUE_V2_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       # L1_MESSAGE_QUEUE_V2_IMPLEMENTATION_ADDR) echo L1MessageQueueV2 ;;
       # L1_SYSTEM_CONFIG_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
@@ -81,7 +80,7 @@ get_source_code_name() {
       # L1_GAS_TOKEN_GATEWAY_IMPLEMENTATION_ADDR) echo L1GasTokenGateway ;;
       # L1_GAS_TOKEN_GATEWAY_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       # L1_WRAPPED_TOKEN_GATEWAY_ADDR) echo L1WrappedTokenGateway ;;
-      # L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR) echo EmptyContract ;;
+      L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR) echo EmptyContract ;;
       # L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       # L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       # L2_ERC721_GATEWAY_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
