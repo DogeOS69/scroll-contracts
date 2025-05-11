@@ -3,12 +3,17 @@ name: Build and publish scroll-alpine image
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - '*'
 
 jobs:
   build:
     name: Clone, Build, Publish
     runs-on: ubuntu-latest
     permissions: {}
+    env:
+      DOCKER_REPOSITORY: dogeos69/scroll-stack-contracts
 
     steps:
       - name: Check out repository
@@ -42,10 +47,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Build base image
+        id: build_base_image
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4
+        with:
+          platforms: linux/amd64,linux/arm64
+          push: true
+          context: .
+          file: docker/Dockerfile.base
+          tags: ${{ env.DOCKER_REPOSITORY }}:base-${{ github.sha }}
+
       - name: Build deploy image
         id: build_deploy_image
-        env:
-          REPOSITORY: dogeos69/scroll-stack-contracts
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           platforms: linux/amd64,linux/arm64
@@ -53,12 +66,12 @@ jobs:
           context: .
           file: docker/Dockerfile.deploy
           tags: |
-            ${{ env.REPOSITORY }}:deploy-${{ github.sha }}
+            ${{ env.DOCKER_REPOSITORY }}:deploy-${{ github.sha }}
+          build-args: |
+            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ github.sha }}
 
       - name: Build gen image
         id: build_gen_image
-        env:
-          REPOSITORY: dogeos69/scroll-stack-contracts
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           platforms: linux/amd64,linux/arm64
@@ -66,12 +79,12 @@ jobs:
           context: .
           file: docker/Dockerfile.gen-configs
           tags: |
-            ${{ env.REPOSITORY }}:gen-configs-${{ github.sha }}
+            ${{ env.DOCKER_REPOSITORY }}:gen-configs-${{ github.sha }}
+          build-args: |
+            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ github.sha }}
 
       - name: Build verify image
         id: build_verify_image
-        env:
-          REPOSITORY: dogeos69/scroll-stack-contracts
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           platforms: linux/amd64,linux/arm64
@@ -79,4 +92,6 @@ jobs:
           context: .
           file: docker/Dockerfile.verify
           tags: |
-            ${{ env.REPOSITORY }}:verify-${{ github.sha }}
+            ${{ env.DOCKER_REPOSITORY }}:verify-${{ github.sha }}
+          build-args: |
+            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ github.sha }}
