@@ -2,7 +2,7 @@
 
 pragma solidity =0.8.24;
 
-import { IBasculeVerifier } from "./IBasculeVerifier.sol";
+import {IBasculeVerifier} from "./IBasculeVerifier.sol";
 
 /**
  * @title BasculeMockVerifier
@@ -22,20 +22,27 @@ contract BasculeMockVerifier is IBasculeVerifier {
     bytes32 public constant REJECT_DEPOSIT_ID = 0xbadca11000000000000000000000000000000000000000000000000000000000;
 
     /**
+     * @notice Event emitted when a withdrawal is validated.
+     */
+    event WithdrawalValidated(address indexed recipient, bytes32 indexed depositID, uint256 withdrawalAmount);
+
+    /**
      * @notice Mock verification function.
      * @dev Reverts if `depositID` is `REJECT_DEPOSIT_ID` or `withdrawalAmount` is 0,
      *      otherwise allows any withdrawal.
      * @inheritdoc IBasculeVerifier
      */
     function validateWithdrawal(
-        bytes32 depositID,
-        uint256 withdrawalAmount
-    ) external pure override {
+        address _recipient,
+        bytes32 _depositID,
+        uint256 _withdrawalAmount
+    ) external override {
         // Check if the deposit ID matches the hardcoded rejection ID or amount is zero.
-        if (depositID == REJECT_DEPOSIT_ID || withdrawalAmount == 0) {
+        if (_depositID == REJECT_DEPOSIT_ID || _withdrawalAmount == 0) {
             revert ErrorMockRejection();
         }
         // Mock implementation: Otherwise, do nothing.
+        emit WithdrawalValidated(_recipient, _depositID, _withdrawalAmount);
         return;
     }
-} 
+}

@@ -28,28 +28,41 @@ interface IMoat {
     event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner); // From OwnableBase inheritance
 
+    event DepositReceived(address indexed sender, address indexed target, uint256 amount);
+
     // --- Functions --- //
 
     // Getters for public state variables
     function messenger() external view returns (address);
+
     function basculeVerifier() external view returns (address);
+
     function withdrawalFee() external view returns (uint256);
+
     function minWithdrawalAmount() external view returns (uint256);
+
     function feeRecipient() external view returns (address);
+
     function owner() external view returns (address); // From OwnableBase inheritance
 
     // Setters
     function updateMessenger(address _newMessenger) external;
+
     function setFee(uint256 _newFee) external;
+
     function setMinWithdrawal(uint256 _newMin) external;
+
     function setFeeRecipient(address _newRecip) external;
+
     function setBascule(address _newVerifier) external;
 
     // Core Logic
-    function handleL1Message(address _target, bytes calldata _depositID) external payable;
+    function handleL1Message(address _target, bytes32 _depositID) external payable;
+
     function withdrawToL1(address _target) external payable;
 
     // OwnableBase functions
     function transferOwnership(address newOwner) external;
+
     function renounceOwnership() external;
-} 
+}

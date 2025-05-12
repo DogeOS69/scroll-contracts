@@ -29,6 +29,8 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
 
+    event DepositReceived(address indexed sender, address indexed target, uint256 amount);
+
     // --- State Variables --- //
 
     /// @notice The L2 messenger contract used for L2->L1 communication.
@@ -138,7 +140,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * @param _target The target receipient address on L2.
      * @param _depositID The L1 deposit ID (expected to be bytes32).
      */
-    function handleL1Message(address _target, bytes calldata _depositID) external payable nonReentrant {
+    function handleL1Message(address _target, bytes32 _depositID) external payable nonReentrant {
         // Check 1: Caller must be the messenger this Moat is configured for.
         address _messenger = messenger;
         if (_messenger == address(0)) {
@@ -148,22 +150,23 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             revert ErrorOnlyMessenger(msg.sender, _messenger);
         }
 
+        emit DepositReceived(msg.sender, _target, msg.value);
+
         // Check 2: Message must be verified by the Bascule verifier (if configured).
         address _verifier = basculeVerifier;
         if (_verifier != address(0)) {
-            // Assuming _depositID is the bytes32 depositID
-            if (_depositID.length != 32) {
-                revert ErrorInvalidDataLength(_depositID.length);
-            }
-            bytes32 depositID = bytes32(_depositID);
+            // // Assuming _depositID is the bytes32 depositID
+            // if (_depositID.length != 32) {
+            //     revert ErrorInvalidDataLength(_depositID.length);
+            // }
+            // bytes32 depositID = bytes32(_depositID);
             uint256 withdrawalAmount = msg.value;
             // validateWithdrawal is expected to revert on failure
-            IBasculeVerifier(_verifier).validateWithdrawal(depositID, withdrawalAmount);
+            IBasculeVerifier(_verifier).validateWithdrawal(_target, _depositID, withdrawalAmount);
         }
 
         // Execute the call to the target contract.
-        // Forward the original _depositID calldata to the target
-        (bool ok, ) = _target.call{value: msg.value}(_depositID);
+        (bool ok, ) = _target.call{value: msg.value}(bytes(""));
         if (!ok) {
             revert ErrorTargetRevert();
         }
