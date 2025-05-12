@@ -6,22 +6,23 @@ import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import {Test} from "forge-std/Test.sol";
 
 // DogeOS Contracts
-import { L2DogeOsMessenger } from "../../dogeos/L2DogeOsMessenger.sol";
-import { Moat } from "../../dogeos/Moat.sol";
-import { BasculeMockVerifier } from "../../dogeos/BasculeMockVerifier.sol";
-import { IBasculeVerifier } from "../../dogeos/IBasculeVerifier.sol";
+import {L2DogeOsMessenger} from "../../dogeos/L2DogeOsMessenger.sol";
+import {Moat} from "../../dogeos/Moat.sol";
+import {BasculeMockVerifier} from "../../dogeos/BasculeMockVerifier.sol";
+import {IBasculeVerifier} from "../../dogeos/IBasculeVerifier.sol";
 
 // Scroll Contracts
-import { L2MessageQueue } from "../../L2/predeploys/L2MessageQueue.sol";
-import { L1ScrollMessenger } from "../../L1/L1ScrollMessenger.sol";
+import {L2MessageQueue} from "../../L2/predeploys/L2MessageQueue.sol";
+import {L1ScrollMessenger} from "../../L1/L1ScrollMessenger.sol";
 
 // Scroll Libraries
-import { AddressAliasHelper } from "../../libraries/common/AddressAliasHelper.sol";
-import { IScrollMessenger } from "../../libraries/IScrollMessenger.sol";
+import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol";
+import {IScrollMessenger} from "../../libraries/IScrollMessenger.sol";
 
 // Helper contract that always reverts
 contract RevertingReceiver {
     error AlwaysRevert();
+
     fallback() external payable {
         revert AlwaysRevert();
     }
@@ -58,7 +59,7 @@ contract L2DogeOsMessengerTest is Test {
             address(_l1Messenger), // counterpart
             address(_l2MessageQueue), // messageQueue
             address(_moat), // initialMoat
-            address(0xfee)
+            address(0xfee) // _feeVault (Assuming address(0xfee) is suitable placeholder)
         );
 
         // Link Moat back to Messenger (requires owner call)
@@ -111,9 +112,7 @@ contract L2DogeOsMessengerTest is Test {
 
         // Expect revert because _to is not the configured MOAT address
         vm.expectRevert(
-            abi.encodeWithSelector(
-                L2DogeOsMessenger.ErrorNotMoatAddress.selector, nonMoatTarget, address(_moat)
-            )
+            abi.encodeWithSelector(L2DogeOsMessenger.ErrorNotMoatAddress.selector, nonMoatTarget, address(_moat))
         );
         _l2Messenger.relayMessage({
             _from: l1Sender,
@@ -133,12 +132,8 @@ contract L2DogeOsMessengerTest is Test {
         address targetMoat = address(_moat);
         uint256 value = 1 ether;
         uint256 nonce = 456;
-        bytes memory finalCalldata = abi.encode(bytes32(uint256(0x12345)));
-        bytes memory message = abi.encodeWithSignature(
-            "handleL1Message(address,bytes)",
-            finalTarget,
-            finalCalldata
-        );
+        bytes32 depositID = bytes32(uint256(0x12345));
+        bytes memory message = abi.encodeWithSignature("handleL1Message(address,bytes32)", finalTarget, depositID);
 
         // Calculate the expected hash for the RelayedMessage event
         bytes32 xDomainCalldataHash = keccak256(
@@ -161,13 +156,7 @@ contract L2DogeOsMessengerTest is Test {
 
         // Call relayMessage - should succeed and call the MOAT address (which does nothing)
         vm.deal(address(_l2Messenger), value); // Ensure messenger has funds to forward
-        _l2Messenger.relayMessage({
-            _from: l1Sender,
-            _to: targetMoat,
-            _value: value,
-            _nonce: nonce,
-            _message: message
-        });
+        _l2Messenger.relayMessage({_from: l1Sender, _to: targetMoat, _value: value, _nonce: nonce, _message: message});
 
         // Verify the message was marked as executed
         assertTrue(_l2Messenger.isL1MessageExecuted(xDomainCalldataHash), "Message not executed");
@@ -185,14 +174,7 @@ contract L2DogeOsMessengerTest is Test {
             abi.encodeWithSelector(L2DogeOsMessenger.ErrorSenderNotMoat.selector, nonMoatCaller, address(_moat))
         );
         // Use named parameters for clarity
-        _l2Messenger.sendMessage{
-            value: 0 // Value doesn't matter for this check
-        }({
-            _to: targetL1,
-            _value: 0,
-            _message: message,
-            _gasLimit: 100000
-        });
+        _l2Messenger.sendMessage{value: 0}({_to: targetL1, _value: 0, _message: message, _gasLimit: 100000}); // Value doesn't matter for this check
     }
 
     // Test that sendMessage succeeds when called by the Moat address.
@@ -214,7 +196,7 @@ contract L2DogeOsMessengerTest is Test {
         emit IScrollMessenger.SentMessage(address(_moat), targetL1, valueToSend, expectedNonce, gasLimit, message);
 
         // Call the function with matching msg.value
-        _l2Messenger.sendMessage{ value: valueToSend }({
+        _l2Messenger.sendMessage{value: valueToSend}({
             _to: targetL1,
             _value: valueToSend,
             _message: message,
@@ -240,19 +222,14 @@ contract L2DogeOsMessengerTest is Test {
         if (failCase == 0) {
             // Fail because of bad deposit ID
             value = 1 ether;
-            depositID = 0xbadca11000000000000000000000000000000000000000000000000000000000; // Hardcoded value
+            depositID = _basculeVerifier.REJECT_DEPOSIT_ID(); // Access via the instance
         } else {
             // Fail because of zero value
             value = 0;
             depositID = bytes32(uint256(0x1111)); // Any non-reject ID
         }
 
-        bytes memory finalCalldata = abi.encode(depositID);
-        bytes memory message = abi.encodeWithSignature(
-            "handleL1Message(address,bytes)",
-            finalTarget,
-            finalCalldata
-        );
+        bytes memory message = abi.encodeWithSignature("handleL1Message(address,bytes32)", finalTarget, depositID);
 
         // Calculate the expected hash for the FailedRelayedMessage event
         bytes32 xDomainCalldataHash = keccak256(
@@ -277,13 +254,7 @@ contract L2DogeOsMessengerTest is Test {
         if (value > 0) {
             vm.deal(address(_l2Messenger), value); // Ensure messenger has funds if needed
         }
-        _l2Messenger.relayMessage({
-            _from: l1Sender,
-            _to: targetMoat,
-            _value: value,
-            _nonce: nonce,
-            _message: message
-        });
+        _l2Messenger.relayMessage({_from: l1Sender, _to: targetMoat, _value: value, _nonce: nonce, _message: message});
 
         vm.stopPrank();
     }
@@ -297,13 +268,12 @@ contract L2DogeOsMessengerTest is Test {
         uint256 value = 1 ether; // Non-zero value to pass Bascule
         uint256 nonce = 789;
         bytes32 validDepositID = bytes32(uint256(0x2222)); // Valid ID
-        bytes memory finalCalldata = abi.encode(validDepositID);
 
         // The message intends to call handleL1Message on Moat, which will then call the revertingTarget
         bytes memory message = abi.encodeWithSignature(
-            "handleL1Message(address,bytes)",
+            "handleL1Message(address,bytes32)",
             address(revertingTarget),
-            finalCalldata
+            validDepositID
         );
 
         // Prank as the aliased L1 messenger counterpart
@@ -318,14 +288,8 @@ contract L2DogeOsMessengerTest is Test {
         emit IScrollMessenger.FailedRelayedMessage(xDomainCalldataHash);
 
         vm.deal(address(_l2Messenger), value); // Ensure messenger has funds
-        _l2Messenger.relayMessage({
-            _from: l1Sender,
-            _to: targetMoat,
-            _value: value,
-            _nonce: nonce,
-            _message: message
-        });
+        _l2Messenger.relayMessage({_from: l1Sender, _to: targetMoat, _value: value, _nonce: nonce, _message: message});
 
         vm.stopPrank();
     }
-} 
+}

@@ -5,20 +5,21 @@ pragma solidity =0.8.24;
 import {Test} from "forge-std/Test.sol";
 
 // Target contract
-import { Moat } from "../../dogeos/Moat.sol";
+import {Moat} from "../../dogeos/Moat.sol";
 
 // Interfaces & Mocks
-import { L2DogeOsMessenger } from "../../dogeos/L2DogeOsMessenger.sol";
-import { BasculeMockVerifier } from "../../dogeos/BasculeMockVerifier.sol";
-import { IBasculeVerifier } from "../../dogeos/IBasculeVerifier.sol";
-import { IL2ScrollMessenger } from "../../L2/IL2ScrollMessenger.sol"; // Interface for mock
-import { L2MessageQueue } from "../../L2/predeploys/L2MessageQueue.sol"; // Needed for L2DogeOsMessenger constructor
-import { RevertingReceiver } from "./L2DogeOsMessenger.t.sol"; // Reuse helper
-import { ScrollMessengerBase } from "../../libraries/ScrollMessengerBase.sol"; // Import base for mock
+import {L2DogeOsMessenger} from "../../dogeos/L2DogeOsMessenger.sol";
+import {BasculeMockVerifier} from "../../dogeos/BasculeMockVerifier.sol";
+import {IBasculeVerifier} from "../../dogeos/IBasculeVerifier.sol";
+import {IL2ScrollMessenger} from "../../L2/IL2ScrollMessenger.sol"; // Interface for mock
+import {L2MessageQueue} from "../../L2/predeploys/L2MessageQueue.sol"; // Needed for L2DogeOsMessenger constructor
+import {RevertingReceiver} from "./L2DogeOsMessenger.t.sol"; // Reuse helper
+import {ScrollMessengerBase} from "../../libraries/ScrollMessengerBase.sol"; // Import base for mock
 
 // Simple target contract for handleL1Message tests
 contract SimpleTarget {
     event Executed(bytes data, uint256 value);
+
     // Use fallback to accept raw depositID calldata from Moat
     fallback() external payable {
         emit Executed(msg.data, msg.value);
@@ -48,9 +49,7 @@ contract MockScrollMessenger is ScrollMessengerBase {
     uint256 public lastMsgValue;
 
     // Constructor matching ScrollMessengerBase
-    constructor(address _counterpart)
-        ScrollMessengerBase(_counterpart)
-    {}
+    constructor(address _counterpart) ScrollMessengerBase(_counterpart) {}
 
     // Implement the required sendMessage interface function
     // No override keyword needed as ScrollMessengerBase doesn't implement it directly
@@ -59,7 +58,12 @@ contract MockScrollMessenger is ScrollMessengerBase {
         uint256 _value,
         bytes calldata _message,
         uint256 _gasLimit
-    ) public payable /* virtual override removed */ whenNotPaused {
+    )
+        public
+        payable
+        /* virtual override removed */
+        whenNotPaused
+    {
         // Record call parameters
         lastSender = msg.sender;
         lastTarget = _to;
@@ -79,21 +83,34 @@ contract MockScrollMessenger is ScrollMessengerBase {
         bytes calldata _message,
         uint256 _gasLimit,
         address /* refundAddress */
-    ) public payable /* virtual override removed */ whenNotPaused {
+    )
+        public
+        payable
+        /* virtual override removed */
+        whenNotPaused
+    {
         // Just call the other implementation for simplicity in the mock
         this.sendMessage{value: msg.value}(_to, _value, _message, _gasLimit);
     }
 
     // Implement relayMessage (required by IScrollMessenger, but likely unused by Moat tests)
     function relayMessage(
-        address, address, uint256, uint256, bytes memory
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes memory
     ) external whenNotPaused {
         revert("MockScrollMessenger: relayMessage not implemented");
     }
 
     // Implement dropMessage (required by IScrollMessenger, but likely unused by Moat tests)
     function dropMessage(
-        address, address, uint256, uint256, bytes memory
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes memory
     ) external whenNotPaused {
         revert("MockScrollMessenger: dropMessage not implemented");
     }
@@ -437,7 +454,12 @@ contract MoatTest is Test {
         // 1. MockSendMessageCalled from Mock Messenger
         vm.expectEmit(false, false, false, false); // No indexed args
         emit MockScrollMessenger.MockSendMessageCalled(
-            address(_moat), targetL1, amountToSend, bytes(""), 0, amountToSend // Full amount sent to messenger
+            address(_moat),
+            targetL1,
+            amountToSend,
+            bytes(""),
+            0,
+            amountToSend // Full amount sent to messenger
         );
         // 2. WithdrawalQueued from Moat
         vm.expectEmit(true, true, false, false);
@@ -462,20 +484,23 @@ contract MoatTest is Test {
 
     function testHandleL1Message_Revert_NotMessenger() external {
         SimpleTarget target = new SimpleTarget();
-        // address l1Sender = address(0xaaaa); // Removed unused variable
         bytes32 depositIDValue = bytes32(uint256(0x1111));
         uint256 value = 1 ether;
 
         // Call from non-messenger address (_user)
         vm.prank(_user);
         vm.expectRevert(abi.encodeWithSelector(Moat.ErrorOnlyMessenger.selector, _user, address(_mockMessenger)));
-        // Call with encoded deposit ID
-        _moat.handleL1Message{value: value}(/* _target */ address(target), /* _depositID */ abi.encode(depositIDValue));
+        // Call with bytes32 deposit ID
+        _moat.handleL1Message{value: value}(
+            /* _target */
+            address(target),
+            /* _depositID */
+            depositIDValue
+        );
     }
 
     function testHandleL1Message_Success() external {
         SimpleTarget target = new SimpleTarget();
-        // address l1Sender = address(0xaaaa); // Removed unused variable
         bytes32 depositIDValue = bytes32(uint256(0x1111)); // Use a valid ID
         uint256 value = 1 ether; // Use non-zero value
 
@@ -486,25 +511,33 @@ contract MoatTest is Test {
         vm.startPrank(address(_mockMessenger));
         vm.deal(address(_mockMessenger), value);
 
-        // Expect the target contract to emit its event via fallback
-        vm.expectEmit(false, false, false, false);
-        emit SimpleTarget.Executed(abi.encode(depositIDValue), value); // Expect encoded bytes32
+        // Expect the Moat event
+        vm.expectEmit(true, true, false, false); // Check sender, target, amount
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), value);
 
-        // Call with encoded deposit ID
-        _moat.handleL1Message{value: value}(/* _target */ address(target), /* _depositID */ abi.encode(depositIDValue));
+        // Expect the target contract to emit its event via fallback with empty data
+        vm.expectEmit(false, false, false, false);
+        emit SimpleTarget.Executed(bytes(""), value); // Expect empty bytes
+
+        // Call with bytes32 deposit ID
+        _moat.handleL1Message{value: value}(
+            /* _target */
+            address(target),
+            /* _depositID */
+            depositIDValue
+        );
         vm.stopPrank();
     }
 
     function testHandleL1Message_Revert_BasculeVerificationFails(uint8 failCase) external {
         vm.assume(failCase <= 1);
         SimpleTarget target = new SimpleTarget();
-        // address l1Sender = address(0xaaaa); // Removed unused variable
         bytes32 depositIDValue;
         uint256 value;
 
         if (failCase == 0) {
             // Fail because of bad deposit ID
-            depositIDValue = 0xbadca11000000000000000000000000000000000000000000000000000000000; // Hardcoded value
+            depositIDValue = _basculeVerifier.REJECT_DEPOSIT_ID(); // Use constant from mock
             value = 1 ether; // Non-zero value
         } else {
             // Fail because of zero value
@@ -519,19 +552,27 @@ contract MoatTest is Test {
         vm.startPrank(address(_mockMessenger));
         vm.deal(address(_mockMessenger), value);
 
+        // Expect the Moat event (even on revert, if it happens before Bascule check)
+        // vm.expectEmit(true, true, false, false); // Check sender, target, amount
+        // emit Moat.DepositReceived(address(_mockMessenger), address(target), value);
+
         // Expect revert from the mock verifier
         vm.expectRevert(BasculeMockVerifier.ErrorMockRejection.selector);
 
-        // Call with encoded deposit ID
-        _moat.handleL1Message{value: value}(/* _target */ address(target), /* _depositID */ abi.encode(depositIDValue));
+        // Call with bytes32 deposit ID
+        _moat.handleL1Message{value: value}(
+            /* _target */
+            address(target),
+            /* _depositID */
+            depositIDValue
+        );
         vm.stopPrank();
     }
 
     function testHandleL1Message_BasculeDisabled() external {
         SimpleTarget target = new SimpleTarget();
-        // address l1Sender = address(0xaaaa); // Removed unused variable
         // Use the normally rejecting deposit ID
-        bytes32 depositIDValue = 0xbadca11000000000000000000000000000000000000000000000000000000000; // Hardcoded value
+        bytes32 depositIDValue = _basculeVerifier.REJECT_DEPOSIT_ID(); // Use constant from mock
         uint256 value = 1 ether; // Non-zero value
 
         // Disable Bascule verifier
@@ -544,18 +585,26 @@ contract MoatTest is Test {
         vm.startPrank(address(_mockMessenger));
         vm.deal(address(_mockMessenger), value);
 
+        // Expect the Moat event
+        vm.expectEmit(true, true, false, false); // Check sender, target, amount
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), value);
+
         // Expect the target contract to emit its event via fallback (verification skipped)
         vm.expectEmit(false, false, false, false);
-        emit SimpleTarget.Executed(abi.encode(depositIDValue), value); // Expect encoded bytes32
+        emit SimpleTarget.Executed(bytes(""), value); // Expect empty bytes
 
-        // Call with encoded deposit ID
-        _moat.handleL1Message{value: value}(/* _target */ address(target), /* _depositID */ abi.encode(depositIDValue));
+        // Call with bytes32 deposit ID
+        _moat.handleL1Message{value: value}(
+            /* _target */
+            address(target),
+            /* _depositID */
+            depositIDValue
+        );
         vm.stopPrank();
     }
 
     function testHandleL1Message_Revert_TargetRevert() external {
         RevertingReceiver target = new RevertingReceiver(); // Use the reverting helper
-        // address l1Sender = address(0xaaaa); // Removed unused variable
         bytes32 depositIDValue = bytes32(uint256(0x1111)); // Use a valid ID
         uint256 value = 1 ether; // Use non-zero value
 
@@ -566,14 +615,24 @@ contract MoatTest is Test {
         vm.startPrank(address(_mockMessenger));
         vm.deal(address(_mockMessenger), value);
 
+        // Expect the Moat event
+        vm.expectEmit(true, true, false, false); // Check sender, target, amount
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), value);
+
         // Expect Moat's ErrorTargetRevert
         vm.expectRevert(Moat.ErrorTargetRevert.selector);
 
-        // Call with encoded deposit ID
-        _moat.handleL1Message{value: value}(/* _target */ address(target), /* _depositID */ abi.encode(depositIDValue));
+        // Call with bytes32 deposit ID
+        _moat.handleL1Message{value: value}(
+            /* _target */
+            address(target),
+            /* _depositID */
+            depositIDValue
+        );
         vm.stopPrank();
     }
 
+    /* // Removing this test as the length check is gone
     function testHandleL1Message_Revert_InvalidDataLength() external {
         SimpleTarget target = new SimpleTarget();
         // address l1Sender = address(0xaaaa); // Removed unused variable
@@ -591,7 +650,8 @@ contract MoatTest is Test {
         vm.expectRevert(abi.encodeWithSelector(Moat.ErrorInvalidDataLength.selector, invalidData.length));
 
         // Update call signature
-        _moat.handleL1Message{value: value}(/* _target */ address(target), /* _depositID */ invalidData);
+        _moat.handleL1Message{value: value}(address(target), invalidData); // This call is now invalid anyway
         vm.stopPrank();
     }
+    */
 }

@@ -22,11 +22,6 @@ contract BasculeMockVerifier is IBasculeVerifier {
     bytes32 public constant REJECT_DEPOSIT_ID = 0xbadca11000000000000000000000000000000000000000000000000000000000;
 
     /**
-     * @notice Event emitted when a withdrawal is validated.
-     */
-    event WithdrawalValidated(address indexed recipient, bytes32 indexed depositID, uint256 withdrawalAmount);
-
-    /**
      * @notice Mock verification function.
      * @dev Reverts if `depositID` is `REJECT_DEPOSIT_ID` or `withdrawalAmount` is 0,
      *      otherwise allows any withdrawal.
