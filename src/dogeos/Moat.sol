@@ -2,16 +2,16 @@
 
 pragma solidity =0.8.24;
 
-import { OwnableBase } from "../libraries/common/OwnableBase.sol";
-import { ReentrancyGuard } from "solmate/utils/ReentrancyGuard.sol";
-import { IL2ScrollMessenger } from "../L2/IL2ScrollMessenger.sol";
-import { IBasculeVerifier } from "./IBasculeVerifier.sol";
+import {OwnableBase} from "../libraries/common/OwnableBase.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {IL2ScrollMessenger} from "../L2/IL2ScrollMessenger.sol";
+import {IBasculeVerifier} from "./IBasculeVerifier.sol";
 
 /**
  * @title Moat
  * @notice Handles verified L1->L2 message execution and L2->L1 withdrawals via the L2DogeOsMessenger.
  */
-contract Moat is OwnableBase, ReentrancyGuard {
+contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     // --- Errors --- //
     error ErrorZeroAddress();
     error ErrorFeeNotCovered();
@@ -51,7 +51,8 @@ contract Moat is OwnableBase, ReentrancyGuard {
     /**
      * @notice Constructor
      */
-    constructor(/* address _initialOwner */) {
+    constructor() /* address _initialOwner */
+    {
         // Messenger address must be set separately via updateMessenger()
         // _transferOwnership(_initialOwner); // Initialize ownership
     }
@@ -63,6 +64,7 @@ contract Moat is OwnableBase, ReentrancyGuard {
     function initialize(address _initialOwner) external {
         _transferOwnership(_initialOwner); // Initialize ownership
     }
+
     // --- Setters (Owner Restricted) --- //
 
     /**
@@ -136,10 +138,7 @@ contract Moat is OwnableBase, ReentrancyGuard {
      * @param _target The target receipient address on L2.
      * @param _depositID The L1 deposit ID (expected to be bytes32).
      */
-    function handleL1Message(
-        address _target,
-        bytes calldata _depositID
-    ) external payable nonReentrant {
+    function handleL1Message(address _target, bytes calldata _depositID) external payable nonReentrant {
         // Check 1: Caller must be the messenger this Moat is configured for.
         address _messenger = messenger;
         if (_messenger == address(0)) {
@@ -164,7 +163,7 @@ contract Moat is OwnableBase, ReentrancyGuard {
 
         // Execute the call to the target contract.
         // Forward the original _depositID calldata to the target
-        (bool ok, ) = _target.call{ value: msg.value }(_depositID);
+        (bool ok, ) = _target.call{value: msg.value}(_depositID);
         if (!ok) {
             revert ErrorTargetRevert();
         }
@@ -175,9 +174,7 @@ contract Moat is OwnableBase, ReentrancyGuard {
      * @dev Requires withdrawal fee and minimum amount checks.
      * @param _target The recipient address on L1.
      */
-    function withdrawToL1(
-        address _target
-    ) external payable nonReentrant {
+    function withdrawToL1(address _target) external payable nonReentrant {
         uint256 fee = withdrawalFee;
         uint256 minAmount = minWithdrawalAmount;
 
@@ -197,21 +194,21 @@ contract Moat is OwnableBase, ReentrancyGuard {
         address payable feeRecip = payable(feeRecipient);
         if (feeRecip != address(0) && fee > 0) {
             // Use call to avoid potential gas stipend issues with transfer()
-            (bool success, ) = feeRecip.call{ value: fee }("");
+            (bool success, ) = feeRecip.call{value: fee}("");
             // If fee transfer fails, it shouldn't block the withdrawal, maybe just emit an event?
             // For now, we'll proceed regardless of fee transfer success.
             // require(success, "Fee transfer failed"); // Uncomment if fee transfer failure should revert.
         }
 
         // Send the message via the L2 messenger.
-        IL2ScrollMessenger(messenger).sendMessage{ value: amountAfterFee }(
+        IL2ScrollMessenger(messenger).sendMessage{value: amountAfterFee}(
             _target,
             amountAfterFee, // Send the value after fee deduction
-            bytes(""), 
+            bytes(""),
             0
         );
 
         // Emit event.
         emit WithdrawalQueued(msg.sender, _target, amountAfterFee, fee);
     }
-} 
+}
