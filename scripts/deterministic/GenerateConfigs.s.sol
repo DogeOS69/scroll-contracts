@@ -45,7 +45,7 @@ contract GenerateRollupConfig is DeployScroll {
         vm.writeJson(vm.toString(L1_GAS_PRICE_ORACLE_ADDR), ROLLUP_CONFIG_PATH, ".l1_config.relayer_config.gas_price_oracle_contract_address");
         vm.writeJson(vm.toString(L2_MESSAGE_QUEUE_ADDR), ROLLUP_CONFIG_PATH, ".l2_config.l2_message_queue_address");
         vm.writeJson(vm.toString(L1_SCROLL_CHAIN_PROXY_ADDR), ROLLUP_CONFIG_PATH, ".l2_config.relayer_config.rollup_contract_address");
-        vm.writeJson(vm.toString(L1_MESSAGE_QUEUE_V2_PROXY_ADDR), ROLLUP_CONFIG_PATH, ".l2_config.relayer_config.gas_price_oracle_contract_address");
+        vm.writeJson(vm.toString(L1_MESSAGE_QUEUE_V1_PROXY_ADDR), ROLLUP_CONFIG_PATH, ".l2_config.relayer_config.gas_price_oracle_contract_address");
         
 
         // other
@@ -53,9 +53,9 @@ contract GenerateRollupConfig is DeployScroll {
         vm.writeJson(vm.toString(TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC), ROLLUP_CONFIG_PATH, ".l2_config.relayer_config.finalize_batch_without_proof_timeout_sec");
         vm.writeJson(vm.toString(TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC), ROLLUP_CONFIG_PATH, ".l2_config.relayer_config.finalize_bundle_without_proof_timeout_sec");
 
-        // vm.writeJson(vm.toString(MAX_BLOCK_IN_CHUNK), ROLLUP_CONFIG_PATH, ".l2_config.chunk_proposer_config.max_block_num_per_chunk");
+        vm.writeJson(vm.toString(MAX_BLOCK_IN_CHUNK), ROLLUP_CONFIG_PATH, ".l2_config.chunk_proposer_config.max_block_num_per_chunk");
         vm.writeJson(vm.toString(MAX_TX_IN_CHUNK), ROLLUP_CONFIG_PATH, ".l2_config.chunk_proposer_config.max_tx_num_per_chunk");
-        // vm.writeJson(vm.toString(MAX_BATCH_IN_BUNDLE), ROLLUP_CONFIG_PATH, ".l2_config.bundle_proposer_config.max_batch_num_per_bundle");
+        vm.writeJson(vm.toString(MAX_BATCH_IN_BUNDLE), ROLLUP_CONFIG_PATH, ".l2_config.bundle_proposer_config.max_batch_num_per_bundle");
 
         // alternative gas token configuration for gas oracle 
         if (ALTERNATIVE_GAS_TOKEN_ENABLED) {
@@ -117,12 +117,12 @@ contract GenerateCoordinatorConfig is DeployScroll {
         string memory template = vm.readFile(COORDINATOR_CONFIG_TEMPLATE_PATH);
         vm.writeFile(COORDINATOR_CONFIG_PATH, template);
 
-        // vm.writeJson(CHUNK_COLLECTION_TIME_SEC, COORDINATOR_CONFIG_PATH, ".prover_manager.chunk_collection_time_sec");
-        // vm.writeJson(BATCH_COLLECTION_TIME_SEC, COORDINATOR_CONFIG_PATH, ".prover_manager.batch_collection_time_sec");
-        // vm.writeJson(BUNDLE_COLLECTION_TIME_SEC, COORDINATOR_CONFIG_PATH, ".prover_manager.bundle_collection_time_sec");
+        vm.writeJson(CHUNK_COLLECTION_TIME_SEC, COORDINATOR_CONFIG_PATH, ".prover_manager.chunk_collection_time_sec");
+        vm.writeJson(BATCH_COLLECTION_TIME_SEC, COORDINATOR_CONFIG_PATH, ".prover_manager.batch_collection_time_sec");
+        vm.writeJson(BUNDLE_COLLECTION_TIME_SEC, COORDINATOR_CONFIG_PATH, ".prover_manager.bundle_collection_time_sec");
 
         vm.writeJson(vm.toString(CHAIN_ID_L2), COORDINATOR_CONFIG_PATH, ".l2.chain_id");
-        // vm.writeJson(COORDINATOR_JWT_SECRET_KEY, COORDINATOR_CONFIG_PATH, ".auth.secret");
+        vm.writeJson(COORDINATOR_JWT_SECRET_KEY, COORDINATOR_CONFIG_PATH, ".auth.secret");
     }
 }
 
@@ -219,7 +219,7 @@ contract GenerateBridgeHistoryConfig is DeployScroll {
         // vm.writeJson(vm.toString(L1_ERC721_GATEWAY_PROXY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L1.ERC721GatewayAddr");
         // vm.writeJson(vm.toString(L1_ERC1155_GATEWAY_PROXY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L1.ERC1155GatewayAddr");
         vm.writeJson(vm.toString(L1_GAS_TOKEN_GATEWAY_PROXY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L1.GasTokenGatewayAddr");
-        // vm.writeJson(vm.toString(L1_WRAPPED_TOKEN_GATEWAY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L1.WrappedTokenGatewayAddr");
+        vm.writeJson(vm.toString(L1_WRAPPED_TOKEN_GATEWAY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L1.WrappedTokenGatewayAddr");
 
         // L2 contracts
         vm.writeJson(vm.toString(L2_MESSAGE_QUEUE_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L2.MessageQueueAddr");
@@ -317,14 +317,14 @@ contract GenerateFrontendConfig is DeployScroll {
 
         // API endpoints
         vm.writeLine(FRONTEND_ENV_PATH, "");
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_RPC_URI_L1 = \"", EXTERNAL_RPC_URI_L1, "\""));
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_RPC_URI_L2 = \"", EXTERNAL_RPC_URI_L2, "\""));
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_BRIDGE_API_URI = \"", BRIDGE_API_URI, "\""));
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_ROLLUPSCAN_API_URI = \"", ROLLUPSCAN_API_URI, "\""));
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_EXPLORER_URI_L1 = \"", EXTERNAL_EXPLORER_URI_L1, "\""));
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_EXPLORER_URI_L2 = \"", EXTERNAL_EXPLORER_URI_L2, "\""));
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("ADMIN_SYSTEM_DASHBOARD_URI = \"", ADMIN_SYSTEM_DASHBOARD_URI, "\""));
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("GRAFANA_URI = \"", GRAFANA_URI, "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_RPC_URI_L1 = \"", EXTERNAL_RPC_URI_L1, "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_RPC_URI_L2 = \"", EXTERNAL_RPC_URI_L2, "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_BRIDGE_API_URI = \"", BRIDGE_API_URI, "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_ROLLUPSCAN_API_URI = \"", ROLLUPSCAN_API_URI, "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_EXPLORER_URI_L1 = \"", EXTERNAL_EXPLORER_URI_L1, "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_EXPLORER_URI_L2 = \"", EXTERNAL_EXPLORER_URI_L2, "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("ADMIN_SYSTEM_DASHBOARD_URI = \"", ADMIN_SYSTEM_DASHBOARD_URI, "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("GRAFANA_URI = \"", GRAFANA_URI, "\""));
 
         // L1 contracts
         vm.writeLine(FRONTEND_ENV_PATH, "");
@@ -339,7 +339,7 @@ contract GenerateFrontendConfig is DeployScroll {
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_WETH_GATEWAY_PROXY_ADDR = \"", vm.toString(L1_WETH_GATEWAY_PROXY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_SCROLL_CHAIN = \"", vm.toString(L1_SCROLL_CHAIN_PROXY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_GAS_TOKEN_GATEWAY = \"", vm.toString(L1_GAS_TOKEN_GATEWAY_PROXY_ADDR), "\""));
-        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_WRAPPED_TOKEN_GATEWAY = \"", vm.toString(L1_WRAPPED_TOKEN_GATEWAY_ADDR), "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_WRAPPED_TOKEN_GATEWAY = \"", vm.toString(L1_WRAPPED_TOKEN_GATEWAY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_GAS_TOKEN_ADDR = \"", vm.toString(L1_GAS_TOKEN_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_WETH_ADDR = \"", vm.toString(L1_WETH_ADDR), "\""));
 
