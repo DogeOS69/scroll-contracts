@@ -6,7 +6,8 @@ import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {L2TxFeeVaultWithGasToken} from "../../src/alternative-gas-token/L2TxFeeVaultWithGasToken.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
-import {WrappedEther} from "../../src/L2/predeploys/WrappedEther.sol";
+// import {WrappedEther} from "../../src/L2/predeploys/WrappedEther.sol";
+import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
 
 import {DETERMINISTIC_DEPLOYMENT_PROXY_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT, GENESIS_ALLOC_JSON_PATH, GENESIS_JSON_PATH, GENESIS_JSON_TEMPLATE_PATH} from "./Constants.sol";
 import {DeployScroll} from "./DeployScroll.s.sol";
@@ -130,19 +131,20 @@ contract GenerateGenesis is DeployScroll {
         }
 
         // set code
-        WrappedEther _weth = new WrappedEther();
-        vm.etch(predeployAddr, address(_weth).code);
+        // WrappedEther _weth = new WrappedEther();
+        WrappedDoge _wdoge = new WrappedDoge();
+        vm.etch(predeployAddr, address(_wdoge).code);
 
         // set storage
         bytes32 _nameSlot = hex"0000000000000000000000000000000000000000000000000000000000000003";
-        vm.store(predeployAddr, _nameSlot, vm.load(address(_weth), _nameSlot));
+        vm.store(predeployAddr, _nameSlot, vm.load(address(_wdoge), _nameSlot));
 
         bytes32 _symbolSlot = hex"0000000000000000000000000000000000000000000000000000000000000004";
-        vm.store(predeployAddr, _symbolSlot, vm.load(address(_weth), _symbolSlot));
+        vm.store(predeployAddr, _symbolSlot, vm.load(address(_wdoge), _symbolSlot));
 
         // reset so its not included state dump
-        vm.etch(address(_weth), "");
-        vm.resetNonce(address(_weth));
+        vm.etch(address(_wdoge), "");
+        vm.resetNonce(address(_wdoge));
     }
 
     function setL2FeeVault() internal {

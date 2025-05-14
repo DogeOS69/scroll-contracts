@@ -52,7 +52,8 @@ get_source_code_name() {
       # Smart Contracts Verified on L2 Successfully
       L2_MESSAGE_QUEUE_ADDR) echo L2MessageQueue ;;
       L2_WHITELIST_ADDR) echo Whitelist ;;
-      L2_WETH_ADDR) echo WrappedEther ;;
+      # L2_WETH_ADDR) echo WrappedEther ;;
+      L2_WDOGE_ADDR) echo WrappedDoge ;;
       L2_TX_FEE_VAULT_ADDR) echo L2TxFeeVault ;;
       L2_PROXY_ADMIN_ADDR) echo ProxyAdminSetOwner ;;
       L2_DOGEOS_MESSENGER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;

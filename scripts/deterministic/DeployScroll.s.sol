@@ -42,7 +42,8 @@ import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {L2TxFeeVaultWithGasToken} from "../../src/alternative-gas-token/L2TxFeeVaultWithGasToken.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
-import {WrappedEther} from "../../src/L2/predeploys/WrappedEther.sol";
+// import {WrappedEther} from "../../src/L2/predeploys/WrappedEther.sol";
+import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
 import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20.sol";
 import {ScrollStandardERC20FactorySetOwner} from "./contracts/ScrollStandardERC20FactorySetOwner.sol";
 import {ScrollChainMockFinalize} from "../../src/mocks/ScrollChainMockFinalize.sol";
@@ -111,7 +112,8 @@ contract DeployScroll is DeterministicDeployment {
     address internal L1_SCROLL_MESSENGER_PROXY_ADDR;
     address internal L1_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR;
-    address internal L1_WETH_ADDR;
+    // address internal L1_WETH_ADDR;
+    address internal L1_WDOGE_ADDR;
     address internal L1_WETH_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L1_WETH_GATEWAY_PROXY_ADDR;
     address internal L1_WHITELIST_ADDR;
@@ -146,7 +148,8 @@ contract DeployScroll is DeterministicDeployment {
     address internal L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR;
     address internal L2_TX_FEE_VAULT_ADDR;
-    address internal L2_WETH_ADDR;
+    // address internal L2_WETH_ADDR;
+    address internal L2_WDOGE_ADDR;
     address internal L2_WETH_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L2_WETH_GATEWAY_PROXY_ADDR;
     address internal L2_WHITELIST_ADDR;
@@ -345,7 +348,8 @@ contract DeployScroll is DeterministicDeployment {
 
     // @notice deployL1Contracts1stPass deploys L1 contracts whose initialization does not depend on any L2 addresses.
     function deployL1Contracts1stPass() private broadcast(Layer.L1) {
-        deployL1Weth();
+        // deployL1Weth();
+        deployL1Wdoge();
         deployL1ProxyAdmin();
         deployL1PlaceHolder();
         deployL1SystemConfigProxy();
@@ -381,7 +385,8 @@ contract DeployScroll is DeterministicDeployment {
         deployL2MessageQueue();
         deployL1GasPriceOracle();
         deployL2Whitelist();
-        deployL2Weth();
+        // deployL2Weth();
+        deployL2Wdoge();
         deployTxFeeVault();
         deployL2ProxyAdmin();
         deployL2PlaceHolder();
@@ -476,8 +481,12 @@ contract DeployScroll is DeterministicDeployment {
      * L1: 1st pass deployment *
      ***************************/
 
-    function deployL1Weth() private {
-        L1_WETH_ADDR = deploy("L1_WETH", type(WrappedEther).creationCode);
+    // function deployL1Weth() private {
+    //     L1_WETH_ADDR = deploy("L1_WETH", type(WrappedEther).creationCode);
+    // }
+
+    function deployL1Wdoge() private {
+        L1_WDOGE_ADDR = deploy("L1_WDOGE", type(WrappedDoge).creationCode);
     }
 
     function deployL1ProxyAdmin() private {
@@ -836,8 +845,12 @@ contract DeployScroll is DeterministicDeployment {
         L2_WHITELIST_ADDR = deploy("L2_WHITELIST", type(Whitelist).creationCode, args);
     }
 
-    function deployL2Weth() private {
-        L2_WETH_ADDR = deploy("L2_WETH", type(WrappedEther).creationCode);
+    // function deployL2Weth() private {
+    //     L2_WETH_ADDR = deploy("L2_WETH", type(WrappedEther).creationCode);
+    // }
+
+    function deployL2Wdoge() private {
+        L2_WDOGE_ADDR = deploy("L2_WDOGE", type(WrappedDoge).creationCode);
     }
 
     function deployTxFeeVault() private {
@@ -1041,8 +1054,10 @@ contract DeployScroll is DeterministicDeployment {
 
     function deployL1WETHGateway() private gasToken(false) {
         bytes memory args = abi.encode(
-            notnull(L1_WETH_ADDR),
-            notnull(L2_WETH_ADDR),
+            // notnull(L1_WETH_ADDR),
+            // notnull(L2_WETH_ADDR),
+            notnull(L1_WDOGE_ADDR),
+            notnull(L2_WDOGE_ADDR),
             notnull(L2_WETH_GATEWAY_PROXY_ADDR),
             notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
             notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
@@ -1140,7 +1155,7 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deployL1WrappedTokenGateway() private gasToken(true) {
-        bytes memory args = abi.encode(notnull(L1_WETH_ADDR), notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR));
+        bytes memory args = abi.encode(notnull(L1_WDOGE_ADDR), notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR));
 
         L1_WRAPPED_TOKEN_GATEWAY_ADDR = deploy(
             "L1_WRAPPED_TOKEN_GATEWAY",
@@ -1235,8 +1250,10 @@ contract DeployScroll is DeterministicDeployment {
 
     function deployL2WETHGateway() private gasToken(false) {
         bytes memory args = abi.encode(
-            notnull(L2_WETH_ADDR),
-            notnull(L1_WETH_ADDR),
+            // notnull(L2_WETH_ADDR),
+            // notnull(L1_WETH_ADDR),
+            notnull(L2_WDOGE_ADDR),
+            notnull(L1_WDOGE_ADDR),
             notnull(L1_WETH_GATEWAY_PROXY_ADDR),
             notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
             notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
@@ -1456,7 +1473,7 @@ contract DeployScroll is DeterministicDeployment {
 
         // set WETH gateway in router
         address[] memory _tokens = new address[](1);
-        _tokens[0] = notnull(L1_WETH_ADDR);
+        _tokens[0] = notnull(L1_WDOGE_ADDR);
         address[] memory _gateways = new address[](1);
         _gateways[0] = notnull(L1_WETH_GATEWAY_PROXY_ADDR);
 
@@ -1640,7 +1657,7 @@ contract DeployScroll is DeterministicDeployment {
 
         // set WETH gateway in router
         address[] memory _tokens = new address[](1);
-        _tokens[0] = notnull(L2_WETH_ADDR);
+        _tokens[0] = notnull(L2_WDOGE_ADDR);
         address[] memory _gateways = new address[](1);
         _gateways[0] = notnull(L2_WETH_GATEWAY_PROXY_ADDR);
 
