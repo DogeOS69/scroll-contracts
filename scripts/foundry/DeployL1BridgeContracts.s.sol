@@ -36,8 +36,10 @@ contract DeployL1BridgeContracts is Script {
 
     uint64 CHAIN_ID_L2 = uint64(vm.envUint("CHAIN_ID_L2"));
 
-    address L1_WETH_ADDR = vm.envAddress("L1_WETH_ADDR");
-    address L2_WETH_ADDR = vm.envAddress("L2_WETH_ADDR");
+    // address L1_WETH_ADDR = vm.envAddress("L1_WETH_ADDR");
+    // address L2_WETH_ADDR = vm.envAddress("L2_WETH_ADDR");
+    address L1_WDOGE_ADDR = vm.envAddress("L1_WDOGE_ADDR");
+    address L2_WDOGE_ADDR = vm.envAddress("L2_WDOGE_ADDR");
 
     address L1_PLONK_VERIFIER_ADDR = vm.envAddress("L1_PLONK_VERIFIER_ADDR");
     bytes32 VERIFIER_DIGEST_1 = vm.envBytes32("VERIFIER_DIGEST_1");
@@ -58,7 +60,8 @@ contract DeployL1BridgeContracts is Script {
     address L2_ERC1155_GATEWAY_PROXY_ADDR = vm.envAddress("L2_ERC1155_GATEWAY_PROXY_ADDR");
     address L2_ETH_GATEWAY_PROXY_ADDR = vm.envAddress("L2_ETH_GATEWAY_PROXY_ADDR");
     address L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR");
-    address L2_WETH_GATEWAY_PROXY_ADDR = vm.envAddress("L2_WETH_GATEWAY_PROXY_ADDR");
+    // address L2_WETH_GATEWAY_PROXY_ADDR = vm.envAddress("L2_WETH_GATEWAY_PROXY_ADDR");
+    address L2_WDOGE_GATEWAY_PROXY_ADDR = vm.envAddress("L2_WDOGE_GATEWAY_PROXY_ADDR");
     address L2_SCROLL_STANDARD_ERC20_ADDR = vm.envAddress("L2_SCROLL_STANDARD_ERC20_ADDR");
     address L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR = vm.envAddress("L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR");
 
@@ -211,9 +214,12 @@ contract DeployL1BridgeContracts is Script {
 
     function deployL1WETHGateway() internal {
         L1WETHGateway impl = new L1WETHGateway(
-            L1_WETH_ADDR,
-            L2_WETH_ADDR,
-            L2_WETH_GATEWAY_PROXY_ADDR,
+            // L1_WETH_ADDR,
+            // L2_WETH_ADDR,
+            // L2_WETH_GATEWAY_PROXY_ADDR,
+            L1_WDOGE_ADDR,
+            L2_WDOGE_ADDR,
+            L2_WDOGE_GATEWAY_PROXY_ADDR,
             address(router),
             L1_SCROLL_MESSENGER_PROXY_ADDR
         );

@@ -34,8 +34,10 @@ contract DeployL2BridgeContracts is Script {
     address L2_PROXY_ADMIN_ADDR = vm.envAddress("L2_PROXY_ADMIN_ADDR");
 
     address L1_TX_FEE_RECIPIENT_ADDR = vm.envAddress("L1_TX_FEE_RECIPIENT_ADDR");
-    address L1_WETH_ADDR = vm.envAddress("L1_WETH_ADDR");
-    address L2_WETH_ADDR = vm.envAddress("L2_WETH_ADDR");
+    // address L1_WETH_ADDR = vm.envAddress("L1_WETH_ADDR");
+    // address L2_WETH_ADDR = vm.envAddress("L2_WETH_ADDR");
+    address L1_WDOGE_ADDR = vm.envAddress("L1_WDOGE_ADDR");
+    address L2_WDOGE_ADDR = vm.envAddress("L2_WDOGE_ADDR");
 
     L1GasPriceOracle oracle;
     L2MessageQueue queue;
@@ -51,7 +53,8 @@ contract DeployL2BridgeContracts is Script {
     address L1_ERC1155_GATEWAY_PROXY_ADDR = vm.envAddress("L1_ERC1155_GATEWAY_PROXY_ADDR");
     address L1_ETH_GATEWAY_PROXY_ADDR = vm.envAddress("L1_ETH_GATEWAY_PROXY_ADDR");
     address L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR");
-    address L1_WETH_GATEWAY_PROXY_ADDR = vm.envAddress("L1_WETH_GATEWAY_PROXY_ADDR");
+    // address L1_WETH_GATEWAY_PROXY_ADDR = vm.envAddress("L1_WETH_GATEWAY_PROXY_ADDR");
+    address L1_WDOGE_GATEWAY_PROXY_ADDR = vm.envAddress("L1_WDOGE_GATEWAY_PROXY_ADDR");
 
     // predeploy contracts
     address L1_GAS_PRICE_ORACLE_PREDEPLOY_ADDR = vm.envOr("L1_GAS_PRICE_ORACLE_PREDEPLOY_ADDR", address(0));
@@ -185,9 +188,12 @@ contract DeployL2BridgeContracts is Script {
 
     function deployL2WETHGateway() internal {
         L2WETHGateway impl = new L2WETHGateway(
-            L2_WETH_ADDR,
-            L1_WETH_ADDR,
-            L1_WETH_GATEWAY_PROXY_ADDR,
+            // L2_WETH_ADDR,
+            // L1_WETH_ADDR,
+            // L1_WETH_GATEWAY_PROXY_ADDR,
+            L2_WDOGE_ADDR,
+            L1_WDOGE_ADDR,
+            L1_WDOGE_GATEWAY_PROXY_ADDR,
             address(router),
             L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
