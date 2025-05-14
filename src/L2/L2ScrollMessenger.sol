@@ -119,7 +119,7 @@ contract L2ScrollMessenger is ScrollMessengerBase, IL2ScrollMessenger {
         uint256 _value,
         bytes memory _message,
         uint256 _gasLimit
-    ) internal nonReentrant {
+    ) internal virtual nonReentrant {
         require(msg.value == _value, "msg.value mismatch");
 
         uint256 _nonce = L2MessageQueue(messageQueue).nextMessageIndex();
@@ -146,7 +146,7 @@ contract L2ScrollMessenger is ScrollMessengerBase, IL2ScrollMessenger {
         uint256 _value,
         bytes memory _message,
         bytes32 _xDomainCalldataHash
-    ) internal {
+    ) internal virtual {
         // @note check more `_to` address to avoid attack in the future when we add more gateways.
         require(_to != messageQueue, "Forbid to call message queue");
         _validateTargetAddress(_to);

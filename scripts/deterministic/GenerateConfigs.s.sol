@@ -176,7 +176,7 @@ contract GenerateChainMonitorConfig is DeployScroll {
         // vm.writeJson(vm.toString(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR), CHAIN_MONITOR_CONFIG_PATH, ".l2_config.l2_contracts.l2_gateways.custom_erc20_gateway");
         // vm.writeJson(vm.toString(L2_ERC721_GATEWAY_PROXY_ADDR), CHAIN_MONITOR_CONFIG_PATH, ".l2_config.l2_contracts.l2_gateways.erc721_gateway");
         // vm.writeJson(vm.toString(L2_ERC1155_GATEWAY_PROXY_ADDR), CHAIN_MONITOR_CONFIG_PATH, ".l2_config.l2_contracts.l2_gateways.erc1155_gateway");
-        vm.writeJson(vm.toString(L2_SCROLL_MESSENGER_PROXY_ADDR), CHAIN_MONITOR_CONFIG_PATH, ".l2_config.l2_contracts.scroll_messenger");
+        vm.writeJson(vm.toString(L2_DOGEOS_MESSENGER_PROXY_ADDR), CHAIN_MONITOR_CONFIG_PATH, ".l2_config.l2_contracts.scroll_messenger");
         vm.writeJson(vm.toString(L2_MESSAGE_QUEUE_ADDR), CHAIN_MONITOR_CONFIG_PATH, ".l2_config.l2_contracts.message_queue");
     }
 }
@@ -223,7 +223,7 @@ contract GenerateBridgeHistoryConfig is DeployScroll {
 
         // L2 contracts
         vm.writeJson(vm.toString(L2_MESSAGE_QUEUE_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L2.MessageQueueAddr");
-        vm.writeJson(vm.toString(L2_SCROLL_MESSENGER_PROXY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L2.MessengerAddr");
+        vm.writeJson(vm.toString(L2_DOGEOS_MESSENGER_PROXY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L2.MessengerAddr");
         vm.writeJson(vm.toString(L2_GATEWAY_ROUTER_PROXY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L2.GatewayRouterAddr");
         vm.writeJson(vm.toString(L2_ETH_GATEWAY_PROXY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L2.ETHGatewayAddr");
         vm.writeJson(vm.toString(L2_WETH_GATEWAY_PROXY_ADDR), BRIDGE_HISTORY_CONFIG_PATH, ".L2.WETHGatewayAddr");
@@ -283,6 +283,9 @@ contract GenerateBalanceCheckerConfig is DeployScroll {
 
         vm.writeJson(L2_RPC_ENDPOINT, BALANCE_CHECKER_CONFIG_PATH, ".addresses[5].rpc_url");
         vm.writeJson(vm.toString(L2_TX_FEE_VAULT_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[5].address");
+
+        vm.writeJson(L2_RPC_ENDPOINT, BALANCE_CHECKER_CONFIG_PATH, ".addresses[6].rpc_url");
+        vm.writeJson(vm.toString(L2_FEE_RECIPIENT_ADDR), BALANCE_CHECKER_CONFIG_PATH, ".addresses[6].address");
     }
 }
 
@@ -338,14 +341,15 @@ contract GenerateFrontendConfig is DeployScroll {
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_GAS_TOKEN_GATEWAY = \"", vm.toString(L1_GAS_TOKEN_GATEWAY_PROXY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_WRAPPED_TOKEN_GATEWAY = \"", vm.toString(L1_WRAPPED_TOKEN_GATEWAY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_GAS_TOKEN_ADDR = \"", vm.toString(L1_GAS_TOKEN_ADDR), "\""));
-        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_WETH_ADDR = \"", vm.toString(L1_WETH_ADDR), "\""));
+        // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_WETH_ADDR = \"", vm.toString(L1_WETH_ADDR), "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L1_WDOGE_ADDR = \"", vm.toString(L1_WDOGE_ADDR), "\""));
 
         // L2 contracts
         vm.writeLine(FRONTEND_ENV_PATH, "");
         // vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = \"", vm.toString(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L2_ETH_GATEWAY_PROXY_ADDR = \"", vm.toString(L2_ETH_GATEWAY_PROXY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L2_GATEWAY_ROUTER_PROXY_ADDR = \"", vm.toString(L2_GATEWAY_ROUTER_PROXY_ADDR), "\""));
-        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L2_SCROLL_MESSENGER = \"", vm.toString(L2_SCROLL_MESSENGER_PROXY_ADDR), "\""));
+        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L2_SCROLL_MESSENGER = \"", vm.toString(L2_DOGEOS_MESSENGER_PROXY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR = \"", vm.toString(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR), "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_L2_WETH_GATEWAY_PROXY_ADDR = \"", vm.toString(L2_WETH_GATEWAY_PROXY_ADDR), "\""));
 

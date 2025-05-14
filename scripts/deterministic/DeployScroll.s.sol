@@ -33,7 +33,8 @@ import {L2ERC1155Gateway} from "../../src/L2/gateways/L2ERC1155Gateway.sol";
 import {L2ERC721Gateway} from "../../src/L2/gateways/L2ERC721Gateway.sol";
 import {L2ETHGateway} from "../../src/L2/gateways/L2ETHGateway.sol";
 import {L2GatewayRouter} from "../../src/L2/gateways/L2GatewayRouter.sol";
-import {L2ScrollMessenger} from "../../src/L2/L2ScrollMessenger.sol";
+//import {L2ScrollMessenger} from "../../src/L2/L2ScrollMessenger.sol";
+import {L2DogeOsMessenger} from "../../src/dogeos/L2DogeOsMessenger.sol";
 import {L2StandardERC20Gateway} from "../../src/L2/gateways/L2StandardERC20Gateway.sol";
 import {L2WETHGateway} from "../../src/L2/gateways/L2WETHGateway.sol";
 import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
@@ -41,11 +42,13 @@ import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {L2TxFeeVaultWithGasToken} from "../../src/alternative-gas-token/L2TxFeeVaultWithGasToken.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
-import {WrappedEther} from "../../src/L2/predeploys/WrappedEther.sol";
+// import {WrappedEther} from "../../src/L2/predeploys/WrappedEther.sol";
+import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
 import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20.sol";
 import {ScrollStandardERC20FactorySetOwner} from "./contracts/ScrollStandardERC20FactorySetOwner.sol";
-
 import {ScrollChainMockFinalize} from "../../src/mocks/ScrollChainMockFinalize.sol";
+import {Moat} from "../../src/dogeos/Moat.sol";
+import {BasculeMockVerifier} from "../../src/dogeos/BasculeMockVerifier.sol";
 
 import "./Constants.sol";
 import "./Configuration.sol";
@@ -109,7 +112,8 @@ contract DeployScroll is DeterministicDeployment {
     address internal L1_SCROLL_MESSENGER_PROXY_ADDR;
     address internal L1_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR;
-    address internal L1_WETH_ADDR;
+    // address internal L1_WETH_ADDR;
+    address internal L1_WDOGE_ADDR;
     address internal L1_WETH_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L1_WETH_GATEWAY_PROXY_ADDR;
     address internal L1_WHITELIST_ADDR;
@@ -137,17 +141,21 @@ contract DeployScroll is DeterministicDeployment {
     address internal L2_MESSAGE_QUEUE_ADDR;
     address internal L2_PROXY_ADMIN_ADDR;
     address internal L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR;
-    address internal L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR;
-    address internal L2_SCROLL_MESSENGER_PROXY_ADDR;
+    address internal L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR;
+    address internal L2_DOGEOS_MESSENGER_PROXY_ADDR;
     address internal L2_SCROLL_STANDARD_ERC20_ADDR;
     address internal L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR;
     address internal L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR;
     address internal L2_TX_FEE_VAULT_ADDR;
-    address internal L2_WETH_ADDR;
+    // address internal L2_WETH_ADDR;
+    address internal L2_WDOGE_ADDR;
     address internal L2_WETH_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L2_WETH_GATEWAY_PROXY_ADDR;
     address internal L2_WHITELIST_ADDR;
+    address internal L2_MOAT_IMPLEMENTATION_ADDR;
+    address internal L2_MOAT_PROXY_ADDR;
+    address internal L2_BASCULE_MOCK_VERIFIER_ADDR;
 
     /*************
      * Utilities *
@@ -340,7 +348,8 @@ contract DeployScroll is DeterministicDeployment {
 
     // @notice deployL1Contracts1stPass deploys L1 contracts whose initialization does not depend on any L2 addresses.
     function deployL1Contracts1stPass() private broadcast(Layer.L1) {
-        deployL1Weth();
+        // deployL1Weth();
+        deployL1Wdoge();
         deployL1ProxyAdmin();
         deployL1PlaceHolder();
         deployL1SystemConfigProxy();
@@ -376,13 +385,15 @@ contract DeployScroll is DeterministicDeployment {
         deployL2MessageQueue();
         deployL1GasPriceOracle();
         deployL2Whitelist();
-        deployL2Weth();
+        // deployL2Weth();
+        deployL2Wdoge();
         deployTxFeeVault();
         deployL2ProxyAdmin();
         deployL2PlaceHolder();
-        deployL2ScrollMessengerProxy();
+        deployL2DogeOsMessengerProxy();
         deployL2ETHGatewayProxy();
         deployL2WETHGatewayProxy();
+        deployL2MoatProxy();
         //deployL2StandardERC20GatewayProxy();
         // deployL2CustomERC20GatewayProxy();
         // deployL2ERC721GatewayProxy();
@@ -408,7 +419,7 @@ contract DeployScroll is DeterministicDeployment {
     // @notice deployL2Contracts2ndPass deploys L2 contracts whose initialization depends on some L1 addresses.
     function deployL2Contracts2ndPass() private broadcast(Layer.L2) {
         // upgradable
-        deployL2ScrollMessenger();
+        deployL2DogeOsMessenger();
         deployL2GatewayRouter();
         // deployL2StandardERC20Gateway();
         deployL2ETHGateway();
@@ -416,6 +427,8 @@ contract DeployScroll is DeterministicDeployment {
         // deployL2CustomERC20Gateway();
         // deployL2ERC721Gateway();
         // deployL2ERC1155Gateway();
+        deployL2BasculeMockVerifier();
+        deployL2Moat();
     }
 
     // @notice initializeL1Contracts initializes contracts deployed on L1.
@@ -450,7 +463,7 @@ contract DeployScroll is DeterministicDeployment {
         initializeL2MessageQueue();
         initializeL2TxFeeVault();
         initializeL1GasPriceOracle();
-        initializeL2ScrollMessenger();
+        initializeL2DogeOsMessenger();
         initializeL2GatewayRouter();
         // initializeL2CustomERC20Gateway();
         // initializeL2ERC1155Gateway();
@@ -460,7 +473,7 @@ contract DeployScroll is DeterministicDeployment {
         initializeL2WETHGateway();
         //initializeScrollStandardERC20Factory();
         initializeL2Whitelist();
-
+        initializeL2Moat();
         transferL2ContractOwnership();
     }
 
@@ -468,8 +481,12 @@ contract DeployScroll is DeterministicDeployment {
      * L1: 1st pass deployment *
      ***************************/
 
-    function deployL1Weth() private {
-        L1_WETH_ADDR = deploy("L1_WETH", type(WrappedEther).creationCode);
+    // function deployL1Weth() private {
+    //     L1_WETH_ADDR = deploy("L1_WETH", type(WrappedEther).creationCode);
+    // }
+
+    function deployL1Wdoge() private {
+        L1_WDOGE_ADDR = deploy("L1_WDOGE", type(WrappedDoge).creationCode);
     }
 
     function deployL1ProxyAdmin() private {
@@ -828,8 +845,12 @@ contract DeployScroll is DeterministicDeployment {
         L2_WHITELIST_ADDR = deploy("L2_WHITELIST", type(Whitelist).creationCode, args);
     }
 
-    function deployL2Weth() private {
-        L2_WETH_ADDR = deploy("L2_WETH", type(WrappedEther).creationCode);
+    // function deployL2Weth() private {
+    //     L2_WETH_ADDR = deploy("L2_WETH", type(WrappedEther).creationCode);
+    // }
+
+    function deployL2Wdoge() private {
+        L2_WDOGE_ADDR = deploy("L2_WDOGE", type(WrappedDoge).creationCode);
     }
 
     function deployTxFeeVault() private {
@@ -859,15 +880,15 @@ contract DeployScroll is DeterministicDeployment {
         );
     }
 
-    function deployL2ScrollMessengerProxy() private {
+    function deployL2DogeOsMessengerProxy() private {
         bytes memory args = abi.encode(
             notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
             notnull(L2_PROXY_ADMIN_ADDR),
             new bytes(0)
         );
 
-        L2_SCROLL_MESSENGER_PROXY_ADDR = deploy(
-            "L2_SCROLL_MESSENGER_PROXY",
+        L2_DOGEOS_MESSENGER_PROXY_ADDR = deploy(
+            "L2_DOGEOS_MESSENGER_PROXY",
             type(TransparentUpgradeableProxy).creationCode,
             args
         );
@@ -968,6 +989,16 @@ contract DeployScroll is DeterministicDeployment {
         );
     }
 
+    function deployL2MoatProxy() private {
+        bytes memory args = abi.encode(
+            notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
+            notnull(L2_PROXY_ADMIN_ADDR),
+            new bytes(0)
+        );
+
+        L2_MOAT_PROXY_ADDR = deploy("L2_MOAT_PROXY", type(TransparentUpgradeableProxy).creationCode, args);
+    }
+
     /***************************
      * L1: 2nd pass deployment *
      ***************************/
@@ -976,7 +1007,7 @@ contract DeployScroll is DeterministicDeployment {
         if (ALTERNATIVE_GAS_TOKEN_ENABLED) {
             bytes memory args = abi.encode(
                 notnull(L1_GAS_TOKEN_GATEWAY_PROXY_ADDR),
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR),
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR),
                 notnull(L1_SCROLL_CHAIN_PROXY_ADDR),
                 notnull(L1_MESSAGE_QUEUE_V1_PROXY_ADDR),
                 notnull(L1_MESSAGE_QUEUE_V2_PROXY_ADDR)
@@ -989,7 +1020,7 @@ contract DeployScroll is DeterministicDeployment {
             );
         } else {
             bytes memory args = abi.encode(
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR),
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR),
                 notnull(L1_SCROLL_CHAIN_PROXY_ADDR),
                 notnull(L1_MESSAGE_QUEUE_V1_PROXY_ADDR),
                 notnull(L1_MESSAGE_QUEUE_V2_PROXY_ADDR)
@@ -1023,8 +1054,10 @@ contract DeployScroll is DeterministicDeployment {
 
     function deployL1WETHGateway() private gasToken(false) {
         bytes memory args = abi.encode(
-            notnull(L1_WETH_ADDR),
-            notnull(L2_WETH_ADDR),
+            // notnull(L1_WETH_ADDR),
+            // notnull(L2_WETH_ADDR),
+            notnull(L1_WDOGE_ADDR),
+            notnull(L2_WDOGE_ADDR),
             notnull(L2_WETH_GATEWAY_PROXY_ADDR),
             notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
             notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
@@ -1122,7 +1155,7 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deployL1WrappedTokenGateway() private gasToken(true) {
-        bytes memory args = abi.encode(notnull(L1_WETH_ADDR), notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR));
+        bytes memory args = abi.encode(notnull(L1_WDOGE_ADDR), notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR));
 
         L1_WRAPPED_TOKEN_GATEWAY_ADDR = deploy(
             "L1_WRAPPED_TOKEN_GATEWAY",
@@ -1135,16 +1168,21 @@ contract DeployScroll is DeterministicDeployment {
      * L2: 2nd pass deployment *
      ***************************/
 
-    function deployL2ScrollMessenger() private {
-        bytes memory args = abi.encode(notnull(L1_SCROLL_MESSENGER_PROXY_ADDR), notnull(L2_MESSAGE_QUEUE_ADDR));
+    function deployL2DogeOsMessenger() private {
+        bytes memory args = abi.encode(
+            notnull(L1_SCROLL_MESSENGER_PROXY_ADDR),
+            notnull(L2_MESSAGE_QUEUE_ADDR),
+            notnull(L2_MOAT_PROXY_ADDR),
+            notnull(L2_TX_FEE_VAULT_ADDR)
+        );
 
-        L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR = deploy(
-            "L2_SCROLL_MESSENGER_IMPLEMENTATION",
-            type(L2ScrollMessenger).creationCode,
+        L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = deploy(
+            "L2_DOGEOS_MESSENGER_IMPLEMENTATION",
+            type(L2DogeOsMessenger).creationCode,
             args
         );
 
-        upgrade(L2_PROXY_ADMIN_ADDR, L2_SCROLL_MESSENGER_PROXY_ADDR, L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR);
+        upgrade(L2_PROXY_ADMIN_ADDR, L2_DOGEOS_MESSENGER_PROXY_ADDR, L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR);
     }
 
     function deployL2GatewayRouter() private {
@@ -1171,7 +1209,7 @@ contract DeployScroll is DeterministicDeployment {
         bytes memory args = abi.encode(
             notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR),
             notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_SCROLL_MESSENGER_PROXY_ADDR),
+            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR),
             notnull(L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR)
         );
 
@@ -1198,7 +1236,7 @@ contract DeployScroll is DeterministicDeployment {
         bytes memory args = abi.encode(
             notnull(COUNTERPART),
             notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
         );
 
         L2_ETH_GATEWAY_IMPLEMENTATION_ADDR = deploy(
@@ -1212,11 +1250,13 @@ contract DeployScroll is DeterministicDeployment {
 
     function deployL2WETHGateway() private gasToken(false) {
         bytes memory args = abi.encode(
-            notnull(L2_WETH_ADDR),
-            notnull(L1_WETH_ADDR),
+            // notnull(L2_WETH_ADDR),
+            // notnull(L1_WETH_ADDR),
+            notnull(L2_WDOGE_ADDR),
+            notnull(L1_WDOGE_ADDR),
             notnull(L1_WETH_GATEWAY_PROXY_ADDR),
             notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
         );
 
         L2_WETH_GATEWAY_IMPLEMENTATION_ADDR = deploy(
@@ -1232,7 +1272,7 @@ contract DeployScroll is DeterministicDeployment {
         bytes memory args = abi.encode(
             notnull(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR),
             notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
         );
 
         L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR = deploy(
@@ -1245,7 +1285,7 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deployL2ERC721Gateway() private {
-        bytes memory args = abi.encode(notnull(L1_ERC721_GATEWAY_PROXY_ADDR), notnull(L2_SCROLL_MESSENGER_PROXY_ADDR));
+        bytes memory args = abi.encode(notnull(L1_ERC721_GATEWAY_PROXY_ADDR), notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR));
 
         L2_ERC721_GATEWAY_IMPLEMENTATION_ADDR = deploy(
             "L2_ERC721_GATEWAY_IMPLEMENTATION",
@@ -1257,7 +1297,7 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deployL2ERC1155Gateway() private {
-        bytes memory args = abi.encode(notnull(L1_ERC1155_GATEWAY_PROXY_ADDR), notnull(L2_SCROLL_MESSENGER_PROXY_ADDR));
+        bytes memory args = abi.encode(notnull(L1_ERC1155_GATEWAY_PROXY_ADDR), notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR));
 
         L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR = deploy(
             "L2_ERC1155_GATEWAY_IMPLEMENTATION",
@@ -1266,6 +1306,17 @@ contract DeployScroll is DeterministicDeployment {
         );
 
         upgrade(L2_PROXY_ADMIN_ADDR, L2_ERC1155_GATEWAY_PROXY_ADDR, L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR);
+    }
+
+    function deployL2Moat() private {
+        bytes memory args = new bytes(0);
+        L2_MOAT_IMPLEMENTATION_ADDR = deploy("L2_MOAT_IMPLEMENTATION", type(Moat).creationCode, args);
+
+        upgrade(L2_PROXY_ADMIN_ADDR, L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR);
+    }
+
+    function deployL2BasculeMockVerifier() private {
+        L2_BASCULE_MOCK_VERIFIER_ADDR = deploy("L2_BASCULE_MOCK_VERIFIER", type(BasculeMockVerifier).creationCode);
     }
 
     /**********************
@@ -1326,7 +1377,7 @@ contract DeployScroll is DeterministicDeployment {
     function initializeL1ScrollMessenger() private {
         if (getInitializeCount(L1_SCROLL_MESSENGER_PROXY_ADDR) == 0) {
             L1ScrollMessenger(payable(L1_SCROLL_MESSENGER_PROXY_ADDR)).initialize(
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR),
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR),
                 notnull(L1_FEE_VAULT_ADDR),
                 notnull(L1_SCROLL_CHAIN_PROXY_ADDR),
                 notnull(L1_MESSAGE_QUEUE_V2_PROXY_ADDR)
@@ -1422,7 +1473,7 @@ contract DeployScroll is DeterministicDeployment {
 
         // set WETH gateway in router
         address[] memory _tokens = new address[](1);
-        _tokens[0] = notnull(L1_WETH_ADDR);
+        _tokens[0] = notnull(L1_WDOGE_ADDR);
         address[] memory _gateways = new address[](1);
         _gateways[0] = notnull(L1_WETH_GATEWAY_PROXY_ADDR);
 
@@ -1503,17 +1554,17 @@ contract DeployScroll is DeterministicDeployment {
      **********************/
 
     function initializeL2MessageQueue() private {
-        if (L2MessageQueue(L2_MESSAGE_QUEUE_ADDR).messenger() != notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)) {
-            L2MessageQueue(L2_MESSAGE_QUEUE_ADDR).initialize(L2_SCROLL_MESSENGER_PROXY_ADDR);
+        if (L2MessageQueue(L2_MESSAGE_QUEUE_ADDR).messenger() != notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)) {
+            L2MessageQueue(L2_MESSAGE_QUEUE_ADDR).initialize(L2_DOGEOS_MESSENGER_PROXY_ADDR);
         }
     }
 
     function initializeL2TxFeeVault() private {
         if (
             !ALTERNATIVE_GAS_TOKEN_ENABLED &&
-            L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).messenger() != notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+            L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).messenger() != notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
         ) {
-            L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).updateMessenger(L2_SCROLL_MESSENGER_PROXY_ADDR);
+            L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
         }
     }
 
@@ -1523,9 +1574,9 @@ contract DeployScroll is DeterministicDeployment {
         }
     }
 
-    function initializeL2ScrollMessenger() private {
-        if (getInitializeCount(L2_SCROLL_MESSENGER_PROXY_ADDR) == 0) {
-            L2ScrollMessenger(payable(L2_SCROLL_MESSENGER_PROXY_ADDR)).initialize(
+    function initializeL2DogeOsMessenger() private {
+        if (getInitializeCount(L2_DOGEOS_MESSENGER_PROXY_ADDR) == 0) {
+            L2DogeOsMessenger(payable(L2_DOGEOS_MESSENGER_PROXY_ADDR)).initialize(
                 notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
             );
         }
@@ -1545,7 +1596,7 @@ contract DeployScroll is DeterministicDeployment {
             L2CustomERC20Gateway(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR).initialize(
                 notnull(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR),
                 notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
             );
         }
     }
@@ -1554,7 +1605,7 @@ contract DeployScroll is DeterministicDeployment {
         if (getInitializeCount(L2_ERC1155_GATEWAY_PROXY_ADDR) == 0) {
             L2ERC1155Gateway(L2_ERC1155_GATEWAY_PROXY_ADDR).initialize(
                 notnull(L1_ERC1155_GATEWAY_PROXY_ADDR),
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
             );
         }
     }
@@ -1563,7 +1614,7 @@ contract DeployScroll is DeterministicDeployment {
         if (getInitializeCount(L2_ERC721_GATEWAY_PROXY_ADDR) == 0) {
             L2ERC721Gateway(L2_ERC721_GATEWAY_PROXY_ADDR).initialize(
                 notnull(L1_ERC721_GATEWAY_PROXY_ADDR),
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
             );
         }
     }
@@ -1579,7 +1630,7 @@ contract DeployScroll is DeterministicDeployment {
             L2ETHGateway(L2_ETH_GATEWAY_PROXY_ADDR).initialize(
                 notnull(COUNTERPART),
                 notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
             );
         }
     }
@@ -1589,7 +1640,7 @@ contract DeployScroll is DeterministicDeployment {
             L2StandardERC20Gateway(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR).initialize(
                 notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR),
                 notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR),
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR),
                 notnull(L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR)
             );
         }
@@ -1600,13 +1651,13 @@ contract DeployScroll is DeterministicDeployment {
             L2WETHGateway(payable(L2_WETH_GATEWAY_PROXY_ADDR)).initialize(
                 notnull(L1_WETH_GATEWAY_PROXY_ADDR),
                 notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
             );
         }
 
         // set WETH gateway in router
         address[] memory _tokens = new address[](1);
-        _tokens[0] = notnull(L2_WETH_ADDR);
+        _tokens[0] = notnull(L2_WDOGE_ADDR);
         address[] memory _gateways = new address[](1);
         _gateways[0] = notnull(L2_WETH_GATEWAY_PROXY_ADDR);
 
@@ -1631,6 +1682,21 @@ contract DeployScroll is DeterministicDeployment {
         }
     }
 
+    function initializeL2Moat() private {
+        Moat moat = Moat(L2_MOAT_PROXY_ADDR);
+        //must initialize first, the following calls will revert if owner is not current caller
+        moat.initialize(DEPLOYER_ADDR);
+        moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
+        moat.setFee(0.1 ether);
+        moat.setMinWithdrawal(1 ether);
+        if (L2_FEE_RECIPIENT_ADDR != address(0)) {
+            moat.setFeeRecipient(L2_FEE_RECIPIENT_ADDR);
+        } else {
+            moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
+        }
+        moat.setBascule(L2_BASCULE_MOCK_VERIFIER_ADDR);
+    }
+
     function transferL2ContractOwnership() private {
         transferOwnership(L1_GAS_PRICE_ORACLE_ADDR, OWNER_ADDR);
         // transferOwnership(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
@@ -1639,7 +1705,7 @@ contract DeployScroll is DeterministicDeployment {
         transferOwnership(L2_ETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_GATEWAY_ROUTER_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_MESSAGE_QUEUE_ADDR, OWNER_ADDR);
-        transferOwnership(L2_SCROLL_MESSENGER_PROXY_ADDR, OWNER_ADDR);
+        transferOwnership(L2_DOGEOS_MESSENGER_PROXY_ADDR, OWNER_ADDR);
         // transferOwnership(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_TX_FEE_VAULT_ADDR, OWNER_ADDR);
         transferOwnership(L2_PROXY_ADMIN_ADDR, OWNER_ADDR);
@@ -1648,6 +1714,10 @@ contract DeployScroll is DeterministicDeployment {
         if (!ALTERNATIVE_GAS_TOKEN_ENABLED) {
             transferOwnership(L2_WETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         }
+
+        //TODO: Maybe Moat should inherit from OwnableUpgradeable like other contracts
+        Moat moat = Moat(L2_MOAT_PROXY_ADDR);
+        moat.transferOwnership(OWNER_ADDR);
     }
 
     function initializeSystemConfig() private {

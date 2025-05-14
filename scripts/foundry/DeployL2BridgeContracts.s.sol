@@ -34,8 +34,10 @@ contract DeployL2BridgeContracts is Script {
     address L2_PROXY_ADMIN_ADDR = vm.envAddress("L2_PROXY_ADMIN_ADDR");
 
     address L1_TX_FEE_RECIPIENT_ADDR = vm.envAddress("L1_TX_FEE_RECIPIENT_ADDR");
-    address L1_WETH_ADDR = vm.envAddress("L1_WETH_ADDR");
-    address L2_WETH_ADDR = vm.envAddress("L2_WETH_ADDR");
+    // address L1_WETH_ADDR = vm.envAddress("L1_WETH_ADDR");
+    // address L2_WETH_ADDR = vm.envAddress("L2_WETH_ADDR");
+    address L1_WDOGE_ADDR = vm.envAddress("L1_WDOGE_ADDR");
+    address L2_WDOGE_ADDR = vm.envAddress("L2_WDOGE_ADDR");
 
     L1GasPriceOracle oracle;
     L2MessageQueue queue;
@@ -43,7 +45,7 @@ contract DeployL2BridgeContracts is Script {
     L2GatewayRouter router;
     ScrollStandardERC20Factory factory;
 
-    address L2_SCROLL_MESSENGER_PROXY_ADDR = vm.envAddress("L2_SCROLL_MESSENGER_PROXY_ADDR");
+    address L2_DOGEOS_MESSENGER_PROXY_ADDR = vm.envAddress("L2_DOGEOS_MESSENGER_PROXY_ADDR");
 
     address L1_SCROLL_MESSENGER_PROXY_ADDR = vm.envAddress("L1_SCROLL_MESSENGER_PROXY_ADDR");
     address L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR");
@@ -51,7 +53,8 @@ contract DeployL2BridgeContracts is Script {
     address L1_ERC1155_GATEWAY_PROXY_ADDR = vm.envAddress("L1_ERC1155_GATEWAY_PROXY_ADDR");
     address L1_ETH_GATEWAY_PROXY_ADDR = vm.envAddress("L1_ETH_GATEWAY_PROXY_ADDR");
     address L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR");
-    address L1_WETH_GATEWAY_PROXY_ADDR = vm.envAddress("L1_WETH_GATEWAY_PROXY_ADDR");
+    // address L1_WETH_GATEWAY_PROXY_ADDR = vm.envAddress("L1_WETH_GATEWAY_PROXY_ADDR");
+    address L1_WDOGE_GATEWAY_PROXY_ADDR = vm.envAddress("L1_WDOGE_GATEWAY_PROXY_ADDR");
 
     // predeploy contracts
     address L1_GAS_PRICE_ORACLE_PREDEPLOY_ADDR = vm.envOr("L1_GAS_PRICE_ORACLE_PREDEPLOY_ADDR", address(0));
@@ -137,7 +140,7 @@ contract DeployL2BridgeContracts is Script {
     function deployL2ScrollMessenger() internal {
         L2ScrollMessenger impl = new L2ScrollMessenger(L1_SCROLL_MESSENGER_PROXY_ADDR, address(queue));
 
-        logAddress("L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR", address(impl));
+        logAddress("L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR", address(impl));
     }
 
     function deployL2GatewayRouter() internal {
@@ -166,7 +169,7 @@ contract DeployL2BridgeContracts is Script {
         L2StandardERC20Gateway impl = new L2StandardERC20Gateway(
             L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR,
             address(router),
-            L2_SCROLL_MESSENGER_PROXY_ADDR,
+            L2_DOGEOS_MESSENGER_PROXY_ADDR,
             address(factory)
         );
 
@@ -177,7 +180,7 @@ contract DeployL2BridgeContracts is Script {
         L2ETHGateway impl = new L2ETHGateway(
             L1_ETH_GATEWAY_PROXY_ADDR,
             address(router),
-            L2_SCROLL_MESSENGER_PROXY_ADDR
+            L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
 
         logAddress("L2_ETH_GATEWAY_IMPLEMENTATION_ADDR", address(impl));
@@ -185,11 +188,14 @@ contract DeployL2BridgeContracts is Script {
 
     function deployL2WETHGateway() internal {
         L2WETHGateway impl = new L2WETHGateway(
-            L2_WETH_ADDR,
-            L1_WETH_ADDR,
-            L1_WETH_GATEWAY_PROXY_ADDR,
+            // L2_WETH_ADDR,
+            // L1_WETH_ADDR,
+            // L1_WETH_GATEWAY_PROXY_ADDR,
+            L2_WDOGE_ADDR,
+            L1_WDOGE_ADDR,
+            L1_WDOGE_GATEWAY_PROXY_ADDR,
             address(router),
-            L2_SCROLL_MESSENGER_PROXY_ADDR
+            L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
 
         logAddress("L2_WETH_GATEWAY_IMPLEMENTATION_ADDR", address(impl));
@@ -199,20 +205,20 @@ contract DeployL2BridgeContracts is Script {
         L2CustomERC20Gateway impl = new L2CustomERC20Gateway(
             L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR,
             address(router),
-            L2_SCROLL_MESSENGER_PROXY_ADDR
+            L2_DOGEOS_MESSENGER_PROXY_ADDR
         );
 
         logAddress("L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR", address(impl));
     }
 
     function deployL2ERC721Gateway() internal {
-        L2ERC721Gateway impl = new L2ERC721Gateway(L1_ERC721_GATEWAY_PROXY_ADDR, L2_SCROLL_MESSENGER_PROXY_ADDR);
+        L2ERC721Gateway impl = new L2ERC721Gateway(L1_ERC721_GATEWAY_PROXY_ADDR, L2_DOGEOS_MESSENGER_PROXY_ADDR);
 
         logAddress("L2_ERC721_GATEWAY_IMPLEMENTATION_ADDR", address(impl));
     }
 
     function deployL2ERC1155Gateway() internal {
-        L2ERC1155Gateway impl = new L2ERC1155Gateway(L1_ERC1155_GATEWAY_PROXY_ADDR, L2_SCROLL_MESSENGER_PROXY_ADDR);
+        L2ERC1155Gateway impl = new L2ERC1155Gateway(L1_ERC1155_GATEWAY_PROXY_ADDR, L2_DOGEOS_MESSENGER_PROXY_ADDR);
         logAddress("L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR", address(impl));
     }
 

@@ -51,10 +51,11 @@ get_source_code_name() {
       # Smart Contracts Verified on L2 Successfully
       L2_MESSAGE_QUEUE_ADDR) echo L2MessageQueue ;;
       L2_WHITELIST_ADDR) echo Whitelist ;;
-      L2_WETH_ADDR) echo WrappedEther ;;
+      # L2_WETH_ADDR) echo WrappedEther ;;
+      L2_WDOGE_ADDR) echo WrappedDoge ;;
       L2_TX_FEE_VAULT_ADDR) echo L2TxFeeVault ;;
       L2_PROXY_ADMIN_ADDR) echo ProxyAdminSetOwner ;;
-      L2_SCROLL_MESSENGER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
+      L2_DOGEOS_MESSENGER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       L2_ETH_GATEWAY_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       L2_WETH_GATEWAY_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
 
@@ -94,7 +95,7 @@ get_source_code_name() {
       # L1_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR) echo L1CustomERC20Gateway ;;
       # L1_ERC721_GATEWAY_IMPLEMENTATION_ADDR) echo L1ERC721Gateway ;;
       # L1_ERC1155_GATEWAY_IMPLEMENTATION_ADDR ) echo L1ERC1155Gateway ;;
-      L2_SCROLL_MESSENGER_IMPLEMENTATION_ADDR) echo L2ScrollMessenger ;;
+      L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR) echo L2DogeOsMessenger ;;
       L2_GATEWAY_ROUTER_IMPLEMENTATION_ADDR) echo L2GatewayRouter ;;
       L2_GATEWAY_ROUTER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       # L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR) echo L2StandardERC20Gateway ;;
@@ -103,6 +104,9 @@ get_source_code_name() {
       # L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR) echo L2CustomERC20Gateway ;;
       # L2_ERC721_GATEWAY_IMPLEMENTATION_ADDR) echo L2ERC721Gateway ;;
       # L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR) echo L2ERC1155Gateway ;;
+      L2_MOAT_IMPLEMENTATION_ADDR) echo Moat ;;
+      L2_MOAT_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
+      L2_BASCULE_MOCK_VERIFIER_ADDR) echo BasculeMockVerifier ;;
       *) echo "" ;; # default: return void string
     esac
   fi
