@@ -63,8 +63,9 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * @notice initialize the owner
      * @param _initialOwner The initial owner of the Moat contract.
      */
-    function initialize(address _initialOwner) external {
-        _transferOwnership(_initialOwner); // Initialize ownership
+    function initialize(address _initialOwner) external initializer {
+        __ReentrancyGuard_init();
+        _transferOwnership(_initialOwner);
     }
 
     // --- Setters (Owner Restricted) --- //
