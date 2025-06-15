@@ -4,6 +4,7 @@ pragma solidity =0.8.24;
 import {Script} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {stdToml} from "forge-std/StdToml.sol";
+import {console} from "forge-std/console.sol";
 
 import {CONFIG_PATH, CONFIG_CONTRACTS_PATH, CONFIG_CONTRACTS_TEMPLATE_PATH} from "./Constants.sol";
 
@@ -128,11 +129,31 @@ abstract contract Configuration is Script {
         TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
         TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
 
-        DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
-        L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
-        L1_FINALIZE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY");
-        L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
+        DEPLOYER_PRIVATE_KEY = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
+        L1_COMMIT_SENDER_PRIVATE_KEY = vm.envOr("L1_COMMIT_SENDER_PRIVATE_KEY", uint256(0));
+        L1_FINALIZE_SENDER_PRIVATE_KEY = vm.envOr("L1_FINALIZE_SENDER_PRIVATE_KEY", uint256(0));
+        L1_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L1_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
+        L2_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L2_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
+
+        if (DEPLOYER_PRIVATE_KEY == 0) {
+            DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
+        }
+
+        if (L1_COMMIT_SENDER_PRIVATE_KEY == 0) {
+            L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
+        }
+
+        if (L1_FINALIZE_SENDER_PRIVATE_KEY == 0) {
+            L1_FINALIZE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY");
+        }
+
+        if (L1_GAS_ORACLE_SENDER_PRIVATE_KEY == 0) {
+            L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
+        }
+
+        if (L2_GAS_ORACLE_SENDER_PRIVATE_KEY == 0) {
+            L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
+        }
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
         L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
@@ -144,7 +165,13 @@ abstract contract Configuration is Script {
 
         L2GETH_SIGNER_ADDRESS = cfg.readAddress(".sequencer.L2GETH_SIGNER_ADDRESS");
 
-        ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING = cfg.readString(".db.ROLLUP_EXPLORER_DB_CONNECTION_STRING");
+        ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING = vm.envOr("ROLLUP_EXPLORER_DB_CONNECTION_STRING", string(""));
+
+        if (
+            keccak256(abi.encodePacked(ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING)) == keccak256(abi.encodePacked(""))
+        ) {
+            ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING = cfg.readString(".db.ROLLUP_EXPLORER_DB_CONNECTION_STRING");
+        }
 
         L2_MAX_ETH_SUPPLY = cfg.readUint(".genesis.L2_MAX_ETH_SUPPLY");
         L2_DEPLOYER_INITIAL_BALANCE = cfg.readUint(".genesis.L2_DEPLOYER_INITIAL_BALANCE");
@@ -171,7 +198,11 @@ abstract contract Configuration is Script {
         CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
         BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
         BUNDLE_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BUNDLE_COLLECTION_TIME_SEC");
-        COORDINATOR_JWT_SECRET_KEY = cfg.readString(".coordinator.COORDINATOR_JWT_SECRET_KEY");
+
+        COORDINATOR_JWT_SECRET_KEY = vm.envOr("COORDINATOR_JWT_SECRET_KEY", string(""));
+        if (keccak256(abi.encodePacked(COORDINATOR_JWT_SECRET_KEY)) == keccak256(abi.encodePacked(""))) {
+            COORDINATOR_JWT_SECRET_KEY = cfg.readString(".coordinator.COORDINATOR_JWT_SECRET_KEY");
+        }
 
         EXTERNAL_RPC_URI_L1 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L1");
         EXTERNAL_RPC_URI_L2 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L2");
