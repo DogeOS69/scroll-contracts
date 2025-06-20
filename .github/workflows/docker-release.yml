@@ -25,6 +25,20 @@ jobs:
       - name: Update submodules recursively
         run: git submodule update --init --recursive
 
+      - name: Set image tag
+        id: set_tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" && "$REF_TYPE" == "tag" ]]; then
+            echo "IMAGE_TAG=$REF_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "IMAGE_TAG=$SHA" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
@@ -55,7 +69,7 @@ jobs:
           push: true
           context: .
           file: docker/Dockerfile.base
-          tags: ${{ env.DOCKER_REPOSITORY }}:base-${{ github.sha }}
+          tags: ${{ env.DOCKER_REPOSITORY }}:base-${{ steps.set_tag.outputs.IMAGE_TAG }}
 
       - name: Build deploy image
         id: build_deploy_image
@@ -65,10 +79,9 @@ jobs:
           push: true
           context: .
           file: docker/Dockerfile.deploy
-          tags: |
-            ${{ env.DOCKER_REPOSITORY }}:deploy-${{ github.sha }}
+          tags: ${{ env.DOCKER_REPOSITORY }}:deploy-${{ steps.set_tag.outputs.IMAGE_TAG }}
           build-args: |
-            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ github.sha }}
+            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ steps.set_tag.outputs.IMAGE_TAG }}
 
       - name: Build gen image
         id: build_gen_image
@@ -78,10 +91,9 @@ jobs:
           push: true
           context: .
           file: docker/Dockerfile.gen-configs
-          tags: |
-            ${{ env.DOCKER_REPOSITORY }}:gen-configs-${{ github.sha }}
+          tags: ${{ env.DOCKER_REPOSITORY }}:gen-configs-${{ steps.set_tag.outputs.IMAGE_TAG }}
           build-args: |
-            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ github.sha }}
+            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ steps.set_tag.outputs.IMAGE_TAG }}
 
       - name: Build verify image
         id: build_verify_image
@@ -91,7 +103,6 @@ jobs:
           push: true
           context: .
           file: docker/Dockerfile.verify
-          tags: |
-            ${{ env.DOCKER_REPOSITORY }}:verify-${{ github.sha }}
+          tags: ${{ env.DOCKER_REPOSITORY }}:verify-${{ steps.set_tag.outputs.IMAGE_TAG }}
           build-args: |
-            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ github.sha }}
+            BASE_IMAGE=${{ env.DOCKER_REPOSITORY }}:base-${{ steps.set_tag.outputs.IMAGE_TAG }}
