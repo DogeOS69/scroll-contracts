@@ -1721,18 +1721,20 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function initializeSystemConfig() private {
-        SystemConfig(L1_SYSTEM_CONFIG_PROXY_ADDR).initialize(
-            vm.addr(DEPLOYER_PRIVATE_KEY),
-            L2GETH_SIGNER_ADDRESS,
-            SystemConfig.MessageQueueParameters({
-                maxGasLimit: uint32(MAX_L1_MESSAGE_GAS_LIMIT),
-                baseFeeOverhead: 1000000000,
-                baseFeeScalar: 1000000000
-            }),
-            SystemConfig.EnforcedBatchParameters({
-                maxDelayEnterEnforcedMode: uint24(FINALIZE_BATCH_DEADLINE_SEC),
-                maxDelayMessageQueue: uint24(RELAY_MESSAGE_DEADLINE_SEC)
-            })
-        );
+        if (getInitializeCount(L1_SYSTEM_CONFIG_PROXY_ADDR) == 0) {
+            SystemConfig(L1_SYSTEM_CONFIG_PROXY_ADDR).initialize(
+                vm.addr(DEPLOYER_PRIVATE_KEY),
+                L2GETH_SIGNER_ADDRESS,
+                SystemConfig.MessageQueueParameters({
+                    maxGasLimit: uint32(MAX_L1_MESSAGE_GAS_LIMIT),
+                    baseFeeOverhead: 1000000000,
+                    baseFeeScalar: 1000000000
+                }),
+                SystemConfig.EnforcedBatchParameters({
+                    maxDelayEnterEnforcedMode: uint24(FINALIZE_BATCH_DEADLINE_SEC),
+                    maxDelayMessageQueue: uint24(RELAY_MESSAGE_DEADLINE_SEC)
+                })
+            );
+        }
     }
 }
