@@ -75,7 +75,7 @@ abstract contract Configuration is Script {
     // contracts
     string internal DEPLOYMENT_SALT;
     address internal L1_FEE_VAULT_ADDR;
-    address internal L2_FEE_RECIPIENT_ADDR;
+    address internal L2_BRIDGE_FEE_RECIPIENT_ADDR;
 
     // coordinator
     string internal CHUNK_COLLECTION_TIME_SEC;
@@ -181,19 +181,7 @@ abstract contract Configuration is Script {
 
         L1_FEE_VAULT_ADDR = cfg.readAddress(".contracts.L1_FEE_VAULT_ADDR");
 
-        L2_FEE_RECIPIENT_ADDR = cfg.readAddress(".contracts.L2_FEE_RECIPIENT_ADDR");
-        // if (stdToml.keyExists(cfg, ".contracts.L2_FEE_RECIPIENT_ADDR")) {
-        //     L2_FEE_RECIPIENT_ADDR = cfg.readAddress(".contracts.L2_FEE_RECIPIENT_ADDR");
-        // } else {
-        //     L2_FEE_RECIPIENT_ADDR = 0x0000000000000000000000000000000000000000;
-        // }
-
-        L2_FEE_RECIPIENT_ADDR = cfg.readAddress(".contracts.L2_FEE_RECIPIENT_ADDR");
-        // if (stdToml.keyExists(cfg, ".contracts.L2_FEE_RECIPIENT_ADDR")) {
-        //     L2_FEE_RECIPIENT_ADDR = cfg.readAddress(".contracts.L2_FEE_RECIPIENT_ADDR");
-        // } else {
-        //     L2_FEE_RECIPIENT_ADDR = 0x0000000000000000000000000000000000000000;
-        // }
+        L2_BRIDGE_FEE_RECIPIENT_ADDR = cfg.readAddress(".contracts.L2_BRIDGE_FEE_RECIPIENT_ADDR");
 
         CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
         BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
