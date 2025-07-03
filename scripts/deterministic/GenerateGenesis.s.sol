@@ -266,6 +266,8 @@ contract GenerateGenesis is DeployScroll {
             ".config.systemContract.system_contract_address"
         );
 
+        vm.writeJson(vm.toString(BASE_FEE_PER_GAS), GENESIS_JSON_PATH, ".baseFeePerGas");
+
         // predeploys and prefunded accounts
         string memory alloc = vm.readFile(GENESIS_ALLOC_JSON_PATH);
         vm.writeJson(alloc, GENESIS_JSON_PATH, ".alloc");

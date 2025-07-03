@@ -96,6 +96,8 @@ abstract contract Configuration is Script {
     uint256 internal FINALIZE_BATCH_DEADLINE_SEC = 10000;
     uint256 internal RELAY_MESSAGE_DEADLINE_SEC = 10000;
 
+    uint256 internal BASE_FEE_PER_GAS;
+
     /**********************
      * Internal interface *
      **********************/
@@ -175,6 +177,8 @@ abstract contract Configuration is Script {
 
         L2_MAX_ETH_SUPPLY = cfg.readUint(".genesis.L2_MAX_ETH_SUPPLY");
         L2_DEPLOYER_INITIAL_BALANCE = cfg.readUint(".genesis.L2_DEPLOYER_INITIAL_BALANCE");
+        BASE_FEE_PER_GAS = cfg.readUint(".genesis.BASE_FEE_PER_GAS");
+
         L2_SCROLL_MESSENGER_INITIAL_BALANCE = L2_MAX_ETH_SUPPLY - L2_DEPLOYER_INITIAL_BALANCE;
 
         DEPLOYMENT_SALT = cfg.readString(".contracts.DEPLOYMENT_SALT");

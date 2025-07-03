@@ -308,7 +308,7 @@ contract GenerateFrontendConfig is DeployScroll {
     // prettier-ignore
     function generateFrontendConfig() private {
         // use writeFile to start a new file
-        vm.writeFile(FRONTEND_ENV_PATH, "REACT_APP_ETH_SYMBOL = \"ETH\"\n");
+        vm.writeFile(FRONTEND_ENV_PATH, "REACT_APP_ETH_SYMBOL = \"DOGE\"\n");
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_BASE_CHAIN = \"", CHAIN_NAME_L1, "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_ROLLUP = \"", CHAIN_NAME_L2, "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_CHAIN_ID_L1 = \"", vm.toString(CHAIN_ID_L1), "\""));
