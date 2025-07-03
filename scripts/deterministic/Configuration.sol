@@ -71,6 +71,7 @@ abstract contract Configuration is Script {
     uint256 internal L2_MAX_ETH_SUPPLY;
     uint256 internal L2_DEPLOYER_INITIAL_BALANCE;
     uint256 internal L2_SCROLL_MESSENGER_INITIAL_BALANCE;
+    uint256 internal BASE_FEE_PER_GAS;
 
     // contracts
     string internal DEPLOYMENT_SALT;
@@ -95,8 +96,6 @@ abstract contract Configuration is Script {
 
     uint256 internal FINALIZE_BATCH_DEADLINE_SEC = 10000;
     uint256 internal RELAY_MESSAGE_DEADLINE_SEC = 10000;
-
-    uint256 internal BASE_FEE_PER_GAS;
 
     /**********************
      * Internal interface *
