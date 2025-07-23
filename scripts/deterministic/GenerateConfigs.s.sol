@@ -36,6 +36,12 @@ contract GenerateRollupConfig is DeployScroll {
         string memory template = vm.readFile(ROLLUP_CONFIG_TEMPLATE_PATH);
         vm.writeFile(PATH, template);
 
+        // endpoints
+        vm.writeJson(L1_RPC_ENDPOINT, PATH, ".l1_config.endpoint");
+        vm.writeJson(L2_RPC_ENDPOINT, PATH, ".l1_config.relayer_config.sender_config.endpoint");
+        vm.writeJson(L2_RPC_ENDPOINT, PATH, ".l2_config.endpoint");
+        vm.writeJson(L1_RPC_ENDPOINT, PATH, ".l2_config.relayer_config.sender_config.endpoint");
+
         // contracts
         vm.writeJson(vm.toString(L1_GAS_PRICE_ORACLE_ADDR), PATH, ".l1_config.relayer_config.gas_price_oracle_contract_address");
         vm.writeJson(vm.toString(L2_MESSAGE_QUEUE_ADDR), PATH, ".l2_config.l2_message_queue_address");
@@ -330,7 +336,7 @@ contract GenerateRollupExplorerBackendConfig is DeployScroll {
         DeterministicDeployment.initialize(ScriptMode.VerifyConfig);
         predictAllContracts();
 
-        generateRollupExplorerBackendConfig();
+        generateRollupExplorerBackendConfig(ROLLUP_EXPLORER_BACKEND_CONFIG_PATH);
     }
 
     /*********************
@@ -338,16 +344,16 @@ contract GenerateRollupExplorerBackendConfig is DeployScroll {
      *********************/
 
     // prettier-ignore
-    function generateRollupExplorerBackendConfig() private {
+    function generateRollupExplorerBackendConfig(string memory PATH) private {
         // initialize template file
-        if (vm.exists(ROLLUP_EXPLORER_BACKEND_CONFIG_PATH)) {
-            vm.removeFile(ROLLUP_EXPLORER_BACKEND_CONFIG_PATH);
+        if (vm.exists(PATH)) {
+            vm.removeFile(PATH);
         }
 
         string memory template = vm.readFile(ROLLUP_EXPLORER_BACKEND_CONFIG_TEMPLATE_PATH);
-        vm.writeFile(ROLLUP_EXPLORER_BACKEND_CONFIG_PATH, template);
+        vm.writeFile(PATH, template);
 
-        vm.writeJson(ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING, ROLLUP_EXPLORER_BACKEND_CONFIG_PATH, ".db_url");
+        vm.writeJson(ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING, PATH, ".db_url");
     }
 }
 

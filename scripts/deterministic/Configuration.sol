@@ -124,31 +124,23 @@ abstract contract Configuration is Script {
         TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
         TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
 
-        DEPLOYER_PRIVATE_KEY = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
-        L1_COMMIT_SENDER_PRIVATE_KEY = vm.envOr("L1_COMMIT_SENDER_PRIVATE_KEY", uint256(0));
-        L1_FINALIZE_SENDER_PRIVATE_KEY = vm.envOr("L1_FINALIZE_SENDER_PRIVATE_KEY", uint256(0));
-        L1_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L1_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
-        L2_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L2_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
-
-        if (DEPLOYER_PRIVATE_KEY == 0) {
-            DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
-        }
-
-        if (L1_COMMIT_SENDER_PRIVATE_KEY == 0) {
-            L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
-        }
-
-        if (L1_FINALIZE_SENDER_PRIVATE_KEY == 0) {
-            L1_FINALIZE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY");
-        }
-
-        if (L1_GAS_ORACLE_SENDER_PRIVATE_KEY == 0) {
-            L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        }
-
-        if (L2_GAS_ORACLE_SENDER_PRIVATE_KEY == 0) {
-            L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        }
+        DEPLOYER_PRIVATE_KEY = vm.envOr("DEPLOYER_PRIVATE_KEY", cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY"));
+        L1_COMMIT_SENDER_PRIVATE_KEY = vm.envOr(
+            "L1_COMMIT_SENDER_PRIVATE_KEY",
+            cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY")
+        );
+        L1_FINALIZE_SENDER_PRIVATE_KEY = vm.envOr(
+            "L1_FINALIZE_SENDER_PRIVATE_KEY",
+            cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY")
+        );
+        L1_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr(
+            "L1_GAS_ORACLE_SENDER_PRIVATE_KEY",
+            cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY")
+        );
+        L2_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr(
+            "L2_GAS_ORACLE_SENDER_PRIVATE_KEY",
+            cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY")
+        );
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
         L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");

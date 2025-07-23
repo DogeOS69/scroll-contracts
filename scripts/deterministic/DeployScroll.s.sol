@@ -5,6 +5,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {ProxyAdminSetOwner} from "./contracts/ProxyAdminSetOwner.sol";
 import {TransparentUpgradeableProxy, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {console} from "forge-std/Script.sol";
 
 import {EmptyContract} from "../../src/misc/EmptyContract.sol";
 
@@ -188,10 +189,21 @@ contract DeployScroll is DeterministicDeployment {
 
         DeterministicDeployment.initialize(mode);
 
+        console.log("checkDeployerBalance start");
         checkDeployerBalance();
+        console.log("checkDeployerBalance end");
+
+        console.log("deployAllContracts start");
         deployAllContracts();
+        console.log("deployAllContracts end");
+
+        console.log("initializeL1Contracts start");
         initializeL1Contracts();
+        console.log("initializeL1Contracts end");
+
+        console.log("initializeL2Contracts start");
         initializeL2Contracts();
+        console.log("initializeL2Contracts end");
     }
 
     /**********************
@@ -1433,29 +1445,33 @@ contract DeployScroll is DeterministicDeployment {
 
     function initializeL2Moat() private {
         Moat moat = Moat(L2_MOAT_PROXY_ADDR);
-        //must initialize first, the following calls will revert if owner is not current caller
-        moat.initialize(DEPLOYER_ADDR);
-        moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
-        moat.setFee(0.1 ether);
-        moat.setMinWithdrawal(1 ether);
-        if (L2_BRIDGE_FEE_RECIPIENT_ADDR != address(0)) {
-            moat.setFeeRecipient(L2_BRIDGE_FEE_RECIPIENT_ADDR);
-        } else {
-            moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
+
+        if (moat.owner() == address(0)) {
+            //must initialize first, the following calls will revert if owner is not current caller
+            moat.initialize(DEPLOYER_ADDR);
+
+            moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
+            moat.setFee(0.1 ether);
+            moat.setMinWithdrawal(1 ether);
+            if (L2_BRIDGE_FEE_RECIPIENT_ADDR != address(0)) {
+                moat.setFeeRecipient(L2_BRIDGE_FEE_RECIPIENT_ADDR);
+            } else {
+                moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
+            }
+            moat.setBascule(L2_BASCULE_MOCK_VERIFIER_ADDR);
         }
-        moat.setBascule(L2_BASCULE_MOCK_VERIFIER_ADDR);
     }
 
     function transferL2ContractOwnership() private {
         transferOwnership(L1_GAS_PRICE_ORACLE_ADDR, OWNER_ADDR);
-        // transferOwnership(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        // transferOwnership(L2_ERC1155_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        // transferOwnership(L2_ERC721_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        transferOwnership(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        transferOwnership(L2_ERC1155_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        transferOwnership(L2_ERC721_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_ETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_GATEWAY_ROUTER_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_MESSAGE_QUEUE_ADDR, OWNER_ADDR);
         transferOwnership(L2_DOGEOS_MESSENGER_PROXY_ADDR, OWNER_ADDR);
-        // transferOwnership(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
+        transferOwnership(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_TX_FEE_VAULT_ADDR, OWNER_ADDR);
         transferOwnership(L2_PROXY_ADMIN_ADDR, OWNER_ADDR);
         transferOwnership(L2_WHITELIST_ADDR, OWNER_ADDR);

@@ -173,6 +173,8 @@ while IFS= read -r line; do
     if ! is_predeploy_contract "$source_code_name"; then
         string="$EXTRA_PARAMS\" --guess-constructor-args\""
     fi
-    forge verify-contract $contract_addr $source_code_name --rpc-url $RPC_URI_L2 --chain-id $CHAIN_ID_L2 --watch --skip-is-verified-check $EXTRA_PARAMS
+    cmd="forge verify-contract $contract_addr $source_code_name --rpc-url $RPC_URI_L2 --chain-id $CHAIN_ID_L2 --watch --skip-is-verified-check $EXTRA_PARAMS"
+    echo $cmd
+    #$cmd
   fi
 done < ./volume/config-contracts.toml
