@@ -487,8 +487,8 @@ contract DeployScroll is DeterministicDeployment {
         uint256[] memory _versions = new uint256[](1);
         address[] memory _verifiers = new address[](1);
 
-        // register V4 verifier: DarwinV2 upgrade, plonk verifier v0.13.1
-        _versions[0] = 4;
+        // register V8 verifier: feynman upgrade
+        _versions[0] = 8;
         _verifiers[0] = notnull(L1_ZKEVM_VERIFIER_V2_ADDR);
 
         bytes memory args = abi.encode(DEPLOYER_ADDR, _versions, _verifiers);
