@@ -36,16 +36,13 @@ abstract contract Configuration is Script {
     uint256 internal MAX_BLOCK_IN_CHUNK;
     uint256 internal MAX_BATCH_IN_BUNDLE;
     uint256 internal MAX_L1_MESSAGE_GAS_LIMIT;
+    uint256 internal FINALIZE_BATCH_DEADLINE_SEC;
+    uint256 internal RELAY_MESSAGE_DEADLINE_SEC;
 
     uint256 internal L1_CONTRACT_DEPLOYMENT_BLOCK;
 
-    bool internal ALTERNATIVE_GAS_TOKEN_ENABLED;
-
     bool internal TEST_ENV_MOCK_FINALIZE_ENABLED;
     uint256 internal TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC;
-
-    bytes32 internal VERIFIER_DIGEST_1;
-    bytes32 internal VERIFIER_DIGEST_2;
 
     // accounts
     uint256 internal DEPLOYER_PRIVATE_KEY;
@@ -94,9 +91,6 @@ abstract contract Configuration is Script {
     string internal ADMIN_SYSTEM_DASHBOARD_URI;
     string internal GRAFANA_URI;
 
-    uint256 internal FINALIZE_BATCH_DEADLINE_SEC = 10000;
-    uint256 internal RELAY_MESSAGE_DEADLINE_SEC = 10000;
-
     /**********************
      * Internal interface *
      **********************/
@@ -122,6 +116,8 @@ abstract contract Configuration is Script {
         MAX_BLOCK_IN_CHUNK = cfg.readUint(".rollup.MAX_BLOCK_IN_CHUNK");
         MAX_BATCH_IN_BUNDLE = cfg.readUint(".rollup.MAX_BATCH_IN_BUNDLE");
         MAX_L1_MESSAGE_GAS_LIMIT = cfg.readUint(".rollup.MAX_L1_MESSAGE_GAS_LIMIT");
+        FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
+        RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
 
         L1_CONTRACT_DEPLOYMENT_BLOCK = cfg.readUint(".general.L1_CONTRACT_DEPLOYMENT_BLOCK");
 

@@ -4,10 +4,8 @@ pragma solidity =0.8.24;
 import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
 import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
-import {L2TxFeeVaultWithGasToken} from "../../src/alternative-gas-token/L2TxFeeVaultWithGasToken.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
-// import {WrappedEther} from "../../src/L2/predeploys/WrappedEther.sol";
-import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
+import {WrappedEther} from "../../src/L2/predeploys/WrappedEther.sol";
 
 import {DETERMINISTIC_DEPLOYMENT_PROXY_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT, GENESIS_ALLOC_JSON_PATH, GENESIS_JSON_PATH, GENESIS_JSON_TEMPLATE_PATH} from "./Constants.sol";
 import {DeployScroll} from "./DeployScroll.s.sol";
@@ -157,20 +155,10 @@ contract GenerateGenesis is DeployScroll {
         // set code
         address _vaultAddr;
         vm.prank(DEPLOYER_ADDR);
-        if (!ALTERNATIVE_GAS_TOKEN_ENABLED) {
-            L2TxFeeVault _vault = new L2TxFeeVault(DEPLOYER_ADDR, L1_FEE_VAULT_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT);
-            vm.prank(DEPLOYER_ADDR);
-            _vault.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
-            _vaultAddr = address(_vault);
-        } else {
-            L2TxFeeVaultWithGasToken _vault = new L2TxFeeVaultWithGasToken(
-                L2_ETH_GATEWAY_PROXY_ADDR,
-                DEPLOYER_ADDR,
-                L1_FEE_VAULT_ADDR,
-                FEE_VAULT_MIN_WITHDRAW_AMOUNT
-            );
-            _vaultAddr = address(_vault);
-        }
+        L2TxFeeVault _vault = new L2TxFeeVault(DEPLOYER_ADDR, L1_FEE_VAULT_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT);
+        vm.prank(DEPLOYER_ADDR);
+        _vault.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
+        _vaultAddr = address(_vault);
 
         vm.etch(predeployAddr, _vaultAddr.code);
 
@@ -243,15 +231,15 @@ contract GenerateGenesis is DeployScroll {
         vm.writeJson(l1ChainId, GENESIS_JSON_PATH, ".config.scroll.l1Config.l1ChainId");
 
         vm.writeJson(
-            vm.toString(L1_MESSAGE_QUEUE_V1_PROXY_ADDR),
+            vm.toString(SYSTEM_CONFIG_PROXY_ADDR),
             GENESIS_JSON_PATH,
-            ".config.scroll.l1Config.l1MessageQueueAddress"
+            ".config.systemContract.system_contract_address"
         );
 
         vm.writeJson(
-            vm.toString(L1_SCROLL_CHAIN_PROXY_ADDR),
+            vm.toString(L1_MESSAGE_QUEUE_V1_PROXY_ADDR),
             GENESIS_JSON_PATH,
-            ".config.scroll.l1Config.scrollChainAddress"
+            ".config.scroll.l1Config.l1MessageQueueAddress"
         );
 
         vm.writeJson(
@@ -261,13 +249,11 @@ contract GenerateGenesis is DeployScroll {
         );
 
         vm.writeJson(
-            vm.toString(L1_SYSTEM_CONFIG_PROXY_ADDR),
+            vm.toString(L1_SCROLL_CHAIN_PROXY_ADDR),
             GENESIS_JSON_PATH,
-            ".config.systemContract.system_contract_address"
+            ".config.scroll.l1Config.scrollChainAddress"
         );
-
         vm.writeJson(vm.toString(bytes32(BASE_FEE_PER_GAS)), GENESIS_JSON_PATH, ".baseFeePerGas");
-
         // predeploys and prefunded accounts
         string memory alloc = vm.readFile(GENESIS_ALLOC_JSON_PATH);
         vm.writeJson(alloc, GENESIS_JSON_PATH, ".alloc");
