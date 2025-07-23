@@ -2,6 +2,7 @@
 
 latest_commit=$(git log -1 --pretty=format:%H)
 tag=${latest_commit}
+
 REPO="dogeos69/scroll-stack-contracts"
 echo "Using Docker image tag: $tag"
 echo ""

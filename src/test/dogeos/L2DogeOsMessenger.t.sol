@@ -41,7 +41,7 @@ contract L2DogeOsMessengerTest is Test {
 
     function setUp() public {
         // Deploy L1 contracts
-        _l1Messenger = new L1ScrollMessenger(address(1), address(1), address(1), address(1));
+        _l1Messenger = new L1ScrollMessenger(address(1), address(1), address(1), address(1), address(1));
 
         // Deploy L2 contracts
         _l2MessageQueue = new L2MessageQueue(address(this)); // Needs owner
