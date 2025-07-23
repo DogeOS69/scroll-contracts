@@ -1,74 +1,149 @@
 [general]
-
-CHAIN_ID_L1 = 111111
-CHAIN_ID_L2 = 221122
-
-L1_CONTRACT_DEPLOYMENT_BLOCK = 0
+L1_RPC_ENDPOINT = "http://l1-devnet:8545"
+L1_RPC_ENDPOINT_WEBSOCKET = "ws://l1-devnet:8546"
+L2_RPC_ENDPOINT = "http://l2-rpc:8545"
+CHAIN_NAME_L1 = "DOGE"
+CHAIN_NAME_L2 = "DogeOsShuDe"
+CHAIN_ID_L1 = "5555555"
+CHAIN_ID_L2 = 221_122
+L1_CONTRACT_DEPLOYMENT_BLOCK = "0"
+VERIFIER_DIGEST_1 = "0x0000000000000000000000000000000000000000000000000000000000000001"
+VERIFIER_DIGEST_2 = "0x0000000000000000000000000000000000000000000000000000000000000002"
 
 [accounts]
+DEPLOYER_PRIVATE_KEY = "0x35c587b4621c2bea0ab9151cfa6f0eda2afff689dd98f4291b054807401727df"
+L1_COMMIT_SENDER_PRIVATE_KEY = "0x59c889a661a316b10f5adaf3885194e9df0dff463765979c29af3d75c76559dc"
+L1_FINALIZE_SENDER_PRIVATE_KEY = "0xf3276e689f249fa0804db68ff4598d6dcb35d30073ed389dc77a54a80e3eac07"
+L1_GAS_ORACLE_SENDER_PRIVATE_KEY = "0x05a39b208996c4b687c32983f7a25bd1c6f8c7f266cc3723b44043ccebca63c7"
+L2_GAS_ORACLE_SENDER_PRIVATE_KEY = "0x4eb8a1a5df38504c1a5e3448ffe0f5706ab6c93a5327fe8226ba8ecada0faa39"
+DEPLOYER_ADDR = "0x8542719E3B915dC4FF39B0BB90E714407498FE2B"
+OWNER_ADDR = "0x7B015Ee06ea974692030352f4358AECF337d188e"
+L1_COMMIT_SENDER_ADDR = "0xC37e823D5bee422c6DAAE588E3967DC532191d6D"
+L1_FINALIZE_SENDER_ADDR = "0xD1FA0c06e935871Bfd6Ad8a70224f90622D18448"
+L1_GAS_ORACLE_SENDER_ADDR = "0xE2b3337F6403b2BdB7bF95F993783D7A41096cB6"
+L2_GAS_ORACLE_SENDER_ADDR = "0xA125D100c378FBab2Ab503C2D96701D1335E5e99"
+L2_TESTNET_ACTIVITY_HELPER_PRIVATE_KEY = "0x97da3dd40651ac1a8069b59c5d1c1f3c502c38b77f8362f84dae0faef7e400f9"
+L2_TESTNET_ACTIVITY_HELPER_ADDR = "0x74c975cC73d4F5f24CDfDF9bD16ce16e6E28e965"
 
-# note: for now we simply use Anvil's dev accounts
+[db]
+ADMIN_SYSTEM_DB_CONNECTION_STRING = ""
+BLOCKSCOUT_DB_CONNECTION_STRING = "postgres://blockscout:0.mqikaef97w@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_blockscout?sslmode=require"
+BRIDGE_HISTORY_DB_CONNECTION_STRING = "postgres://bridge_history:.xvy9bhyn50l@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_bridge_history?sslmode=require"
+CHAIN_MONITOR_DB_CONNECTION_STRING = "postgres://chain_monitor:.zl3p57gis7o@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_chain_monitor?sslmode=require"
+GAS_ORACLE_DB_CONNECTION_STRING = "postgres://rollup_node:0.eauyn1tnuk@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_rollup?sslmode=require"
+COORDINATOR_DB_CONNECTION_STRING = "postgres://rollup_node:0.eauyn1tnuk@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_rollup?sslmode=require"
+L1_EXPLORER_DB_CONNECTION_STRING = ""
+ROLLUP_NODE_DB_CONNECTION_STRING = "postgres://rollup_node:0.eauyn1tnuk@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_rollup?sslmode=require"
+ROLLUP_EXPLORER_DB_CONNECTION_STRING = "postgres://rollup_node:0.eauyn1tnuk@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_rollup?sslmode=require"
+SCROLL_DB_CONNECTION_STRING = "postgres://rollup_node:0.eauyn1tnuk@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_rollup?sslmode=require"
+ADMIN_SYSTEM_BACKEND_DB_CONNECTION_STRING = "postgres://rollup_node:0.eauyn1tnuk@scroll-sdk-db.cfc6im0u6fq6.us-west-2.rds.amazonaws.com:5432/scroll_rollup?sslmode=require"
 
-DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-
-L1_COMMIT_SENDER_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-L1_FINALIZE_SENDER_PRIVATE_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
-L1_GAS_ORACLE_SENDER_PRIVATE_KEY = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
-L2_GAS_ORACLE_SENDER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-
-DEPLOYER_ADDR = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-OWNER_ADDR = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-
-L1_COMMIT_SENDER_ADDR = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-L1_FINALIZE_SENDER_ADDR = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
-L1_GAS_ORACLE_SENDER_ADDR = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
-L2_GAS_ORACLE_SENDER_ADDR = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+[gas-token]
+ALTERNATIVE_GAS_TOKEN_ENABLED = false
+GAS_ORACLE_INCORPORATE_TOKEN_EXCHANGE_RATE_ENANBLED = false
+EXCHANGE_RATE_UPDATE_MODE = "Fixed"
+FIXED_EXCHANGE_RATE = "0.01"
+TOKEN_SYMBOL_PAIR = "UNIETH"
 
 [sequencer]
+L2GETH_SIGNER_ADDRESS = "0xE0A6D8c37ee09cd8EAE8b218F6668927c561CAf5"
+L2GETH_KEYSTORE = "{\"address\":\"e0a6d8c37ee09cd8eae8b218f6668927c561caf5\",\"id\":\"44d3382b-506c-462c-9320-9f72743c64b7\",\"version\":3,\"Crypto\":{\"cipher\":\"aes-128-ctr\",\"cipherparams\":{\"iv\":\"c0be55c63a72e31cfbab17a31235c369\"},\"ciphertext\":\"62e1b8e161727d4942a3a49af55ce65f72706d72f753b2552b0df23265106de2\",\"kdf\":\"scrypt\",\"kdfparams\":{\"salt\":\"12a1b4599e850f1d21e93899b554657c7587ad5a133099254bd37b08220d56cc\",\"n\":131072,\"dklen\":32,\"p\":1,\"r\":8},\"mac\":\"8197782b7627d7e50731e80fe9dd59dc878e80b0e5ec266f918bfdc46d7e1da6\"},\"x-ethers\":{\"client\":\"ethers/6.13.2\",\"gethFilename\":\"UTC--2025-07-17T06-39-33.0Z--e0a6d8c37ee09cd8eae8b218f6668927c561caf5\",\"path\":\"m/44'/60'/0'/0/0\",\"locale\":\"en\",\"mnemonicCounter\":\"669343a5f675adafd72c542ec71dbf55\",\"mnemonicCiphertext\":\"8a4add77e00c2c212987fcb49f52c918\",\"version\":\"0.1\"}}"
+L2GETH_PASSWORD = "hjk"
+L2GETH_NODEKEY = "e9262343552db1c2412b76907f3be21773238a35284417b94f79cdd19c4593c6"
+L2_GETH_STATIC_PEERS = [
+  "enode://cfa1526e8f752249cd19ec972064858e196c78d56ce2ae7f9cd71198c31cbf1e495a71b4c27c1f86026a1b86e84009ae32c3b4db3bbb6f525c57954ea858d7ee@l2-sequencer-0:30303",
+  "enode://0bedf8b183f7e72a343f2e0b8a9f71504d2098361d16af682255c65439592377accf9729fe38f06681c9bfdd27a30fedc7b71244dc9613869c4e16ae52ddd6e3@l2-sequencer-1:30303"
+]
 
-L2GETH_SIGNER_ADDRESS = "0x756EA06BDEe36de11F22DCca45a31d8a178eF3c6"
-L2GETH_KEYSTORE = '{"address":"756ea06bdee36de11f22dcca45a31d8a178ef3c6","crypto":{"cipher":"aes-128-ctr","ciphertext":"8bfb4e48c6b172f1f5794d2874476ca62f8184507c0916dbd45fe77a0056114c","cipherparams":{"iv":"509eb70e7379a776e0779634b6668277"},"kdf":"scrypt","kdfparams":{"dklen":32,"n":262144,"p":1,"r":8,"salt":"ef0f0334e5db7c12d76993e1e9627593fd0d7cd44444b689e792c86bc8a5d75f"},"mac":"d766cac11d0bd563316f5655ebf07550b6fce98ba0ca3c13acdc1b65f5f185ca"},"id":"4459ad67-f2ce-48b2-8940-c0582106a4c6","version":3}'
-L2GETH_PASSWORD = "scroll2022"
-L2GETH_NODEKEY = "2f59ff2fdee1c42a3d8c8980c313bc8fd6c2557463f7bb92b0f0bc89a6d3cbf01"
-L2_GETH_STATIC_PEERS = '["enode://848a7d59dd8f60dd1a51160e6bc15c194937855443de9be4b2abd83e11a5c4ac21d61d065448c5c520826fe83f1f29eb5a452daccca27b8113aa897074132507@l2-sequencer:30303"]'
+  [sequencer.sequencer-1]
+  L2GETH_SIGNER_ADDRESS = "0x258DBec03bDCaDC01D853767da7065BeA080Ee8d"
+  L2GETH_KEYSTORE = "{\"address\":\"258dbec03bdcadc01d853767da7065bea080ee8d\",\"id\":\"2ceb96ae-85da-492e-85e0-334b410608d2\",\"version\":3,\"Crypto\":{\"cipher\":\"aes-128-ctr\",\"cipherparams\":{\"iv\":\"60a26ca8b0a78ea4cd599043b10fe201\"},\"ciphertext\":\"71f880e74096eba9db6cfa8c35df238a5adf190e04f16c4b8f1ca8e2d34a86ce\",\"kdf\":\"scrypt\",\"kdfparams\":{\"salt\":\"172fcb47cefed0cfe06f602e1a19562eba46079a82152137e8c16f3731f7ef16\",\"n\":131072,\"dklen\":32,\"p\":1,\"r\":8},\"mac\":\"e0849e67b9e6c5a43892b6a0ea4e85e1cf21c7142d7a769b74a89f9e8467df28\"},\"x-ethers\":{\"client\":\"ethers/6.13.2\",\"gethFilename\":\"UTC--2025-07-17T06-39-35.0Z--258dbec03bdcadc01d853767da7065bea080ee8d\",\"path\":\"m/44'/60'/0'/0/0\",\"locale\":\"en\",\"mnemonicCounter\":\"183662f2debc27d905be52f7fc5416f8\",\"mnemonicCiphertext\":\"3d57496ff263fac34136aacbf2c4e791\",\"version\":\"0.1\"}}"
+  L2GETH_PASSWORD = "asj"
+  L2GETH_NODEKEY = "23455d6334399e55252a63c408431dd598d091cdbf47d19da5e362e77e63d90f"
+
+[bootnode]
+L2_GETH_PUBLIC_PEERS = [
+  "enode://7ae722528620c63a8dc92800039a52f80a6ce4be9b2cea020fd465df95c1c88173355b42671ba6974e2de3155f6feac4a0a957ce4fdff226f2897ec53a7c77ca@l2-bootnode-0:30303",
+  "enode://0ea49090086058ec6b5b8b9e8ab759bb302750ba31093e7226464eacf14b031885fab5a49790920c46a988980a60e2f0e2c5128f0f08679f99f7ad6c95a8fbc6@l2-bootnode-1:30303"
+]
+
+  [bootnode.bootnode-0]
+  L2GETH_NODEKEY = "e66a5836a96140c3c60ccca507c66ba9cf5278020bc1086bf756500c5073623c"
+
+  [bootnode.bootnode-1]
+  L2GETH_NODEKEY = "d09611100c08fa049a2320a3deee1782c7f2f8c5a22444f754c0b9c59439dd88"
 
 [rollup]
-
-MAX_TX_IN_CHUNK = 100
+MAX_TX_IN_CHUNK = 10_000
 MAX_BLOCK_IN_CHUNK = 100
 MAX_BATCH_IN_BUNDLE = 30
 MAX_L1_MESSAGE_GAS_LIMIT = 10_000_000
-FINALIZE_BATCH_DEADLINE_SEC = 600
-RELAY_MESSAGE_DEADLINE_SEC = 600
 TEST_ENV_MOCK_FINALIZE_ENABLED = true
-TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = 300
+TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = 60
+FINALIZE_BATCH_DEADLINE_SEC = 113
+RELAY_MESSAGE_DEADLINE_SEC = 60
+
+[frontend]
+EXTERNAL_RPC_URI_L1 = "https://l1-devnet.shude.unifra.xyz"
+EXTERNAL_RPC_URI_L2 = "https://rpc.shude.unifra.xyz"
+BRIDGE_API_URI = "https://bridge-history-api.shude.unifra.xyz/api"
+ROLLUPSCAN_API_URI = "https://rollup-explorer-backend.shude.unifra.xyz/api"
+EXTERNAL_EXPLORER_URI_L1 = "https://l1-explorer.shude.unifra.xyz"
+EXTERNAL_EXPLORER_URI_L2 = "https://blockscout.shude.unifra.xyz"
+ADMIN_SYSTEM_DASHBOARD_URI = "https://admin-system-dashboard.shude.unifra.xyz"
+GRAFANA_URI = "https://grafana.shude.unifra.xyz"
+ETH_SYMBOL = "DOGE"
+BASE_CHAIN = "DOGE"
+CONNECT_WALLET_PROJECT_ID = "14efbaafcf5232a47d93a68229b71028"
+DOGE_EXTERNAL_RPC_URI_L1 = "https://sochain.com/DOGETEST"
+DOGE_EXTERNAL_EXPLORER_URI_L1 = "https://sochain.com/DOGETEST"
 
 [genesis]
-
 L2_MAX_ETH_SUPPLY = "226156424291633194186662080095093570025917938800079226639565593765455331328"
-L2_DEPLOYER_INITIAL_BALANCE = 1000000000000000000
+L2_DEPLOYER_INITIAL_BALANCE = "1000000000000000000"
+BASE_FEE_PER_GAS = "10"
 
 [contracts]
+DEPLOYMENT_SALT = "ihfahbgyeuw-wv54vk"
+L1_FEE_VAULT_ADDR = "0x7B015Ee06ea974692030352f4358AECF337d188e"
+L2_BRIDGE_FEE_RECIPIENT_ADDR = "0x0000000000000000000000000000000000000000"
 
-DEPLOYMENT_SALT = "devnetSalt-000"
+  [contracts.overrides]
+  L2_MESSAGE_QUEUE = "0x5300000000000000000000000000000000000000"
+  L1_GAS_PRICE_ORACLE = "0x5300000000000000000000000000000000000002"
+  L2_WHITELIST = "0x5300000000000000000000000000000000000003"
+  L2_WETH = "0x5300000000000000000000000000000000000004"
+  L2_TX_FEE_VAULT = "0x5300000000000000000000000000000000000005"
 
-# contracts deployed outside this script
-L1_FEE_VAULT_ADDR = "0x0000000000000000000000000000000000000001"
-
-[contracts.overrides]
-
-# L1_WETH = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
-# L1_PLONK_VERIFIER = "0x0000000000000000000000000000000000000001"
-
-L2_MESSAGE_QUEUE = "0x5300000000000000000000000000000000000000"
-L1_GAS_PRICE_ORACLE = "0x5300000000000000000000000000000000000002"
-L2_WHITELIST = "0x5300000000000000000000000000000000000003"
-L2_WETH = "0x5300000000000000000000000000000000000004"
-L2_TX_FEE_VAULT = "0x5300000000000000000000000000000000000005"
+  [contracts.verification]
+  VERIFIER_TYPE_L1 = "blockscout"
+  VERIFIER_TYPE_L2 = "blockscout"
+  EXPLORER_URI_L1 = "https://l1-explorer.shude.unifra.xyz"
+  EXPLORER_URI_L2 = "https://blockscout.shude.unifra.xyz"
+  RPC_URI_L1 = "https://l1-devnet.shude.unifra.xyz"
+  RPC_URI_L2 = "https://rpc.shude.unifra.xyz"
+  EXPLORER_API_KEY_L1 = ""
+  EXPLORER_API_KEY_L2 = ""
 
 [coordinator]
-
-CHUNK_COLLECTION_TIME_SEC = 3600
-BATCH_COLLECTION_TIME_SEC = 1800
+CHUNK_COLLECTION_TIME_SEC = 3_600
+BATCH_COLLECTION_TIME_SEC = 1_800
 BUNDLE_COLLECTION_TIME_SEC = 600
-COORDINATOR_JWT_SECRET_KEY = "e788b62d39254928a821ac1c76b274a8c835aa1e20ecfb6f50eb10e87847de44"
+COORDINATOR_JWT_SECRET_KEY = "f4ef9e7ddfb0639caf7922a0b26f54e9045d966a6841f0137d5d472c361c5231"
+
+[ingress]
+FRONTEND_HOST = "portal.shude.unifra.xyz"
+BRIDGE_HISTORY_API_HOST = "bridge-history-api.shude.unifra.xyz"
+ROLLUP_EXPLORER_API_HOST = "rollup-explorer-backend.shude.unifra.xyz"
+COORDINATOR_API_HOST = "coordinator-api.shude.unifra.xyz"
+RPC_GATEWAY_HOST = "rpc.shude.unifra.xyz"
+BLOCKSCOUT_HOST = "blockscout.shude.unifra.xyz"
+BLOCKSCOUT_BACKEND_HOST = "blockscout-backend.shude.unifra.xyz"
+ADMIN_SYSTEM_DASHBOARD_HOST = "admin-system-dashboard.shude.unifra.xyz"
+L1_DEVNET_HOST = "l1-devnet.shude.unifra.xyz"
+L1_EXPLORER_HOST = "l1-explorer.shude.unifra.xyz"
+GRAFANA_HOST = "grafana.shude.unifra.xyz"
+TSO_HOST = "tso.shude.unifra.xyz"
+CELESTIA_HOST = "celestia.shude.unifra.xyz"
+DOGECOIN_HOST = "dogecoin.shude.unifra.xyz"
+RPC_GATEWAY_WS_HOST = "ws.rpc.shude.unifra.xyz"

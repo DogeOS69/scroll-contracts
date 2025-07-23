@@ -299,10 +299,10 @@ contract DeployScroll is DeterministicDeployment {
         deployL1GatewayRouter();
         deployL1ETHGatewayProxy();
         deployL1WETHGatewayProxy();
-        // deployL1StandardERC20GatewayProxy();
-        // deployL1CustomERC20GatewayProxy();
-        // deployL1ERC721GatewayProxy();
-        // deployL1ERC1155GatewayProxy();
+        deployL1StandardERC20GatewayProxy();
+        deployL1CustomERC20GatewayProxy();
+        deployL1ERC721GatewayProxy();
+        deployL1ERC1155GatewayProxy();
     }
 
     // @notice deployL2Contracts1stPass deploys L2 contracts whose initialization does not depend on any L1 addresses.
@@ -318,11 +318,11 @@ contract DeployScroll is DeterministicDeployment {
         deployL2ETHGatewayProxy();
         deployL2WETHGatewayProxy();
         deployL2MoatProxy();
-        //deployL2StandardERC20GatewayProxy();
-        // deployL2CustomERC20GatewayProxy();
-        // deployL2ERC721GatewayProxy();
-        // deployL2ERC1155GatewayProxy();
-        //deployScrollStandardERC20Factory();
+        deployL2StandardERC20GatewayProxy();
+        deployL2CustomERC20GatewayProxy();
+        deployL2ERC721GatewayProxy();
+        deployL2ERC1155GatewayProxy();
+        deployScrollStandardERC20Factory();
     }
 
     // @notice deployL1Contracts2ndPass deploys L1 contracts whose initialization depends on some L2 addresses.
@@ -342,12 +342,12 @@ contract DeployScroll is DeterministicDeployment {
         // upgradable
         deployL2DogeOsMessenger();
         deployL2GatewayRouter();
-        // deployL2StandardERC20Gateway();
+        deployL2StandardERC20Gateway();
         deployL2ETHGateway();
         deployL2WETHGateway();
-        // deployL2CustomERC20Gateway();
-        // deployL2ERC721Gateway();
-        // deployL2ERC1155Gateway();
+        deployL2CustomERC20Gateway();
+        deployL2ERC721Gateway();
+        deployL2ERC1155Gateway();
         deployL2BasculeMockVerifier();
         deployL2Moat();
     }
@@ -501,7 +501,7 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deploySystemConfig() private {
-        SYSTEM_CONFIG_IMPLEMENTATION_ADDR = deploy("SYSTEM_CONFIG_IMPLEMENTATION", type(SystemConfig).creationCode);
+        SYSTEM_CONFIG_IMPLEMENTATION_ADDR = deploy("L1_SYSTEM_CONFIG_IMPLEMENTATION", type(SystemConfig).creationCode);
 
         bytes memory args = abi.encode(
             notnull(SYSTEM_CONFIG_IMPLEMENTATION_ADDR),
@@ -509,7 +509,11 @@ contract DeployScroll is DeterministicDeployment {
             new bytes(0)
         );
 
-        SYSTEM_CONFIG_PROXY_ADDR = deploy("SYSTEM_CONFIG_PROXY", type(TransparentUpgradeableProxy).creationCode, args);
+        SYSTEM_CONFIG_PROXY_ADDR = deploy(
+            "L1_SYSTEM_CONFIG_PROXY",
+            type(TransparentUpgradeableProxy).creationCode,
+            args
+        );
     }
 
     function deployL1MessageQueue() private {
@@ -857,7 +861,8 @@ contract DeployScroll is DeterministicDeployment {
             notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR),
             notnull(L1_SCROLL_CHAIN_PROXY_ADDR),
             notnull(L1_MESSAGE_QUEUE_V1_PROXY_ADDR),
-            notnull(L1_MESSAGE_QUEUE_V2_PROXY_ADDR)
+            notnull(L1_MESSAGE_QUEUE_V2_PROXY_ADDR),
+            notnull(L1_ENFORCED_TX_GATEWAY_PROXY_ADDR)
         );
 
         L1_SCROLL_MESSENGER_IMPLEMENTATION_ADDR = deploy(
