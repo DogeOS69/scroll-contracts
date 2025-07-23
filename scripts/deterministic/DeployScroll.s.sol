@@ -1031,7 +1031,7 @@ contract DeployScroll is DeterministicDeployment {
         bytes memory args = abi.encode(
             notnull(COUNTERPART),
             notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_SCROLL_MESSENGER_PROXY_ADDR)
+            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
         );
 
         L2_ETH_GATEWAY_IMPLEMENTATION_ADDR = deploy(
@@ -1043,7 +1043,7 @@ contract DeployScroll is DeterministicDeployment {
         upgrade(L2_PROXY_ADMIN_ADDR, L2_ETH_GATEWAY_PROXY_ADDR, L2_ETH_GATEWAY_IMPLEMENTATION_ADDR);
     }
 
-    function deployL2WETHGateway() private gasToken(false) {
+    function deployL2WETHGateway() private {
         bytes memory args = abi.encode(
             notnull(L2_WDOGE_ADDR),
             notnull(L1_WDOGE_ADDR),
