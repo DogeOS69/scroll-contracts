@@ -121,8 +121,6 @@ abstract contract Configuration is Script {
 
         L1_CONTRACT_DEPLOYMENT_BLOCK = cfg.readUint(".general.L1_CONTRACT_DEPLOYMENT_BLOCK");
 
-        ALTERNATIVE_GAS_TOKEN_ENABLED = cfg.readBool(".gas-token.ALTERNATIVE_GAS_TOKEN_ENABLED");
-
         TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
         TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
 
@@ -202,9 +200,6 @@ abstract contract Configuration is Script {
 
         FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
         RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
-
-        VERIFIER_DIGEST_1 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_1"));
-        VERIFIER_DIGEST_2 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_2"));
 
         runSanityCheck();
     }
