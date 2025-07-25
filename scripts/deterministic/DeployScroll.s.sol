@@ -682,6 +682,9 @@ contract DeployScroll is DeterministicDeployment {
             type(TransparentUpgradeableProxy).creationCode,
             args
         );
+
+        // ensure the proxy now points to the intended implementation (safety & consistency)
+        upgrade(L1_PROXY_ADMIN_ADDR, L1_GATEWAY_ROUTER_PROXY_ADDR, L1_GATEWAY_ROUTER_IMPLEMENTATION_ADDR);
     }
 
     function deployL1ETHGatewayProxy() private gasToken(false) {
@@ -1371,7 +1374,9 @@ contract DeployScroll is DeterministicDeployment {
         if (getInitializeCount(L1_MESSAGE_QUEUE_V1_PROXY_ADDR) < 3) {
             L1MessageQueueV1WithGasPriceOracle(L1_MESSAGE_QUEUE_V1_PROXY_ADDR).initializeV3();
         }
-        L1MessageQueueV2(L1_MESSAGE_QUEUE_V2_PROXY_ADDR).initialize();
+        if (getinitializeCount(L1_MESSAGE_QUEUE_V2_PROXY_ADDR) == 0) {
+            L1MessageQueueV2(L1_MESSAGE_QUEUE_V2_PROXY_ADDR).initialize();
+        }
     }
 
     function initializeL1ScrollMessenger() private {
@@ -1685,7 +1690,10 @@ contract DeployScroll is DeterministicDeployment {
     function initializeL2Moat() private {
         Moat moat = Moat(L2_MOAT_PROXY_ADDR);
         //must initialize first, the following calls will revert if owner is not current caller
-        moat.initialize(DEPLOYER_ADDR);
+        if (moat.owner() == address(0)) {
+            moat.initialize(DEPLOYER_ADDR);
+        }
+
         moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
         moat.setFee(0.1 ether);
         moat.setMinWithdrawal(1 ether);
