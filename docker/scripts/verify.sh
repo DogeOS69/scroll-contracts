@@ -1,26 +1,90 @@
-#!/bin/sh
+#!/bin/bash
+
 export FOUNDRY_EVM_VERSION="cancun"
 export FOUNDRY_BYTECODE_HASH="none"
 
 # extract values from config file
 config_file="./volume/config.toml"
-CHAIN_ID_L1=$(grep -E "^[ \t]*CHAIN_ID_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '_'| tr -d '"')
-CHAIN_ID_L2=$(grep -E "^[ \t]*CHAIN_ID_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '_'| tr -d '"')
-RPC_URI_L1=$(grep -E "^[ \t]*RPC_URI_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-RPC_URI_L2=$(grep -E "^[ \t]*RPC_URI_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-VERIFIER_TYPE_L1=$(grep -E "^[ \t]*VERIFIER_TYPE_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-VERIFIER_TYPE_L2=$(grep -E "^[ \t]*VERIFIER_TYPE_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-EXPLORER_URI_L1=$(grep -E "^[ \t]*EXPLORER_URI_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-EXPLORER_URI_L2=$(grep -E "^[ \t]*EXPLORER_URI_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-EXPLORER_API_KEY_L1=$(grep -E "^[ \t]*EXPLORER_API_KEY_L1 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-EXPLORER_API_KEY_L2=$(grep -E "^[ \t]*EXPLORER_API_KEY_L2 =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2- | tr -d '"')
-ALTERNATIVE_GAS_TOKEN_ENABLED=$(grep -E "^[ \t]*ALTERNATIVE_GAS_TOKEN_ENABLED =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2-)
-TEST_ENV_MOCK_FINALIZE_ENABLED=$(grep -E "^[ \t]*TEST_ENV_MOCK_FINALIZE_ENABLED =" "$config_file" | sed 's/ *= */=/' | cut -d'=' -f2-)
+
+# Check if config file exists
+if [[ ! -f "$config_file" ]]; then
+  echo "Error: Config file not found: $config_file" >&2
+  exit 1
+fi
+
+# Helper function to remove quotes (single, double, or none)
+remove_quotes() {
+  local value="$1"
+  # Remove leading and trailing whitespace first
+  value=$(echo "$value" | sed 's/^[ \t]*//; s/[ \t]*$//')
+  
+  # Remove matching quotes (single or double) - only if they match at both ends
+  if [[ "$value" =~ ^\".*\"$ ]]; then
+    # Remove double quotes
+    value="${value#\"}"
+    value="${value%\"}"
+  elif [[ "$value" =~ ^\'.*\'$ ]]; then
+    # Remove single quotes
+    value="${value#\'}"
+    value="${value%\'}"
+  fi
+  
+  echo "$value"
+}
+
+# Helper function to extract config values safely
+extract_config_value() {
+  local key="$1"
+  local file="$2"
+  # Match: optional whitespace (spaces and tabs), key name, optional whitespace, =, optional whitespace, value
+  # Exclude commented lines (starting with #)
+  local raw_value
+  raw_value=$(grep -E "^[[:space:]]*${key}[[:space:]]*=" "$file" | \
+    grep -v "^[[:space:]]*#" | \
+    sed 's/^[[:space:]]*[^=]*[[:space:]]*=[[:space:]]*//' | \
+    sed 's/[[:space:]]*$//' | \
+    head -n1)
+  
+  # Remove quotes using the helper function
+  remove_quotes "$raw_value"
+}
+
+#CHAIN_ID_L1=$(extract_config_value "CHAIN_ID_L1" "$config_file" | tr -d '_')
+CHAIN_ID_L2=$(extract_config_value "CHAIN_ID_L2" "$config_file" | tr -d '_')
+#RPC_URI_L1=$(extract_config_value "RPC_URI_L1" "$config_file")
+RPC_URI_L2=$(extract_config_value "RPC_URI_L2" "$config_file")
+VERIFIER_TYPE_L1=$(extract_config_value "VERIFIER_TYPE_L1" "$config_file")
+VERIFIER_TYPE_L2=$(extract_config_value "VERIFIER_TYPE_L2" "$config_file")
+EXPLORER_URI_L1=$(extract_config_value "EXPLORER_URI_L1" "$config_file")
+EXPLORER_URI_L2=$(extract_config_value "EXPLORER_URI_L2" "$config_file")
+EXPLORER_API_KEY_L1=$(extract_config_value "EXPLORER_API_KEY_L1" "$config_file")
+EXPLORER_API_KEY_L2=$(extract_config_value "EXPLORER_API_KEY_L2" "$config_file")
+ALTERNATIVE_GAS_TOKEN_ENABLED=$(extract_config_value "ALTERNATIVE_GAS_TOKEN_ENABLED" "$config_file")
+TEST_ENV_MOCK_FINALIZE_ENABLED=$(extract_config_value "TEST_ENV_MOCK_FINALIZE_ENABLED" "$config_file")
 
 # extract contract name and address
 extract_contract_info() {
-  contract_name=$(cut -d "=" -f 1 <<< "$line" | tr -d '"')
-  contract_addr=$(cut -d "=" -f 2 <<< "$line" | tr -d '"' | tr -d ' ')
+  # Validate input line format (key=value)
+  # Allow spaces and tabs around the equals sign
+  if [[ ! "$line" =~ ^[[:space:]]*[^=]+[[:space:]]*=[[:space:]]*[^[:space:]]+.*$ ]]; then
+    echo "Invalid line format: $line" >&2
+    contract_name=""
+    contract_addr=""
+    return 1
+  fi
+  
+  # Extract key and value safely
+  local key_part="${line%%=*}"
+  local value_part="${line#*=}"
+  
+  # Clean up key and value using the helper function
+  contract_name=$(remove_quotes "$key_part")
+  contract_addr=$(remove_quotes "$value_part")
+  
+  # Validate contract address format (basic hex check)
+  if [[ -n "$contract_addr" && ! "$contract_addr" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+    echo "Warning: Invalid contract address format: $contract_addr" >&2
+  fi
 }
 
 get_source_code_name() {
@@ -123,28 +187,46 @@ function is_predeploy_contract() {
 }
 
 # read the file line by line
+contracts_file="./volume/config-contracts.toml"
+
+# Check if contracts file exists
+if [[ ! -f "$contracts_file" ]]; then
+  echo "Error: Contracts file not found: $contracts_file" >&2
+  exit 1
+fi
+
 while IFS= read -r line; do
+  # Skip empty lines and comments (lines starting with # possibly preceded by spaces/tabs)
+  if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+    continue
+  fi
+  
   extract_contract_info "$line"
+  
+  # Skip if extraction failed
+  if [[ -z "$contract_name" ]]; then
+    continue
+  fi
 
   # get contracts deployment layer
-  if [[ "$contract_name" =~ ^L1 ]]; then
+  if [[ "$contract_name" =~ ^L1(_|$) ]]; then
     layer="L1"
     # specially handle contract_name L1_GAS_PRICE_ORACLE_ADDR
     if [[ "$contract_name" == "L1_GAS_PRICE_ORACLE_ADDR" ]]; then
       layer="L2"
     fi
-  elif [[ "$contract_name" =~ ^L2 ]]; then
+  elif [[ "$contract_name" =~ ^L2(_|$) ]]; then
     layer="L2"
   else
-    echo "wrong contract name, not starts with L1 or L2, contract_name: $contract_name"
+    echo "Error: Invalid contract name format (must start with L1_ or L2_): $contract_name" >&2
     continue
   fi
 
   source_code_name=$(get_source_code_name $contract_name)
 
   # skip if source_code_name or contract_addr is empty
-  if [[ -z $source_code_name || -z $contract_addr ]]; then
-    echo "empty source_code_name $source_code_name or contract_addr $contract_addr"
+  if [[ -z "$source_code_name" || -z "$contract_addr" ]]; then
+    echo "Warning: Skipping contract ${contract_name} due to empty source_code_name '$source_code_name' or contract_addr '$contract_addr'" >&2
     continue
   fi
 
@@ -161,7 +243,7 @@ while IFS= read -r line; do
     elif [[ "$VERIFIER_TYPE_L1" == "sourcify" ]]; then
       EXTRA_PARAMS="--api-key $EXPLORER_API_KEY_L1 --verifier-url $EXPLORER_URI_L1 --verifier $VERIFIER_TYPE_L1"
     fi
-    forge verify-contract $contract_addr $source_code_name --rpc-url $RPC_URI_L1 --chain-id $CHAIN_ID_L1 --watch --guess-constructor-args --skip-is-verified-check $EXTRA_PARAMS
+#    forge verify-contract $contract_addr $source_code_name --rpc-url $RPC_URI_L1 --chain-id $CHAIN_ID_L1 --watch --guess-constructor-args --skip-is-verified-check $EXTRA_PARAMS
   elif [[ "$layer" == "L2" ]]; then
     if [[ "$VERIFIER_TYPE_L2" == "etherscan" ]]; then
       EXTRA_PARAMS="--api-key $EXPLORER_API_KEY_L2"
@@ -170,11 +252,17 @@ while IFS= read -r line; do
     elif [[ "$VERIFIER_TYPE_L2" == "sourcify" ]]; then
       EXTRA_PARAMS="--api-key $EXPLORER_API_KEY_L2 --verifier-url $EXPLORER_URI_L2 --verifier $VERIFIER_TYPE_L2"
     fi
+    
+    # Add constructor args parameter for non-predeploy contracts
     if ! is_predeploy_contract "$source_code_name"; then
-        string="$EXTRA_PARAMS\" --guess-constructor-args\""
+        EXTRA_PARAMS="$EXTRA_PARAMS --guess-constructor-args"
     fi
+    
     cmd="forge verify-contract $contract_addr $source_code_name --rpc-url $RPC_URI_L2 --chain-id $CHAIN_ID_L2 --watch --skip-is-verified-check $EXTRA_PARAMS"
-    echo $cmd
-    #$cmd
+    echo "========================="
+    echo "$cmd"
+    echo "-------------------------"
+    $cmd
+    echo "========================="
   fi
-done < ./volume/config-contracts.toml
+done < "$contracts_file"
