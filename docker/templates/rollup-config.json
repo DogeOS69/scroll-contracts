@@ -3,7 +3,7 @@
     "endpoint": "https://rpc.ankr.com/eth",
     "start_height": 0,
     "relayer_config": {
-      "gas_price_oracle_address": "0x0000000000000000000000000000000000000000",
+      "gas_price_oracle_contract_address": "0x0000000000000000000000000000000000000000",
       "sender_config": {
         "endpoint": "https://rpc.scroll.io",
         "escalate_blocks": 1,
@@ -11,7 +11,7 @@
         "escalate_multiple_num": 2,
         "escalate_multiple_den": 1,
         "max_gas_price": 1000000000000,
-        "tx_type": "LegacyTx",
+        "tx_type": "DynamicFeeTx",
         "check_pending_time": 1,
         "min_gas_tip": 100000000
       },
@@ -39,7 +39,7 @@
       "celestia_submit_endpoint": "http://dogeos-da:3000/post_blob",
       "validium_mode": false,
       "rollup_contract_address": "0x0000000000000000000000000000000000000000",
-      "gas_price_oracle_address": "0x0000000000000000000000000000000000000000",
+      "gas_price_oracle_contract_address": "0x0000000000000000000000000000000000000000",
       "sender_config": {
         "endpoint": "https://rpc.ankr.com/eth",
         "escalate_blocks": 1,
