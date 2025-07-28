@@ -22,7 +22,7 @@ RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="/root/.foundry/bin:${PATH}"
 
 # Run foundryup to update Foundry
-RUN foundryup
+RUN foundryup -i v1.3.0-rc2
 
 # copy dependencies
 COPY ./lib /contracts/lib
