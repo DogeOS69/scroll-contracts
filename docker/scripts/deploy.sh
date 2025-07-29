@@ -12,7 +12,7 @@ CONFIG_FILE="./volume/config.toml"
 L1_RPC_ENDPOINT="${L1_RPC_ENDPOINT}"
 L2_RPC_ENDPOINT="${L2_RPC_ENDPOINT}"
 # Using a smaller batch size as a compromise between the slow but reliable --slow flag and the fast but potentially unreliable default.
-BATCH_SIZE="510"
+BATCH_SIZE="10"
 
 echo "using L1_RPC_ENDPOINT = $L1_RPC_ENDPOINT"
 echo "using L2_RPC_ENDPOINT = $L2_RPC_ENDPOINT"
@@ -29,7 +29,7 @@ forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L
 # deploy L1
 echo ""
 echo "deploying on L1"
-forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L1_RPC_ENDPOINT" --batch-size 100 --sig "run(string,string)" "L1" "verify-config" --broadcast --json 
+forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L1_RPC_ENDPOINT" --batch-size "${BATCH_SIZE}" --sig "run(string,string)" "L1" "verify-config" --broadcast --json 
 
 
 # simulate L2
