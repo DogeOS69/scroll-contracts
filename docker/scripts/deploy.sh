@@ -12,7 +12,7 @@ CONFIG_FILE="./volume/config.toml"
 L1_RPC_ENDPOINT="${L1_RPC_ENDPOINT}"
 L2_RPC_ENDPOINT="${L2_RPC_ENDPOINT}"
 # Using a smaller batch size as a compromise between the slow but reliable --slow flag and the fast but potentially unreliable default.
-BATCH_SIZE="5"
+BATCH_SIZE="510"
 
 echo "using L1_RPC_ENDPOINT = $L1_RPC_ENDPOINT"
 echo "using L2_RPC_ENDPOINT = $L2_RPC_ENDPOINT"
@@ -29,18 +29,18 @@ forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L
 # deploy L1
 echo ""
 echo "deploying on L1"
-forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L1_RPC_ENDPOINT" --batch-size 100 --sig "run(string,string)" "L1" "verify-config" --broadcast --json --resume
+forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L1_RPC_ENDPOINT" --batch-size 100 --sig "run(string,string)" "L1" "verify-config" --broadcast --json 
 
 
 # simulate L2
 echo ""
 echo "simulating on L2"
-forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT" --sig "run(string,string)" "L2" "verify-config" --legacy 
+forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT" --sig "run(string,string)" "L2" "verify-config" --legacy
 
 
 # deploy L2
 echo ""
 echo "deploying on L2"
-forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT"  --batch-size "$BATCH_SIZE" --sig "run(string,string)" "L2" "verify-config" --broadcast --legacy --json --resume
+forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT"  --batch-size "$BATCH_SIZE" --sig "run(string,string)" "L2" "verify-config" --broadcast --legacy --json
 
 echo "=== SCRIPT END ==="
