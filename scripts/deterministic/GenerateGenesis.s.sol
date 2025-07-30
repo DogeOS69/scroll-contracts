@@ -256,6 +256,11 @@ contract GenerateGenesis is DeployScroll {
         // predeploys and prefunded accounts
         string memory alloc = vm.readFile(GENESIS_ALLOC_JSON_PATH);
         vm.writeJson(alloc, GENESIS_JSON_PATH, ".alloc");
+        vm.writeJson(
+            vm.toString(L2_SYSTEM_CONFIG_PROXY_ADDR),
+            GENESIS_JSON_PATH,
+            ".config.scroll.l1Config.l2SystemConfigAddress"
+        );
     }
 
     /// @notice Sorts the allocs by address

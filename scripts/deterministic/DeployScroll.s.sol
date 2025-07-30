@@ -36,6 +36,7 @@ import {L2WETHGateway} from "../../src/L2/gateways/L2WETHGateway.sol";
 import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
 import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
+import {L2SystemConfig} from "../../src/L2/L2SystemConfig.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
 import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
 import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20.sol";
@@ -140,6 +141,8 @@ contract DeployScroll is DeterministicDeployment {
     address internal L2_MOAT_IMPLEMENTATION_ADDR;
     address internal L2_MOAT_PROXY_ADDR;
     address internal L2_BASCULE_MOCK_VERIFIER_ADDR;
+    address internal L2_SYSTEM_CONFIG_IMPLEMENTATION_ADDR;
+    address internal L2_SYSTEM_CONFIG_PROXY_ADDR;
 
     /*************
      * Utilities *
@@ -335,6 +338,7 @@ contract DeployScroll is DeterministicDeployment {
         deployL2ERC721GatewayProxy();
         deployL2ERC1155GatewayProxy();
         deployScrollStandardERC20Factory();
+        deployL2SystemConfig();
     }
 
     // @notice deployL1Contracts2ndPass deploys L1 contracts whose initialization depends on some L2 addresses.
@@ -404,6 +408,7 @@ contract DeployScroll is DeterministicDeployment {
         initializeScrollStandardERC20Factory();
         initializeL2Whitelist();
         initializeL2Moat();
+        initializeL2SystemConfig();
         transferL2ContractOwnership();
     }
 
@@ -1129,6 +1134,27 @@ contract DeployScroll is DeterministicDeployment {
         L2_BASCULE_MOCK_VERIFIER_ADDR = deploy("L2_BASCULE_MOCK_VERIFIER", type(BasculeMockVerifier).creationCode);
     }
 
+    function deployL2SystemConfig() private {
+        L2_SYSTEM_CONFIG_IMPLEMENTATION_ADDR = deploy(
+            "L2_SYSTEM_CONFIG_IMPLEMENTATION",
+            type(L2SystemConfig).creationCode
+        );
+
+        bytes memory args = abi.encode(
+            notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
+            notnull(L2_PROXY_ADMIN_ADDR),
+            new bytes(0)
+        );
+
+        L2_SYSTEM_CONFIG_PROXY_ADDR = deploy(
+            "L2_SYSTEM_CONFIG_PROXY",
+            type(TransparentUpgradeableProxy).creationCode,
+            args
+        );
+
+        upgrade(L2_PROXY_ADMIN_ADDR, L2_SYSTEM_CONFIG_PROXY_ADDR, L2_SYSTEM_CONFIG_IMPLEMENTATION_ADDR);
+    }
+
     /**********************
      * L1: initialization *
      **********************/
@@ -1462,6 +1488,12 @@ contract DeployScroll is DeterministicDeployment {
         }
     }
 
+    function initializeL2SystemConfig() private {
+        if (getInitializeCount(L2_SYSTEM_CONFIG_PROXY_ADDR) == 0) {
+            L2SystemConfig(L2_SYSTEM_CONFIG_PROXY_ADDR).initialize(DEPLOYER_ADDR);
+        }
+    }
+
     function transferL2ContractOwnership() private {
         transferOwnership(L1_GAS_PRICE_ORACLE_ADDR, OWNER_ADDR);
         transferOwnership(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
@@ -1475,6 +1507,7 @@ contract DeployScroll is DeterministicDeployment {
         transferOwnership(L2_TX_FEE_VAULT_ADDR, OWNER_ADDR);
         transferOwnership(L2_PROXY_ADMIN_ADDR, OWNER_ADDR);
         transferOwnership(L2_WHITELIST_ADDR, OWNER_ADDR);
+        transferOwnership(L2_SYSTEM_CONFIG_PROXY_ADDR, OWNER_ADDR);
 
         transferOwnership(L2_WETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
 
