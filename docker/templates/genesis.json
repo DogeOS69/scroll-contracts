@@ -45,8 +45,8 @@
         "l2SystemConfigAddress": null,
         "numL1MessagesPerBlock": "10"
       },
-      "genesisStateRoot": "",
-      "missingHeaderFieldsSHA256": ""
+      "genesisStateRoot": null,
+      "missingHeaderFieldsSHA256": null
     }
   },
   "nonce": "0x0",
