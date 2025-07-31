@@ -74,7 +74,7 @@ jobs:
       - name: Build deploy image
         id: build_deploy_image
         env:
-          REPOSITORY: scrolltech/scroll-stack-contracts
+          REPOSITORY: ${{ env.DOCKER_REPOSITORY }}
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           platforms: linux/amd64,linux/arm64
@@ -88,7 +88,7 @@ jobs:
       - name: Build gen image
         id: build_gen_image
         env:
-          REPOSITORY: scrolltech/scroll-stack-contracts
+          REPOSITORY: ${{ env.DOCKER_REPOSITORY }}
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           platforms: linux/amd64,linux/arm64
