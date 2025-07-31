@@ -36,16 +36,13 @@ abstract contract Configuration is Script {
     uint256 internal MAX_BLOCK_IN_CHUNK;
     uint256 internal MAX_BATCH_IN_BUNDLE;
     uint256 internal MAX_L1_MESSAGE_GAS_LIMIT;
+    uint256 internal FINALIZE_BATCH_DEADLINE_SEC;
+    uint256 internal RELAY_MESSAGE_DEADLINE_SEC;
 
     uint256 internal L1_CONTRACT_DEPLOYMENT_BLOCK;
 
-    bool internal ALTERNATIVE_GAS_TOKEN_ENABLED;
-
     bool internal TEST_ENV_MOCK_FINALIZE_ENABLED;
     uint256 internal TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC;
-
-    bytes32 internal VERIFIER_DIGEST_1;
-    bytes32 internal VERIFIER_DIGEST_2;
 
     // accounts
     uint256 internal DEPLOYER_PRIVATE_KEY;
@@ -94,9 +91,6 @@ abstract contract Configuration is Script {
     string internal ADMIN_SYSTEM_DASHBOARD_URI;
     string internal GRAFANA_URI;
 
-    uint256 internal FINALIZE_BATCH_DEADLINE_SEC = 10000;
-    uint256 internal RELAY_MESSAGE_DEADLINE_SEC = 10000;
-
     /**********************
      * Internal interface *
      **********************/
@@ -122,10 +116,10 @@ abstract contract Configuration is Script {
         MAX_BLOCK_IN_CHUNK = cfg.readUint(".rollup.MAX_BLOCK_IN_CHUNK");
         MAX_BATCH_IN_BUNDLE = cfg.readUint(".rollup.MAX_BATCH_IN_BUNDLE");
         MAX_L1_MESSAGE_GAS_LIMIT = cfg.readUint(".rollup.MAX_L1_MESSAGE_GAS_LIMIT");
+        FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
+        RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
 
         L1_CONTRACT_DEPLOYMENT_BLOCK = cfg.readUint(".general.L1_CONTRACT_DEPLOYMENT_BLOCK");
-
-        ALTERNATIVE_GAS_TOKEN_ENABLED = cfg.readBool(".gas-token.ALTERNATIVE_GAS_TOKEN_ENABLED");
 
         TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
         TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
@@ -136,25 +130,22 @@ abstract contract Configuration is Script {
         L1_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L1_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
         L2_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L2_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
 
-        if (DEPLOYER_PRIVATE_KEY == 0) {
+        if (DEPLOYER_PRIVATE_KEY == uint256(0)) {
             DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
         }
-
-        if (L1_COMMIT_SENDER_PRIVATE_KEY == 0) {
+        if (L1_COMMIT_SENDER_PRIVATE_KEY == uint256(0)) {
             L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
         }
-
-        if (L1_FINALIZE_SENDER_PRIVATE_KEY == 0) {
+        if (L1_FINALIZE_SENDER_PRIVATE_KEY == uint256(0)) {
             L1_FINALIZE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY");
         }
-
-        if (L1_GAS_ORACLE_SENDER_PRIVATE_KEY == 0) {
+        if (L1_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
             L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
         }
-
-        if (L2_GAS_ORACLE_SENDER_PRIVATE_KEY == 0) {
+        if (L2_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
             L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
         }
+
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
         L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
@@ -206,9 +197,6 @@ abstract contract Configuration is Script {
 
         FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
         RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
-
-        VERIFIER_DIGEST_1 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_1"));
-        VERIFIER_DIGEST_2 = bytes32(cfg.readBytes32(".general.VERIFIER_DIGEST_2"));
 
         runSanityCheck();
     }

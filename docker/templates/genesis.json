@@ -20,6 +20,7 @@
     "darwinV2Time": 0,
     "euclidTime": 0,
     "euclidV2Time": 0,
+    "feynmanTime": 0,
     "clique": {
       "period": 3,
       "epoch": 30000,
@@ -32,7 +33,7 @@
     },
     "scroll": {
       "useZktrie": false,
-      "maxTxPerBlock": null,
+      "maxTxPerBlock": 100,
       "maxTxPayloadBytesPerBlock": 122880,
       "feeVaultAddress": null,
       "l1Config": {
@@ -41,8 +42,11 @@
         "l1MessageQueueV2Address": null,
         "l1MessageQueueV2DeploymentBlock": 0,
         "scrollChainAddress": null,
+        "l2SystemConfigAddress": null,
         "numL1MessagesPerBlock": "10"
-      }
+      },
+      "genesisStateRoot": null,
+      "missingHeaderFieldsSHA256": null
     }
   },
   "nonce": "0x0",
@@ -56,5 +60,5 @@
   "number": "0x0",
   "gasUsed": "0x0",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "baseFeePerGas": null
+  "baseFeePerGas": 1
 }
