@@ -36,7 +36,6 @@
     "endpoint": "https://rpc.scroll.io",
     "l2_message_queue_address": "0x0000000000000000000000000000000000000000",
     "relayer_config": {
-      "celestia_submit_endpoint": "http://dogeos-da:3000/post_blob",
       "validium_mode": false,
       "rollup_contract_address": "0x0000000000000000000000000000000000000000",
       "gas_price_oracle_contract_address": "0x0000000000000000000000000000000000000000",

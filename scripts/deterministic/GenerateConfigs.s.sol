@@ -40,7 +40,7 @@ contract GenerateRollupConfig is DeployScroll {
         vm.writeJson(L1_RPC_ENDPOINT, PATH, ".l1_config.endpoint");
         vm.writeJson(L2_RPC_ENDPOINT, PATH, ".l1_config.relayer_config.sender_config.endpoint");
         vm.writeJson(L2_RPC_ENDPOINT, PATH, ".l2_config.endpoint");
-        vm.writeJson(L1_RPC_ENDPOINT, PATH, ".l2_config.relayer_config.sender_config.endpoint");
+        vm.writeJson(DA_PUBLISHER_ENDPOINT, PATH, ".l2_config.relayer_config.sender_config.endpoint");
 
         // contracts
         vm.writeJson(vm.toString(L1_GAS_PRICE_ORACLE_ADDR), PATH, ".l1_config.relayer_config.gas_price_oracle_contract_address");
