@@ -24,6 +24,7 @@ abstract contract Configuration is Script {
      ****************************/
 
     // general
+    string internal DA_PUBLISHER_ENDPOINT;
     string internal L1_RPC_ENDPOINT;
     string internal L2_RPC_ENDPOINT;
 
@@ -104,6 +105,7 @@ abstract contract Configuration is Script {
         cfg = vm.readFile(CONFIG_PATH);
         contractsCfg = vm.readFile(CONFIG_CONTRACTS_PATH);
 
+        DA_PUBLISHER_ENDPOINT = cfg.readString(".general.DA_PUBLISHER_ENDPOINT");
         L1_RPC_ENDPOINT = cfg.readString(".general.L1_RPC_ENDPOINT");
         L2_RPC_ENDPOINT = cfg.readString(".general.L2_RPC_ENDPOINT");
 
@@ -145,7 +147,6 @@ abstract contract Configuration is Script {
         if (L2_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
             L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
         }
-
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
         L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
