@@ -22,14 +22,15 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     error ErrorInvalidDataLength(uint256 length);
 
     // --- Events --- //
-    event FeeUpdated(uint256 oldFee, uint256 newFee);
+    event WithdrawalFeeUpdated(uint256 oldFee, uint256 newFee);
+    event DepositFeeUpdated(uint256 oldFee, uint256 newFee);
     event MinWithdrawalUpdated(uint256 oldMin, uint256 newMin);
     event FeeRecipientUpdated(address indexed oldRecip, address indexed newRecip);
     event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
 
-    event DepositReceived(address indexed sender, address indexed target, uint256 amount);
+    event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
 
     // --- State Variables --- //
 
@@ -45,8 +46,12 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /// @notice The minimum amount (after fee) allowed for withdrawals.
     uint256 public minWithdrawalAmount;
 
-    /// @notice The recipient address for withdrawal fees.
+    /// @notice The recipient address for withdrawal and deposit fees.
     address public feeRecipient;
+
+    /// @notice The fee required for L1->L2 deposits.
+    uint256 public depositFee;
+
 
     // --- Constructor --- //
 
@@ -86,14 +91,26 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
     /**
      * @notice Update the withdrawal fee.
-     * @dev Can only be called by the owner. Emits a {FeeUpdated} event.
+     * @dev Can only be called by the owner. Emits a {WithdrawalFeeUpdated} event.
      * @param _newFee The new withdrawal fee.
      */
-    function setFee(uint256 _newFee) external onlyOwner {
+    function setWithdrawalFee(uint256 _newFee) external onlyOwner {
         uint256 oldFee = withdrawalFee;
         withdrawalFee = _newFee;
-        emit FeeUpdated(oldFee, _newFee);
+        emit WithdrawalFeeUpdated(oldFee, _newFee);
     }
+
+    /**
+     * @notice Update the deposit fee.
+     * @dev Can only be called by the owner. Emits a {DepositFeeUpdated} event.
+     * @param _newFee The new deposit fee.
+     */
+    function setDepositFee(uint256 _newFee) external onlyOwner {
+        uint256 oldFee = depositFee;
+        depositFee = _newFee;
+        emit DepositFeeUpdated(oldFee, _newFee);
+    }
+
 
     /**
      * @notice Update the minimum withdrawal amount (after fee).
@@ -151,25 +168,47 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             revert ErrorOnlyMessenger(msg.sender, _messenger);
         }
 
-        emit DepositReceived(msg.sender, _target, msg.value);
-
         // Check 2: Message must be verified by the Bascule verifier (if configured).
         address _verifier = basculeVerifier;
         if (_verifier != address(0)) {
-            // // Assuming _depositID is the bytes32 depositID
-            // if (_depositID.length != 32) {
-            //     revert ErrorInvalidDataLength(_depositID.length);
-            // }
-            // bytes32 depositID = bytes32(_depositID);
             uint256 withdrawalAmount = msg.value;
             // validateWithdrawal is expected to revert on failure
             IBasculeVerifier(_verifier).validateWithdrawal(_target, _depositID, withdrawalAmount);
         }
 
-        // Execute the call to the target contract.
-        (bool ok, ) = _target.call{value: msg.value}(bytes(""));
-        if (!ok) {
-            revert ErrorTargetRevert();
+        // Apply deposit fee logic (cache state variables for gas optimization)
+        uint256 _depositFee = depositFee;
+        address _feeRecipient = feeRecipient;
+        uint256 feeCollected = 0;
+        uint256 amountToTarget = msg.value;
+
+        if (_depositFee > 0 && _feeRecipient != address(0)) {
+            if (msg.value <= _depositFee) {
+                // All funds go to fee recipient, no target call
+                (bool success, ) = _feeRecipient.call{value: msg.value}("");
+                feeCollected = msg.value;
+                amountToTarget = 0;
+                emit DepositReceived(msg.sender, _target, msg.value, feeCollected);
+                return; // Early return, skip target call
+            } else {
+                // Deduct fee and continue to target
+                amountToTarget = msg.value - _depositFee;
+                feeCollected = _depositFee;
+                
+                // Transfer fee to recipient
+                (bool success, ) = _feeRecipient.call{value: _depositFee}("");
+            }
+        }
+
+        // Emit DepositReceived event with fee information
+        emit DepositReceived(msg.sender, _target, msg.value, feeCollected);
+
+        // Continue with target call if there's amount remaining
+        if (amountToTarget > 0) {
+            (bool ok, ) = _target.call{value: amountToTarget}(bytes(""));
+            if (!ok) {
+                revert ErrorTargetRevert();
+            }
         }
     }
 
