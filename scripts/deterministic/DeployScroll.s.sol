@@ -1478,6 +1478,7 @@ contract DeployScroll is DeterministicDeployment {
 
             moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
             moat.setWithdrawalFee(0.1 ether);
+            moat.setDepositFee(1 ether);
             moat.setMinWithdrawal(1 ether);
             if (L2_BRIDGE_FEE_RECIPIENT_ADDR != address(0)) {
                 moat.setFeeRecipient(L2_BRIDGE_FEE_RECIPIENT_ADDR);
