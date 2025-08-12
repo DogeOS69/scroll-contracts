@@ -154,7 +154,7 @@ contract MoatTest is Test {
         _moat.updateMessenger(address(_mockMessenger));
         _moat.setBascule(address(_basculeVerifier));
         _moat.setFeeRecipient(_feeRecipient);
-        _moat.setFee(_INITIAL_FEE);
+        _moat.setWithdrawalFee(_INITIAL_FEE);
         _moat.setMinWithdrawal(_INITIAL_MIN_WITHDRAWAL);
         vm.stopPrank();
 
@@ -190,23 +190,23 @@ contract MoatTest is Test {
         _moat.updateMessenger(newMessenger);
     }
 
-    function testSetFee_Success() external {
+    function testSetWithdrawalFee_Success() external {
         uint256 newFee = 0.05 ether;
         uint256 oldFee = _moat.withdrawalFee();
 
         vm.prank(_owner);
         vm.expectEmit(false, false, false, false); // No indexed args
-        emit Moat.FeeUpdated(oldFee, newFee);
-        _moat.setFee(newFee);
+        emit Moat.WithdrawalFeeUpdated(oldFee, newFee);
+        _moat.setWithdrawalFee(newFee);
 
         assertEq(_moat.withdrawalFee(), newFee, "Fee should be updated");
     }
 
-    function testSetFee_Revert_NotOwner() external {
+    function testSetWithdrawalFee_Revert_NotOwner() external {
         uint256 newFee = 0.05 ether;
         vm.prank(_user); // Non-owner
         vm.expectRevert(bytes("caller is not the owner"));
-        _moat.setFee(newFee);
+        _moat.setWithdrawalFee(newFee);
     }
 
     function testSetMinWithdrawal_Success() external {
@@ -285,6 +285,28 @@ contract MoatTest is Test {
         vm.expectRevert(bytes("caller is not the owner"));
         _moat.setBascule(newVerifier);
     }
+
+    // --- Tests: Deposit Fee Setters --- //
+
+    function testSetDepositFee_Success() external {
+        uint256 newFee = 0.05 ether;
+        uint256 oldFee = _moat.depositFee();
+
+        vm.prank(_owner);
+        vm.expectEmit(false, false, false, false); // No indexed args
+        emit Moat.DepositFeeUpdated(oldFee, newFee);
+        _moat.setDepositFee(newFee);
+
+        assertEq(_moat.depositFee(), newFee, "Deposit fee should be updated");
+    }
+
+    function testSetDepositFee_Revert_NotOwner() external {
+        uint256 newFee = 0.05 ether;
+        vm.prank(_user); // Non-owner
+        vm.expectRevert(bytes("caller is not the owner"));
+        _moat.setDepositFee(newFee);
+    }
+
 
     // --- Tests: withdrawToL1 ---
 
@@ -438,7 +460,7 @@ contract MoatTest is Test {
     function testWithdrawToL1_Success_ZeroFee() external {
         // Set fee to 0
         vm.prank(_owner);
-        _moat.setFee(0);
+        _moat.setWithdrawalFee(0);
         vm.stopPrank();
 
         address targetL1 = address(0x1111);
@@ -513,7 +535,7 @@ contract MoatTest is Test {
 
         // Expect the Moat event
         vm.expectEmit(true, true, false, false); // Check sender, target, amount
-        emit Moat.DepositReceived(address(_mockMessenger), address(target), value);
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), value, 0);
 
         // Expect the target contract to emit its event via fallback with empty data
         vm.expectEmit(false, false, false, false);
@@ -554,7 +576,7 @@ contract MoatTest is Test {
 
         // Expect the Moat event (even on revert, if it happens before Bascule check)
         // vm.expectEmit(true, true, false, false); // Check sender, target, amount
-        // emit Moat.DepositReceived(address(_mockMessenger), address(target), value);
+        // emit Moat.DepositReceived(address(_mockMessenger), address(target), value, 0);
 
         // Expect revert from the mock verifier
         vm.expectRevert(BasculeMockVerifier.ErrorMockRejection.selector);
@@ -587,7 +609,7 @@ contract MoatTest is Test {
 
         // Expect the Moat event
         vm.expectEmit(true, true, false, false); // Check sender, target, amount
-        emit Moat.DepositReceived(address(_mockMessenger), address(target), value);
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), value, 0);
 
         // Expect the target contract to emit its event via fallback (verification skipped)
         vm.expectEmit(false, false, false, false);
@@ -617,7 +639,7 @@ contract MoatTest is Test {
 
         // Expect the Moat event
         vm.expectEmit(true, true, false, false); // Check sender, target, amount
-        emit Moat.DepositReceived(address(_mockMessenger), address(target), value);
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), value, 0);
 
         // Expect Moat's ErrorTargetRevert
         vm.expectRevert(Moat.ErrorTargetRevert.selector);
@@ -629,6 +651,99 @@ contract MoatTest is Test {
             /* _depositID */
             depositIDValue
         );
+        vm.stopPrank();
+    }
+
+    // --- Tests: Deposit Fee Logic in handleL1Message --- //
+
+    function testHandleL1Message_WithDepositFee_Success() external {
+        // Setup: Configure deposit fee
+        uint256 depositFee = 0.01 ether;
+        uint256 depositAmount = 1 ether;
+        
+        vm.startPrank(_owner);
+        _moat.setDepositFee(depositFee);
+        vm.stopPrank();
+
+        SimpleTarget target = new SimpleTarget();
+        bytes32 depositIDValue = bytes32(uint256(0x1111));
+        
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+        uint256 expectedAmountToTarget = depositAmount - depositFee;
+
+        // Call from the mock messenger
+        vm.startPrank(address(_mockMessenger));
+        vm.deal(address(_mockMessenger), depositAmount);
+
+        // Expect events
+        vm.expectEmit(true, true, false, false);
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, depositFee);
+        
+        vm.expectEmit(false, false, false, false);
+        emit SimpleTarget.Executed(bytes(""), expectedAmountToTarget);
+
+        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        vm.stopPrank();
+
+        // Verify fee collection
+        assertEq(_feeRecipient.balance, feeRecipBalanceBefore + depositFee, "Fee recipient should receive deposit fee");
+    }
+
+    function testHandleL1Message_FullFeeCollection_Success() external {
+        // Setup: Configure deposit fee higher than deposit amount
+        uint256 depositFee = 1 ether;
+        uint256 depositAmount = 0.5 ether; // Less than fee
+        
+        vm.startPrank(_owner);
+        _moat.setDepositFee(depositFee);
+        vm.stopPrank();
+
+        SimpleTarget target = new SimpleTarget();
+        bytes32 depositIDValue = bytes32(uint256(0x1111));
+        
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        // Call from the mock messenger
+        vm.startPrank(address(_mockMessenger));
+        vm.deal(address(_mockMessenger), depositAmount);
+
+        // Expect events (no target execution since all funds go to fee)
+        vm.expectEmit(true, true, false, false);
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, depositAmount);
+        
+        // No SimpleTarget.Executed event expected
+
+        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        vm.stopPrank();
+
+        // Verify all funds went to fee recipient
+        assertEq(_feeRecipient.balance, feeRecipBalanceBefore + depositAmount, "All funds should go to fee recipient");
+    }
+
+
+    function testHandleL1Message_ZeroDepositFee_Success() external {
+        // Setup: Zero deposit fee (backward compatibility)
+        uint256 depositAmount = 1 ether;
+        
+        vm.startPrank(_owner);
+        _moat.setDepositFee(0);
+        vm.stopPrank();
+
+        SimpleTarget target = new SimpleTarget();
+        bytes32 depositIDValue = bytes32(uint256(0x1111));
+
+        // Call from the mock messenger
+        vm.startPrank(address(_mockMessenger));
+        vm.deal(address(_mockMessenger), depositAmount);
+
+        // Expect only DepositReceived and target execution (no fee collection)
+        vm.expectEmit(true, true, false, false);
+        emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, 0);
+        
+        vm.expectEmit(false, false, false, false);
+        emit SimpleTarget.Executed(bytes(""), depositAmount);
+
+        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
         vm.stopPrank();
     }
 

@@ -20,7 +20,8 @@ interface IMoat {
 
     // --- Events --- //
 
-    event FeeUpdated(uint256 oldFee, uint256 newFee);
+    event WithdrawalFeeUpdated(uint256 oldFee, uint256 newFee);
+    event DepositFeeUpdated(uint256 oldFee, uint256 newFee);
     event MinWithdrawalUpdated(uint256 oldMin, uint256 newMin);
     event FeeRecipientUpdated(address indexed oldRecip, address indexed newRecip);
     event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
@@ -28,7 +29,7 @@ interface IMoat {
     event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner); // From OwnableBase inheritance
 
-    event DepositReceived(address indexed sender, address indexed target, uint256 amount);
+    event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
 
     // --- Functions --- //
 
@@ -39,6 +40,9 @@ interface IMoat {
 
     function withdrawalFee() external view returns (uint256);
 
+    function depositFee() external view returns (uint256);
+
+
     function minWithdrawalAmount() external view returns (uint256);
 
     function feeRecipient() external view returns (address);
@@ -48,7 +52,10 @@ interface IMoat {
     // Setters
     function updateMessenger(address _newMessenger) external;
 
-    function setFee(uint256 _newFee) external;
+    function setWithdrawalFee(uint256 _newFee) external;
+
+    function setDepositFee(uint256 _newFee) external;
+
 
     function setMinWithdrawal(uint256 _newMin) external;
 
