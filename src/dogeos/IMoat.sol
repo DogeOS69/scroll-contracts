@@ -16,6 +16,7 @@ interface IMoat {
     error ErrorUnprovenL1Message(); // Note: This seems unused in Moat.sol currently
     error ErrorTargetRevert();
     error ErrorInvalidDataLength(uint256 length);
+    error ErrorFeeTransferFailed();
     error Unauthorized(); // From OwnableBase inheritance
 
     // --- Events --- //

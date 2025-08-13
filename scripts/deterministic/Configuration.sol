@@ -74,8 +74,11 @@ abstract contract Configuration is Script {
     string internal DEPLOYMENT_SALT;
     address internal L1_FEE_VAULT_ADDR;
     address internal L2_BRIDGE_FEE_RECIPIENT_ADDR;
+    
+    // bridge fees
     uint256 internal DEPOSIT_FEE;
     uint256 internal WITHDRAWAL_FEE;
+    uint256 internal MIN_WITHDRAWAL_AMOUNT;
 
     // coordinator
     string internal CHUNK_COLLECTION_TIME_SEC;
@@ -177,9 +180,10 @@ abstract contract Configuration is Script {
         L1_FEE_VAULT_ADDR = cfg.readAddress(".contracts.L1_FEE_VAULT_ADDR");
 
         L2_BRIDGE_FEE_RECIPIENT_ADDR = cfg.readAddress(".contracts.L2_BRIDGE_FEE_RECIPIENT_ADDR");
-
+        
         DEPOSIT_FEE = cfg.readUint(".contracts.DEPOSIT_FEE");
         WITHDRAWAL_FEE = cfg.readUint(".contracts.WITHDRAWAL_FEE");
+        MIN_WITHDRAWAL_AMOUNT = cfg.readUint(".contracts.MIN_WITHDRAWAL_AMOUNT");
 
         CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
         BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");

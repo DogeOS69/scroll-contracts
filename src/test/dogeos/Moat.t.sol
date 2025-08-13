@@ -26,6 +26,20 @@ contract SimpleTarget {
     }
 }
 
+// Helper contract that rejects ETH transfers (for testing fee transfer failures)
+contract RejectingFeeRecipient {
+    error RejectETH();
+
+    // This contract always reverts when receiving ETH
+    receive() external payable {
+        revert RejectETH();
+    }
+
+    fallback() external payable {
+        revert RejectETH();
+    }
+}
+
 /**
  * @title MockScrollMessenger
  * @notice Mocks basic messenger behavior (sendMessage) for Moat testing.
@@ -745,6 +759,77 @@ contract MoatTest is Test {
 
         _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
         vm.stopPrank();
+    }
+
+    // --- Tests: Fee Transfer Failure Handling --- //
+
+    function testHandleL1Message_Revert_DepositFeeTransferFailed() external {
+        // Setup: Configure deposit fee with rejecting recipient
+        uint256 depositFee = 0.01 ether;
+        uint256 depositAmount = 1 ether;
+        
+        RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
+        
+        vm.startPrank(_owner);
+        _moat.setDepositFee(depositFee);
+        _moat.setFeeRecipient(address(rejectingRecipient));
+        vm.stopPrank();
+
+        SimpleTarget target = new SimpleTarget();
+        bytes32 depositIDValue = bytes32(uint256(0x1111));
+
+        // Call from the mock messenger
+        vm.startPrank(address(_mockMessenger));
+        vm.deal(address(_mockMessenger), depositAmount);
+
+        // Expect revert due to fee transfer failure
+        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        vm.stopPrank();
+    }
+
+    function testHandleL1Message_Revert_FullDepositFeeTransferFailed() external {
+        // Setup: Configure deposit fee higher than deposit amount with rejecting recipient
+        uint256 depositFee = 1 ether;
+        uint256 depositAmount = 0.5 ether; // Less than fee
+        
+        RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
+        
+        vm.startPrank(_owner);
+        _moat.setDepositFee(depositFee);
+        _moat.setFeeRecipient(address(rejectingRecipient));
+        vm.stopPrank();
+
+        SimpleTarget target = new SimpleTarget();
+        bytes32 depositIDValue = bytes32(uint256(0x1111));
+
+        // Call from the mock messenger
+        vm.startPrank(address(_mockMessenger));
+        vm.deal(address(_mockMessenger), depositAmount);
+
+        // Expect revert due to fee transfer failure (full amount to fee)
+        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        vm.stopPrank();
+    }
+
+    function testWithdrawToL1_Revert_WithdrawalFeeTransferFailed() external {
+        // Setup: Configure withdrawal with rejecting fee recipient
+        address targetL1 = address(0x1111);
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee(); // Use existing fee
+        uint256 totalValue = amountToSend + fee;
+        
+        RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
+        
+        vm.startPrank(_owner);
+        _moat.setFeeRecipient(address(rejectingRecipient));
+        vm.stopPrank();
+
+        // Attempt withdrawal - should fail on fee transfer
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        _moat.withdrawToL1{value: totalValue}(targetL1);
     }
 
     /* // Removing this test as the length check is gone

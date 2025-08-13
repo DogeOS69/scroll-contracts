@@ -20,6 +20,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     error ErrorUnprovenL1Message();
     error ErrorTargetRevert();
     error ErrorInvalidDataLength(uint256 length);
+    error ErrorFeeTransferFailed();
 
     // --- Events --- //
     event WithdrawalFeeUpdated(uint256 oldFee, uint256 newFee);
@@ -186,6 +187,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             if (msg.value <= _depositFee) {
                 // All funds go to fee recipient, no target call
                 (bool success, ) = _feeRecipient.call{value: msg.value}("");
+                if (!success) revert ErrorFeeTransferFailed();
                 feeCollected = msg.value;
                 amountToTarget = 0;
                 emit DepositReceived(msg.sender, _target, msg.value, feeCollected);
@@ -197,6 +199,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
                 
                 // Transfer fee to recipient
                 (bool success, ) = _feeRecipient.call{value: _depositFee}("");
+                if (!success) revert ErrorFeeTransferFailed();
             }
         }
 
@@ -238,9 +241,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         if (feeRecip != address(0) && fee > 0) {
             // Use call to avoid potential gas stipend issues with transfer()
             (bool success, ) = feeRecip.call{value: fee}("");
-            // If fee transfer fails, it shouldn't block the withdrawal, maybe just emit an event?
-            // For now, we'll proceed regardless of fee transfer success.
-            // require(success, "Fee transfer failed"); // Uncomment if fee transfer failure should revert.
+            if (!success) revert ErrorFeeTransferFailed();
         }
 
         // Send the message via the L2 messenger.
