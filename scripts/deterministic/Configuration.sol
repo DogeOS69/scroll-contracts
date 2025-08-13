@@ -74,6 +74,8 @@ abstract contract Configuration is Script {
     string internal DEPLOYMENT_SALT;
     address internal L1_FEE_VAULT_ADDR;
     address internal L2_BRIDGE_FEE_RECIPIENT_ADDR;
+    uint256 internal DEPOSIT_FEE;
+    uint256 internal WITHDRAWAL_FEE;
 
     // coordinator
     string internal CHUNK_COLLECTION_TIME_SEC;
@@ -146,7 +148,6 @@ abstract contract Configuration is Script {
             L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
         }
 
-
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
         L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
         L1_FINALIZE_SENDER_ADDR = cfg.readAddress(".accounts.L1_FINALIZE_SENDER_ADDR");
@@ -176,6 +177,9 @@ abstract contract Configuration is Script {
         L1_FEE_VAULT_ADDR = cfg.readAddress(".contracts.L1_FEE_VAULT_ADDR");
 
         L2_BRIDGE_FEE_RECIPIENT_ADDR = cfg.readAddress(".contracts.L2_BRIDGE_FEE_RECIPIENT_ADDR");
+
+        DEPOSIT_FEE = cfg.readUint(".contracts.DEPOSIT_FEE");
+        WITHDRAWAL_FEE = cfg.readUint(".contracts.WITHDRAWAL_FEE");
 
         CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
         BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
