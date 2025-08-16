@@ -1364,8 +1364,8 @@ contract DeployScroll is DeterministicDeployment {
         if (address(L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).whitelist()) != notnull(L2_WHITELIST_ADDR)) {
             L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).updateWhitelist(L2_WHITELIST_ADDR);
         }
-        L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setBlobScalar(BLOB_SCALAR * 1e9);
-        L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setScalar(SCALAR * 1e9);
+        L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setBlobScalar(BLOB_SCALAR);
+        L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setScalar(SCALAR);
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setPenaltyThreshold(PENALTY_THRESHOLD);
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setPenaltyFactor(PENALTY_FACTOR);
     }
