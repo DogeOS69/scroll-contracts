@@ -45,7 +45,6 @@ L1_EXPLORER_DB_CONNECTION_STRING = "postgres://postgres:qwerty12345@postgresql:5
 ROLLUP_NODE_DB_CONNECTION_STRING = "postgres://postgres:qwerty12345@postgresql:5432/scroll?sslmode=disable"
 ROLLUP_EXPLORER_DB_CONNECTION_STRING = "postgres://postgres:qwerty12345@postgresql:5432/scroll?sslmode=disable"
 SCROLL_DB_CONNECTION_STRING = "postgres://rollup_node:qwerty12345@postgresql:5432/scroll_rollup?sslmode=require"
-ADMIN_SYSTEM_BACKEND_DB_CONNECTION_STRING = "postgres://rollup_node:qwerty12345@postgresql:5432/scroll_rollup?sslmode=require"
 
 [gas-token]
 
@@ -105,6 +104,12 @@ L2_BRIDGE_FEE_RECIPIENT_ADDR = "0x0000000000000000000000000000000000000000"
 DEPOSIT_FEE = "1000000000000000000"          # 1.0 DOGE default deposit fee
 WITHDRAWAL_FEE = "100000000000000000"        # 0.1 DOGE default withdrawal fee
 MIN_WITHDRAWAL_AMOUNT = "1000000000000000000" # 1.0 DOGE minimum withdrawal amount
+
+#L1GasPriceOracle
+BLOB_SCALAR = 16_000_000_000
+SCALAR = 807864_000_000_000
+PENALTY_THRESHOLD = 1_515_986_167
+PENALTY_FACTOR = 2_273_979_251
 
 [contracts.overrides]
 
