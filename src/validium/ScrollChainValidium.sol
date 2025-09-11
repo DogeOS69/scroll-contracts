@@ -41,6 +41,15 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
     /// @dev Thrown when given batch is not committed before.
     error ErrorBatchNotCommitted();
 
+    /// @dev Error thrown when encryption key length is invalid.
+    error ErrorInvalidEncryptionKeyLength();
+
+    /// @dev Error thrown the user attempts to use an encryption key that is unknown.
+    error ErrorUnknownEncryptionKey();
+
+    /// @dev Error thrown the user attempts to use an encryption key that is deprecated.
+    error ErrorDeprecatedEncryptionKey();
+
     /*************
      * Constants *
      *************/
@@ -54,6 +63,9 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
     /// @notice The role for prover who can finalize batch.
     bytes32 public constant PROVER_ROLE = keccak256("PROVER_ROLE");
 
+    /// @notice The role that can rotate encryption keys.
+    bytes32 public constant KEY_MANAGER_ROLE = keccak256("KEY_MANAGER_ROLE");
+
     /***********************
      * Immutable Variables *
      ***********************/
@@ -66,6 +78,17 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
 
     /// @notice The address of `MultipleVersionRollupVerifier`.
     address public immutable verifier;
+
+    /***********
+     * Structs *
+     ***********/
+
+    struct EncryptionKey {
+        // The on-chain message index when the key was set.
+        uint256 msgIndex;
+        // The 33-bytes compressed public key, i.e. encryption key.
+        bytes key;
+    }
 
     /*********************
      * Storage Variables *
@@ -85,6 +108,9 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
 
     /// @dev Mapping from batch index to corresponding withdraw root in Validium L3.
     mapping(uint256 => bytes32) public override withdrawRoots;
+
+    /// @dev An array of encryption keys.
+    EncryptionKey[] public encryptionKeys;
 
     /***************
      * Constructor *
@@ -125,6 +151,22 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
     /// @inheritdoc IScrollChainValidium
     function isBatchFinalized(uint256 _batchIndex) external view override returns (bool) {
         return _batchIndex <= lastFinalizedBatchIndex;
+    }
+
+    /// @inheritdoc IScrollChainValidium
+    function getLatestEncryptionKey() external view override returns (uint256, bytes memory) {
+        uint256 _numKeys = encryptionKeys.length;
+        if (_numKeys == 0) revert ErrorUnknownEncryptionKey();
+        return (_numKeys - 1, encryptionKeys[_numKeys - 1].key);
+    }
+
+    /// @inheritdoc IScrollChainValidium
+    function getEncryptionKey(uint256 _keyId) external view override returns (bytes memory) {
+        uint256 _numKeys = encryptionKeys.length;
+        if (_numKeys == 0) revert ErrorUnknownEncryptionKey();
+        if (_keyId >= _numKeys) revert ErrorUnknownEncryptionKey();
+        if (_keyId < _numKeys - 1) revert ErrorDeprecatedEncryptionKey();
+        return encryptionKeys[_numKeys - 1].key;
     }
 
     /*****************************
@@ -232,6 +274,17 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
      * Restricted Functions *
      ************************/
 
+    function registerNewEncryptionKey(bytes memory _key) external onlyRole(KEY_MANAGER_ROLE) {
+        if (_key.length != 33) revert ErrorInvalidEncryptionKeyLength();
+        uint256 _keyId = encryptionKeys.length;
+
+        // The message from `nextCrossDomainMessageIndex` will utilise the newly registered encryption key.
+        uint256 _msgIndex = IL1MessageQueueV2(messageQueueV2).nextCrossDomainMessageIndex();
+        encryptionKeys.push(EncryptionKey(_msgIndex, _key));
+
+        emit NewEncryptionKey(_keyId, _msgIndex, _key);
+    }
+
     /// @notice Pause the contract
     /// @param _status The pause status to update.
     function setPause(bool _status) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -308,7 +361,11 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
         bytes32 postStateRoot = stateRoots[batchIndex];
         bytes32 withdrawRoot = withdrawRoots[batchIndex];
 
-        // @todo public inputs TBD
+        // Get the encryption key at the time of on-chain message queue index.
+        bytes memory encryptionKey = totalL1MessagesPoppedOverall == 0
+            ? _getEncryptionKey(0)
+            : _getEncryptionKey(totalL1MessagesPoppedOverall - 1);
+
         bytes memory publicInputs = abi.encodePacked(
             layer2ChainId,
             messageQueueHash,
@@ -317,7 +374,8 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
             committedBatches[prevBatchIndex], // _prevBatchHash
             postStateRoot,
             batchHash,
-            withdrawRoot
+            withdrawRoot,
+            encryptionKey
         );
 
         // verify bundle, choose the correct verifier based on the last batch
@@ -363,5 +421,23 @@ contract ScrollChainValidium is AccessControlUpgradeable, PausableUpgradeable, I
         if (committedBatches[_batchIndex] != _batchHash) {
             revert ErrorIncorrectBatchHash();
         }
+    }
+
+    /// @dev Internal function to get the relevant encryption key that was used to encrypt messages up to the provided message index.
+    /// @param _msgIndex The on-chain message queue index being finalised.
+    /// @return The encryption key used at the time of the provided on-chain message queue index.
+    function _getEncryptionKey(uint256 _msgIndex) internal view returns (bytes memory) {
+        // Start from the "latest" key and continue fetching keys until we find the key
+        // that was rotated before the message index we have been provided.
+        uint256 _numKeys = encryptionKeys.length;
+        if (_numKeys == 0) revert ErrorUnknownEncryptionKey();
+        EncryptionKey memory _encryptionKey = encryptionKeys[--_numKeys];
+
+        while (_encryptionKey.msgIndex > _msgIndex) {
+            if (_numKeys == 0) revert ErrorUnknownEncryptionKey();
+            _encryptionKey = encryptionKeys[--_numKeys];
+        }
+
+        return _encryptionKey.key;
     }
 }

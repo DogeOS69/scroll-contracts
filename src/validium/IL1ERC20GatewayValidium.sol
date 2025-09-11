@@ -61,7 +61,8 @@ interface IL1ERC20GatewayValidium {
         address _token,
         bytes memory _to,
         uint256 _amount,
-        uint256 _gasLimit
+        uint256 _gasLimit,
+        uint256 _keyId
     ) external payable;
 
     /// @notice Deposit some token to a recipient's account on L2.
@@ -76,7 +77,8 @@ interface IL1ERC20GatewayValidium {
         address _realSender,
         bytes memory _to,
         uint256 _amount,
-        uint256 _gasLimit
+        uint256 _gasLimit,
+        uint256 _keyId
     ) external payable;
 
     /// @notice Complete ERC20 withdraw from L2 to L1 and send fund to recipient's account in L1.

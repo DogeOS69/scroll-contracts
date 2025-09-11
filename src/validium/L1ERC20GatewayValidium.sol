@@ -10,6 +10,7 @@ import {SafeERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ER
 import {IL1ScrollMessenger} from "../L1/IL1ScrollMessenger.sol";
 import {IL1ERC20GatewayValidium} from "./IL1ERC20GatewayValidium.sol";
 import {IL2ERC20GatewayValidium} from "./IL2ERC20GatewayValidium.sol";
+import {IScrollChainValidium} from "./IScrollChainValidium.sol";
 
 import {ScrollGatewayBase} from "../libraries/gateway/ScrollGatewayBase.sol";
 
@@ -43,6 +44,9 @@ contract L1ERC20GatewayValidium is ScrollGatewayBase, IL1ERC20GatewayValidium {
     /// @notice The address of ScrollStandardERC20Factory contract in L2.
     address public immutable l2TokenFactory;
 
+    /// @notice The address of ScrollChainValidium contract in L2.
+    address public immutable scrollChainValidium;
+
     /*************
      * Variables *
      *************/
@@ -67,12 +71,14 @@ contract L1ERC20GatewayValidium is ScrollGatewayBase, IL1ERC20GatewayValidium {
         address _counterpart,
         address _messenger,
         address _l2TokenImplementation,
-        address _l2TokenFactory
+        address _l2TokenFactory,
+        address _scrollChainValidium
     ) ScrollGatewayBase(_counterpart, address(0), _messenger) {
         _disableInitializers();
 
         l2TokenImplementation = _l2TokenImplementation;
         l2TokenFactory = _l2TokenFactory;
+        scrollChainValidium = _scrollChainValidium;
     }
 
     /// @notice Initialize the storage of L1ERC20GatewayValidium.
@@ -102,9 +108,10 @@ contract L1ERC20GatewayValidium is ScrollGatewayBase, IL1ERC20GatewayValidium {
         address _token,
         bytes memory _to,
         uint256 _amount,
-        uint256 _gasLimit
+        uint256 _gasLimit,
+        uint256 _keyId
     ) external payable override {
-        _deposit(_token, _msgSender(), _to, _amount, new bytes(0), _gasLimit);
+        _deposit(_token, _msgSender(), _to, _amount, new bytes(0), _gasLimit, _keyId);
     }
 
     /// @inheritdoc IL1ERC20GatewayValidium
@@ -113,9 +120,10 @@ contract L1ERC20GatewayValidium is ScrollGatewayBase, IL1ERC20GatewayValidium {
         address _realSender,
         bytes memory _to,
         uint256 _amount,
-        uint256 _gasLimit
+        uint256 _gasLimit,
+        uint256 _keyId
     ) external payable override {
-        _deposit(_token, _realSender, _to, _amount, new bytes(0), _gasLimit);
+        _deposit(_token, _realSender, _to, _amount, new bytes(0), _gasLimit, _keyId);
     }
 
     /// @inheritdoc IL1ERC20GatewayValidium
@@ -192,8 +200,12 @@ contract L1ERC20GatewayValidium is ScrollGatewayBase, IL1ERC20GatewayValidium {
         bytes memory _to,
         uint256 _amount,
         bytes memory _data,
-        uint256 _gasLimit
+        uint256 _gasLimit,
+        uint256 _keyId
     ) internal virtual nonReentrant {
+        // Validate the encryption key with the given key-id.
+        IScrollChainValidium(scrollChainValidium).getEncryptionKey(_keyId);
+
         // 1. Transfer token into this contract.
         _amount = _transferERC20In(_msgSender(), _token, _amount);
         if (_amount == 0) revert ErrorAmountIsZero();
