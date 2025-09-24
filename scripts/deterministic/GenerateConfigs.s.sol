@@ -54,7 +54,6 @@ contract GenerateRollupConfig is DeployScroll {
         vm.writeJson(vm.toString(TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC), PATH, ".l2_config.relayer_config.finalize_bundle_without_proof_timeout_sec");
 
         vm.writeJson(vm.toString(MAX_BLOCK_IN_CHUNK), PATH, ".l2_config.chunk_proposer_config.max_block_num_per_chunk");
-        vm.writeJson(vm.toString(MAX_TX_IN_CHUNK), PATH, ".l2_config.chunk_proposer_config.max_tx_num_per_chunk");
         vm.writeJson(vm.toString(MAX_BATCH_IN_BUNDLE), PATH, ".l2_config.bundle_proposer_config.max_batch_num_per_bundle");
     }
 }
