@@ -46,7 +46,7 @@ contract GenerateRollupConfig is DeployScroll {
         vm.writeJson(vm.toString(L1_GAS_PRICE_ORACLE_ADDR), PATH, ".l1_config.relayer_config.gas_price_oracle_contract_address");
         vm.writeJson(vm.toString(L2_MESSAGE_QUEUE_ADDR), PATH, ".l2_config.l2_message_queue_address");
         vm.writeJson(vm.toString(L1_SCROLL_CHAIN_PROXY_ADDR), PATH, ".l2_config.relayer_config.rollup_contract_address");
-        vm.writeJson(vm.toString(L1_MESSAGE_QUEUE_V2_PROXY_ADDR), PATH, ".l2_config.relayer_config.gas_price_oracle_contract_address");
+        // vm.writeJson(vm.toString(L1_MESSAGE_QUEUE_V2_PROXY_ADDR), PATH, ".l2_config.relayer_config.gas_price_oracle_contract_address");
 
         // other
         vm.writeJson(vm.toString(TEST_ENV_MOCK_FINALIZE_ENABLED), PATH, ".l2_config.relayer_config.enable_test_env_bypass_features");
