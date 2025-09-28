@@ -12,7 +12,7 @@
         "escalate_multiple_den": 1,
         "max_gas_price": 1000000000000,
         "tx_type": "DynamicFeeTx",
-        "check_pending_time": 1,
+        "check_pending_time": 5,
         "min_gas_tip": 100000000
       },
       "gas_oracle_config": {
