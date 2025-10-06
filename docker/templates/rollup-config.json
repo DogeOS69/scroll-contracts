@@ -54,7 +54,7 @@
       },
       "batch_submission": {
         "min_batches": 1,
-        "max_batches": 6,
+        "max_batches": 1,
         "timeout": 7200,
         "backlog_max": 75
       },
