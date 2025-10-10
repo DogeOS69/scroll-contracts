@@ -27,6 +27,7 @@
       "relaxed_period": true
     },
     "systemContract": {
+      "relaxed_period": true,
       "period": 3,
       "system_contract_address": "",
       "system_contract_slot": "0x0000000000000000000000000000000000000000000000000000000000000067"
