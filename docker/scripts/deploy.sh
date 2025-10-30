@@ -12,7 +12,7 @@ CONFIG_FILE="./volume/config.toml"
 L1_RPC_ENDPOINT="${L1_RPC_ENDPOINT}"
 L2_RPC_ENDPOINT="${L2_RPC_ENDPOINT}"
 # Using a smaller batch size as a compromise between the slow but reliable --slow flag and the fast but potentially unreliable default.
-BATCH_SIZE="7"
+BATCH_SIZE="100"
 
 echo "using L1_RPC_ENDPOINT = $L1_RPC_ENDPOINT"
 echo "using L2_RPC_ENDPOINT = $L2_RPC_ENDPOINT"
