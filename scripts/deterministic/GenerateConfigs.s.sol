@@ -89,6 +89,7 @@ contract GenerateCoordinatorConfig is DeployScroll {
         vm.writeJson(BATCH_COLLECTION_TIME_SEC, PATH, ".prover_manager.batch_collection_time_sec");
         vm.writeJson(BUNDLE_COLLECTION_TIME_SEC, PATH, ".prover_manager.bundle_collection_time_sec");
         vm.writeJson(vm.toString(CHAIN_ID_L2), PATH, ".l2.chain_id");
+        vm.writeJson(L2_RPC_ENDPOINT, PATH, ".l2.l2geth.endpoint");
         vm.writeJson(COORDINATOR_JWT_SECRET_KEY, PATH, ".auth.secret");
 
         // coordinator cron
@@ -96,6 +97,7 @@ contract GenerateCoordinatorConfig is DeployScroll {
         vm.writeJson(BATCH_COLLECTION_TIME_SEC, PATH, ".prover_manager.batch_collection_time_sec");
         vm.writeJson(BUNDLE_COLLECTION_TIME_SEC, PATH, ".prover_manager.bundle_collection_time_sec");
         vm.writeJson(vm.toString(CHAIN_ID_L2), PATH, ".l2.chain_id");
+        vm.writeJson(L2_RPC_ENDPOINT, PATH, ".l2.l2geth.endpoint");
         vm.writeJson(COORDINATOR_JWT_SECRET_KEY, PATH, ".auth.secret");
     }
 }
