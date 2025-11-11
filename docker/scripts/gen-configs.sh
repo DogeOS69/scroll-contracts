@@ -41,45 +41,46 @@ gen_config_contracts_toml
 
 echo ""
 echo "generating genesis.yaml"
-forge script scripts/deterministic/GenerateGenesis.s.sol:GenerateGenesis || exit 1
+forge script scripts/deterministic/GenerateGenesis.s.sol:GenerateGenesis --sig "run()" || exit 1
 format_config_file "./volume/genesis.yaml"
 
 echo ""
 echo "generating rollup-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateRollupConfig || exit 1
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateRollupConfig --sig "run()" || exit 1
 format_config_file "./volume/rollup-config.yaml"
 
-# echo ""
-# echo "generating coordinator-config.yaml"
-# forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateCoordinatorConfig || exit 1
-# format_config_file "./volume/coordinator-config.yaml"
+echo ""
+echo "generating coordinator-cron-config.yaml and coordinator-api-config.yaml"
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateCoordinatorConfig --sig "run()" || exit 1
+format_config_file "./volume/coordinator-cron-config.yaml"
+format_config_file "./volume/coordinator-api-config.yaml"
 
 echo ""
 echo "generating chain-monitor-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateChainMonitorConfig || exit 1
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateChainMonitorConfig --sig "run()" || exit 1
 format_config_file "./volume/chain-monitor-config.yaml"
 
 # echo ""
 # echo "generating bridge-history-config.yaml"
-# forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateBridgeHistoryConfig || exit 1
+# forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateBridgeHistoryConfig --sig "run()" || exit 1
 # format_config_file "./volume/bridge-history-config.yaml"
 
 # echo ""
 # echo "generating balance-checker-config.yaml"
-# forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateBalanceCheckerConfig || exit 1
+# forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateBalanceCheckerConfig --sig "run()" || exit 1
 # format_config_file "./volume/balance-checker-config.yaml"
 
 echo ""
 echo "generating frontend-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateFrontendConfig || exit 1
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateFrontendConfig --sig "run()" || exit 1
 format_config_file "./volume/frontend-config.yaml"
 
 echo ""
 echo "generating rollup-explorer-backend-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateRollupExplorerBackendConfig || exit 1
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateRollupExplorerBackendConfig --sig "run()" || exit 1
 format_config_file "./volume/rollup-explorer-backend-config.yaml"
 
 # echo ""
 # echo "generating admin-system-backend-config.yaml"
-# forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateAdminSystemBackendConfig || exit 1
+# forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateAdminSystemBackendConfig --sig "run()" || exit 1
 # format_config_file "./volume/admin-system-backend-config.yaml"
