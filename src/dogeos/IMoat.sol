@@ -13,11 +13,8 @@ interface IMoat {
     error ErrorFeeNotCovered();
     error ErrorBelowMinimumWithdrawal();
     error ErrorOnlyMessenger(address sender, address expected);
-    error ErrorUnprovenL1Message(); // Note: This seems unused in Moat.sol currently
     error ErrorTargetRevert();
-    error ErrorInvalidDataLength(uint256 length);
     error ErrorFeeTransferFailed();
-    error Unauthorized(); // From OwnableBase inheritance
 
     // --- Events --- //
 
@@ -43,7 +40,6 @@ interface IMoat {
 
     function depositFee() external view returns (uint256);
 
-
     function minWithdrawalAmount() external view returns (uint256);
 
     function feeRecipient() external view returns (address);
@@ -57,17 +53,27 @@ interface IMoat {
 
     function setDepositFee(uint256 _newFee) external;
 
-
     function setMinWithdrawal(uint256 _newMin) external;
 
     function setFeeRecipient(address _newRecip) external;
 
     function setBascule(address _newVerifier) external;
 
+    // Immutable Getters
+    function P2PKH_PREFIX() external view returns (bytes1);
+
+    function P2SH_PREFIX() external view returns (bytes1);
+
     // Core Logic
     function handleL1Message(address _target, bytes32 _depositID) external payable;
 
     function withdrawToL1(address _target) external payable;
+
+    function withdrawToP2PKH(address _target) external payable;
+
+    function withdrawToP2SH(address _target) external payable;
+
+    function withdrawToDogeAddress(string calldata _dogeAddress) external payable;
 
     // OwnableBase functions
     function transferOwnership(address newOwner) external;

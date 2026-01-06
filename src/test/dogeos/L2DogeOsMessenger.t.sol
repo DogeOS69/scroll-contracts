@@ -49,9 +49,9 @@ contract L2DogeOsMessengerTest is Test {
         // Deploy DogeOS contracts
         _basculeVerifier = new BasculeMockVerifier();
 
-        // Moat needs owner at deployment
+        // Moat needs owner at deployment (with mainnet prefixes)
         address moatOwner = address(this);
-        _moat = new Moat();
+        _moat = new Moat(bytes1(0x1e), bytes1(0x16)); // mainnet P2PKH, P2SH prefixes
         _moat.initialize(moatOwner);
 
         // Messenger needs Moat address at deployment

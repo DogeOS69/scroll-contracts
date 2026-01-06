@@ -6,6 +6,7 @@ import {OwnableBase} from "../libraries/common/OwnableBase.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {IL2ScrollMessenger} from "../L2/IL2ScrollMessenger.sol";
 import {IBasculeVerifier} from "./IBasculeVerifier.sol";
+import {DogeAddressLib} from "./DogeAddressLib.sol";
 
 /**
  * @title Moat
@@ -17,10 +18,24 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     error ErrorFeeNotCovered();
     error ErrorBelowMinimumWithdrawal();
     error ErrorOnlyMessenger(address sender, address expected);
-    error ErrorUnprovenL1Message();
     error ErrorTargetRevert();
-    error ErrorInvalidDataLength(uint256 length);
     error ErrorFeeTransferFailed();
+
+    // --- Constants --- //
+
+    /// @notice Message envelope version for P2PKH/P2SH withdrawals.
+    uint8 private constant ENVELOPE_VERSION = 1;
+
+    /// @notice Flag indicating P2SH address type in message envelope.
+    uint8 private constant FLAG_P2SH = 0x01;
+
+    // --- Immutables --- //
+
+    /// @notice The P2PKH version byte for this network (0x1e mainnet, 0x71 testnet, 0x6f regtest).
+    bytes1 public immutable P2PKH_PREFIX;
+
+    /// @notice The P2SH version byte for this network (0x16 mainnet, 0xc4 testnet/regtest).
+    bytes1 public immutable P2SH_PREFIX;
 
     // --- Events --- //
     event WithdrawalFeeUpdated(uint256 oldFee, uint256 newFee);
@@ -53,16 +68,16 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /// @notice The fee required for L1->L2 deposits.
     uint256 public depositFee;
 
-
     // --- Constructor --- //
 
     /**
-     * @notice Constructor
+     * @notice Constructor sets immutable network prefixes.
+     * @param _p2pkhPrefix The P2PKH version byte for this network.
+     * @param _p2shPrefix The P2SH version byte for this network.
      */
-    constructor() /* address _initialOwner */
-    {
-        // Messenger address must be set separately via updateMessenger()
-        // _transferOwnership(_initialOwner); // Initialize ownership
+    constructor(bytes1 _p2pkhPrefix, bytes1 _p2shPrefix) {
+        P2PKH_PREFIX = _p2pkhPrefix;
+        P2SH_PREFIX = _p2shPrefix;
     }
 
     /**
@@ -111,7 +126,6 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         depositFee = _newFee;
         emit DepositFeeUpdated(oldFee, _newFee);
     }
-
 
     /**
      * @notice Update the minimum withdrawal amount (after fee).
@@ -196,7 +210,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
                 // Deduct fee and continue to target
                 amountToTarget = msg.value - _depositFee;
                 feeCollected = _depositFee;
-                
+
                 // Transfer fee to recipient
                 (bool success, ) = _feeRecipient.call{value: _depositFee}("");
                 if (!success) revert ErrorFeeTransferFailed();
@@ -215,12 +229,70 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         }
     }
 
+    // --- Withdrawal Entry Points --- //
+
     /**
-     * @notice Initiates a withdrawal from L2 to L1 via the L2 messenger.
-     * @dev Requires withdrawal fee and minimum amount checks.
-     * @param _target The recipient address on L1.
+     * @notice (Deprecated) Initiates a P2PKH withdrawal; use withdrawToP2PKH instead.
+     * @dev Now emits v1 envelope with flags=0 (P2PKH). Kept for backward compatibility.
+     * @param _target The recipient address (hash160 payload).
      */
     function withdrawToL1(address _target) external payable nonReentrant {
+        _processWithdrawal(_target, false);
+    }
+
+    /**
+     * @notice Initiates a P2PKH withdrawal from L2 to L1 (Dogecoin).
+     * @dev The target address is the hash160 of the public key.
+     * @param _target The 20-byte hash160 payload as an address type.
+     */
+    function withdrawToP2PKH(address _target) external payable nonReentrant {
+        _processWithdrawal(_target, false);
+    }
+
+    /**
+     * @notice Initiates a P2SH withdrawal from L2 to L1 (Dogecoin).
+     * @dev The target address is the hash160 of the redeem script.
+     * @param _target The 20-byte script hash as an address type.
+     */
+    function withdrawToP2SH(address _target) external payable nonReentrant {
+        _processWithdrawal(_target, true);
+    }
+
+    /**
+     * @notice Withdraw to a Base58Check-encoded Dogecoin address.
+     * @dev Decodes the address on-chain and routes to P2PKH or P2SH.
+     * @param _dogeAddress The full Base58Check-encoded Dogecoin address.
+     */
+    function withdrawToDogeAddress(string calldata _dogeAddress) external payable nonReentrant {
+        (bool isP2SH, bytes20 payload) = DogeAddressLib.decodeChecked(_dogeAddress, P2PKH_PREFIX, P2SH_PREFIX);
+        _processWithdrawal(address(payload), isP2SH);
+    }
+
+    // --- Internal Functions --- //
+
+    /**
+     * @dev Encode the message envelope for withdrawal.
+     * @param _isP2SH True for P2SH, false for P2PKH.
+     * @return envelope The 2-byte message envelope (version, flags).
+     */
+    function _encodeEnvelope(bool _isP2SH) internal pure returns (bytes memory envelope) {
+        envelope = new bytes(2);
+        envelope[0] = bytes1(ENVELOPE_VERSION);
+        envelope[1] = _isP2SH ? bytes1(FLAG_P2SH) : bytes1(0);
+    }
+
+    /**
+     * @dev Internal function to process withdrawals with envelope encoding.
+     * @param _target The 20-byte hash160/script-hash payload.
+     * @param _isP2SH True for P2SH, false for P2PKH.
+     */
+    function _processWithdrawal(address _target, bool _isP2SH) internal {
+        // Check 0: Messenger must be configured.
+        address _messenger = messenger;
+        if (_messenger == address(0)) {
+            revert ErrorZeroAddress();
+        }
+
         uint256 fee = withdrawalFee;
         uint256 minAmount = minWithdrawalAmount;
 
@@ -244,13 +316,11 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             if (!success) revert ErrorFeeTransferFailed();
         }
 
+        // Encode the message envelope.
+        bytes memory envelope = _encodeEnvelope(_isP2SH);
+
         // Send the message via the L2 messenger.
-        IL2ScrollMessenger(messenger).sendMessage{value: amountAfterFee}(
-            _target,
-            amountAfterFee, // Send the value after fee deduction
-            bytes(""),
-            0
-        );
+        IL2ScrollMessenger(_messenger).sendMessage{value: amountAfterFee}(_target, amountAfterFee, envelope, 0);
 
         // Emit event.
         emit WithdrawalQueued(msg.sender, _target, amountAfterFee, fee);
