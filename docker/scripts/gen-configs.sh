@@ -41,12 +41,12 @@ gen_config_contracts_toml
 
 echo ""
 echo "generating genesis.yaml"
-forge script scripts/deterministic/GenerateGenesis.s.sol:GenerateGenesis || exit 1
+forge script scripts/deterministic/GenerateGenesis.s.sol:GenerateGenesis --sig "run()" || exit 1
 format_config_file "./volume/genesis.yaml"
 
 echo ""
 echo "generating rollup-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateRollupConfig || exit 1
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateRollupConfig --sig "run()" || exit 1
 format_config_file "./volume/rollup-config.yaml"
 
 # echo ""
@@ -56,7 +56,7 @@ format_config_file "./volume/rollup-config.yaml"
 
 echo ""
 echo "generating chain-monitor-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateChainMonitorConfig || exit 1
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateChainMonitorConfig --sig "run()" || exit 1
 format_config_file "./volume/chain-monitor-config.yaml"
 
 # echo ""
@@ -71,12 +71,12 @@ format_config_file "./volume/chain-monitor-config.yaml"
 
 echo ""
 echo "generating frontend-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateFrontendConfig || exit 1
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateFrontendConfig --sig "run()" || exit 1
 format_config_file "./volume/frontend-config.yaml"
 
 echo ""
 echo "generating rollup-explorer-backend-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateRollupExplorerBackendConfig || exit 1
+forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateRollupExplorerBackendConfig --sig "run()" || exit 1
 format_config_file "./volume/rollup-explorer-backend-config.yaml"
 
 # echo ""

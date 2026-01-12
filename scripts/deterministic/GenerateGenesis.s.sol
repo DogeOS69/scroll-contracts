@@ -125,7 +125,7 @@ contract GenerateGenesis is DeployScroll {
     }
 
     function setL2Weth() internal {
-        address predeployAddr = tryGetOverride("L2_WETH");
+        address predeployAddr = tryGetOverride("L2_WDOGE");
 
         if (predeployAddr == address(0)) {
             return;
