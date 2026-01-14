@@ -289,6 +289,26 @@ contract DeployScroll is DeterministicDeployment {
         }
     }
 
+    /// @dev Returns Dogecoin address prefixes (P2PKH, P2SH) based on L1 chain ID.
+    function _dogePrefixesFromL1ChainId() private view returns (bytes1 p2pkh, bytes1 p2sh) {
+        if (CHAIN_ID_L1 == 1) {
+            // Mainnet
+            return (bytes1(0x1e), bytes1(0x16));
+        } else if (CHAIN_ID_L1 == 111_111) {
+            // Testnet
+            return (bytes1(0x71), bytes1(0xc4));
+        } else if (CHAIN_ID_L1 == 5_555_555) {
+            // Regtest
+            return (bytes1(0x6f), bytes1(0xc4));
+        } else {
+            revert(
+                string(
+                    abi.encodePacked("[ERROR] Unknown L1 chain ID for Dogecoin prefixes: ", vm.toString(CHAIN_ID_L1))
+                )
+            );
+        }
+    }
+
     function deployAllContracts() private {
         deployL1Contracts1stPass();
         deployL2Contracts1stPass();
@@ -1124,7 +1144,12 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function deployL2Moat() private {
-        bytes memory args = new bytes(0);
+        (bytes1 p2pkh, bytes1 p2sh) = _dogePrefixesFromL1ChainId();
+        console.log("Deploying Moat with Dogecoin prefixes:");
+        console.logBytes1(p2pkh);
+        console.logBytes1(p2sh);
+
+        bytes memory args = abi.encode(p2pkh, p2sh);
         L2_MOAT_IMPLEMENTATION_ADDR = deploy("L2_MOAT_IMPLEMENTATION", type(Moat).creationCode, args);
 
         upgrade(L2_PROXY_ADMIN_ADDR, L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR);

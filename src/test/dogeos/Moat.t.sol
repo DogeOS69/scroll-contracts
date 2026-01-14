@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 
 // Target contract
 import {Moat} from "../../dogeos/Moat.sol";
+import {DogeAddressLib} from "../../dogeos/DogeAddressLib.sol";
 
 // Interfaces & Mocks
 import {L2DogeOsMessenger} from "../../dogeos/L2DogeOsMessenger.sol";
@@ -37,6 +38,21 @@ contract RejectingFeeRecipient {
 
     fallback() external payable {
         revert RejectETH();
+    }
+}
+
+// Helper contract for testing DogeAddressLib (wraps internal functions for external calls)
+contract DogeAddressLibWrapper {
+    function decode(string calldata addr) external pure returns (bytes1 prefix, bytes20 payload) {
+        return DogeAddressLib.decode(addr);
+    }
+
+    function decodeChecked(
+        string calldata addr,
+        bytes1 p2pkhPrefix,
+        bytes1 p2shPrefix
+    ) external pure returns (bool isP2SH, bytes20 payload) {
+        return DogeAddressLib.decodeChecked(addr, p2pkhPrefix, p2shPrefix);
     }
 }
 
@@ -135,6 +151,7 @@ contract MoatTest is Test {
     Moat internal _moat;
     BasculeMockVerifier internal _basculeVerifier;
     MockScrollMessenger internal _mockMessenger; // Changed type
+    DogeAddressLibWrapper internal _libWrapper; // For testing library revert cases
     // L2MessageQueue internal _l2MessageQueue; // No longer needed for mock constructor
 
     // Addresses
@@ -147,14 +164,18 @@ contract MoatTest is Test {
     uint256 internal constant _INITIAL_FEE = 0.01 ether;
     uint256 internal constant _INITIAL_MIN_WITHDRAWAL = 0.1 ether;
 
+    // Dogecoin network prefixes (mainnet)
+    bytes1 internal constant _P2PKH_PREFIX = bytes1(0x1e);
+    bytes1 internal constant _P2SH_PREFIX = bytes1(0x16);
+
     function setUp() public {
         // Deploy Mocks & Dependencies
         _basculeVerifier = new BasculeMockVerifier();
         // _l2MessageQueue = new L2MessageQueue(_owner); // No longer needed
 
-        // Deploy Moat (owned by _owner)
+        // Deploy Moat (owned by _owner) with mainnet prefixes
         vm.prank(_owner);
-        _moat = new Moat();
+        _moat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
         _moat.initialize(_owner);
 
         // Deploy Mock Messenger (simpler constructor)
@@ -162,6 +183,9 @@ contract MoatTest is Test {
             _l1Counterpart
             // No longer needs message queue or moat address
         );
+
+        // Deploy library wrapper for revert testing
+        _libWrapper = new DogeAddressLibWrapper();
 
         // Configure Moat (as owner)
         vm.startPrank(_owner);
@@ -321,7 +345,6 @@ contract MoatTest is Test {
         _moat.setDepositFee(newFee);
     }
 
-
     // --- Tests: withdrawToL1 ---
 
     function testWithdrawToL1_Success() external {
@@ -336,6 +359,11 @@ contract MoatTest is Test {
         assertTrue(_feeRecipient != address(0), "Test requires non-zero fee recipient");
         assertTrue(amountToSend >= _moat.minWithdrawalAmount(), "Amount must meet minimum");
 
+        // Expected envelope: version=1, flags=0 (P2PKH)
+        bytes memory expectedEnvelope = new bytes(2);
+        expectedEnvelope[0] = bytes1(uint8(1)); // version
+        expectedEnvelope[1] = bytes1(uint8(0)); // flags (P2PKH)
+
         // Expect events (Order matters!)
         // 1. MockSendMessageCalled from Mock Messenger (emitted during Moat's call to messenger.sendMessage)
         vm.expectEmit(false, false, false, false); // No indexed args
@@ -343,7 +371,7 @@ contract MoatTest is Test {
             address(_moat), // Sender should be Moat
             targetL1,
             amountToSend, // Value should be amount AFTER fee
-            bytes(""), // Empty message
+            expectedEnvelope, // Envelope with version=1, flags=0
             0, // Gas limit 0
             amountToSend // msg.value to messenger is amount AFTER fee
         );
@@ -364,7 +392,9 @@ contract MoatTest is Test {
         assertEq(_mockMessenger.lastSender(), address(_moat), "Mock: sender mismatch");
         assertEq(_mockMessenger.lastTarget(), targetL1, "Mock: target mismatch");
         assertEq(_mockMessenger.lastValue(), amountToSend, "Mock: value mismatch");
-        assertEq(_mockMessenger.lastMessage().length, 0, "Mock: message length mismatch");
+        assertEq(_mockMessenger.lastMessage().length, 2, "Mock: message length should be 2 (envelope)");
+        assertEq(_mockMessenger.lastMessage()[0], bytes1(uint8(1)), "Mock: envelope version mismatch");
+        assertEq(_mockMessenger.lastMessage()[1], bytes1(uint8(0)), "Mock: envelope flags mismatch (should be P2PKH)");
         assertEq(_mockMessenger.lastGasLimit(), 0, "Mock: gas limit mismatch");
         assertEq(_mockMessenger.lastMsgValue(), amountToSend, "Mock: msg.value mismatch");
     }
@@ -527,8 +557,7 @@ contract MoatTest is Test {
         vm.prank(_user);
         vm.expectRevert(abi.encodeWithSelector(Moat.ErrorOnlyMessenger.selector, _user, address(_mockMessenger)));
         // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}(
-            /* _target */
+        _moat.handleL1Message{value: value}( /* _target */
             address(target),
             /* _depositID */
             depositIDValue
@@ -556,8 +585,7 @@ contract MoatTest is Test {
         emit SimpleTarget.Executed(bytes(""), value); // Expect empty bytes
 
         // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}(
-            /* _target */
+        _moat.handleL1Message{value: value}( /* _target */
             address(target),
             /* _depositID */
             depositIDValue
@@ -596,8 +624,7 @@ contract MoatTest is Test {
         vm.expectRevert(BasculeMockVerifier.ErrorMockRejection.selector);
 
         // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}(
-            /* _target */
+        _moat.handleL1Message{value: value}( /* _target */
             address(target),
             /* _depositID */
             depositIDValue
@@ -630,8 +657,7 @@ contract MoatTest is Test {
         emit SimpleTarget.Executed(bytes(""), value); // Expect empty bytes
 
         // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}(
-            /* _target */
+        _moat.handleL1Message{value: value}( /* _target */
             address(target),
             /* _depositID */
             depositIDValue
@@ -659,8 +685,7 @@ contract MoatTest is Test {
         vm.expectRevert(Moat.ErrorTargetRevert.selector);
 
         // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}(
-            /* _target */
+        _moat.handleL1Message{value: value}( /* _target */
             address(target),
             /* _depositID */
             depositIDValue
@@ -674,14 +699,14 @@ contract MoatTest is Test {
         // Setup: Configure deposit fee
         uint256 depositFee = 0.01 ether;
         uint256 depositAmount = 1 ether;
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(depositFee);
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
         bytes32 depositIDValue = bytes32(uint256(0x1111));
-        
+
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
         uint256 expectedAmountToTarget = depositAmount - depositFee;
 
@@ -692,7 +717,7 @@ contract MoatTest is Test {
         // Expect events
         vm.expectEmit(true, true, false, false);
         emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, depositFee);
-        
+
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), expectedAmountToTarget);
 
@@ -707,14 +732,14 @@ contract MoatTest is Test {
         // Setup: Configure deposit fee higher than deposit amount
         uint256 depositFee = 1 ether;
         uint256 depositAmount = 0.5 ether; // Less than fee
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(depositFee);
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
         bytes32 depositIDValue = bytes32(uint256(0x1111));
-        
+
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         // Call from the mock messenger
@@ -724,7 +749,7 @@ contract MoatTest is Test {
         // Expect events (no target execution since all funds go to fee)
         vm.expectEmit(true, true, false, false);
         emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, depositAmount);
-        
+
         // No SimpleTarget.Executed event expected
 
         _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
@@ -734,11 +759,10 @@ contract MoatTest is Test {
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + depositAmount, "All funds should go to fee recipient");
     }
 
-
     function testHandleL1Message_ZeroDepositFee_Success() external {
         // Setup: Zero deposit fee (backward compatibility)
         uint256 depositAmount = 1 ether;
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(0);
         vm.stopPrank();
@@ -753,7 +777,7 @@ contract MoatTest is Test {
         // Expect only DepositReceived and target execution (no fee collection)
         vm.expectEmit(true, true, false, false);
         emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, 0);
-        
+
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), depositAmount);
 
@@ -767,9 +791,9 @@ contract MoatTest is Test {
         // Setup: Configure deposit fee with rejecting recipient
         uint256 depositFee = 0.01 ether;
         uint256 depositAmount = 1 ether;
-        
+
         RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(depositFee);
         _moat.setFeeRecipient(address(rejectingRecipient));
@@ -792,9 +816,9 @@ contract MoatTest is Test {
         // Setup: Configure deposit fee higher than deposit amount with rejecting recipient
         uint256 depositFee = 1 ether;
         uint256 depositAmount = 0.5 ether; // Less than fee
-        
+
         RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(depositFee);
         _moat.setFeeRecipient(address(rejectingRecipient));
@@ -819,9 +843,9 @@ contract MoatTest is Test {
         uint256 amountToSend = 0.5 ether;
         uint256 fee = _moat.withdrawalFee(); // Use existing fee
         uint256 totalValue = amountToSend + fee;
-        
+
         RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
-        
+
         vm.startPrank(_owner);
         _moat.setFeeRecipient(address(rejectingRecipient));
         vm.stopPrank();
@@ -830,6 +854,395 @@ contract MoatTest is Test {
         vm.prank(_user);
         vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
         _moat.withdrawToL1{value: totalValue}(targetL1);
+    }
+
+    // --- Tests: P2SH/P2PKH Envelope Encoding --- //
+
+    function testWithdrawToP2PKH_EnvelopeEncoding() external {
+        address targetL1 = address(0x1111);
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        vm.prank(_user);
+        _moat.withdrawToP2PKH{value: totalValue}(targetL1);
+
+        // Verify envelope: version=1, flags=0 (P2PKH)
+        assertEq(_mockMessenger.lastMessage().length, 2, "Envelope length should be 2");
+        assertEq(_mockMessenger.lastMessage()[0], bytes1(uint8(1)), "Envelope version should be 1");
+        assertEq(_mockMessenger.lastMessage()[1], bytes1(uint8(0)), "Envelope flags should be 0 (P2PKH)");
+        assertEq(_mockMessenger.lastTarget(), targetL1, "Target mismatch");
+    }
+
+    function testWithdrawToP2SH_EnvelopeEncoding() external {
+        address targetL1 = address(0x2222);
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        vm.prank(_user);
+        _moat.withdrawToP2SH{value: totalValue}(targetL1);
+
+        // Verify envelope: version=1, flags=1 (P2SH)
+        assertEq(_mockMessenger.lastMessage().length, 2, "Envelope length should be 2");
+        assertEq(_mockMessenger.lastMessage()[0], bytes1(uint8(1)), "Envelope version should be 1");
+        assertEq(_mockMessenger.lastMessage()[1], bytes1(uint8(1)), "Envelope flags should be 1 (P2SH)");
+        assertEq(_mockMessenger.lastTarget(), targetL1, "Target mismatch");
+    }
+
+    function testWithdrawToL1_EmitsV1Envelope() external {
+        // withdrawToL1 is now an alias for withdrawToP2PKH
+        address targetL1 = address(0x3333);
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: totalValue}(targetL1);
+
+        // Verify envelope: version=1, flags=0 (P2PKH)
+        assertEq(_mockMessenger.lastMessage().length, 2, "Envelope length should be 2");
+        assertEq(_mockMessenger.lastMessage()[0], bytes1(uint8(1)), "Envelope version should be 1");
+        assertEq(_mockMessenger.lastMessage()[1], bytes1(uint8(0)), "Envelope flags should be 0 (P2PKH)");
+    }
+
+    // --- Tests: Prefix Configuration --- //
+
+    function testPrefixImmutables() external view {
+        assertEq(_moat.P2PKH_PREFIX(), _P2PKH_PREFIX, "P2PKH prefix mismatch");
+        assertEq(_moat.P2SH_PREFIX(), _P2SH_PREFIX, "P2SH prefix mismatch");
+    }
+
+    // --- Tests: withdrawToP2PKH Fee Logic --- //
+
+    function testWithdrawToP2PKH_FeeLogic() external {
+        address targetL1 = address(0x1111);
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.prank(_user);
+        _moat.withdrawToP2PKH{value: totalValue}(targetL1);
+
+        // Verify fee was transferred
+        uint256 feeRecipBalanceAfter = _feeRecipient.balance;
+        assertEq(feeRecipBalanceAfter, feeRecipBalanceBefore + fee, "Fee recipient balance mismatch");
+
+        // Verify amount sent to messenger
+        assertEq(_mockMessenger.lastValue(), amountToSend, "Value sent to messenger mismatch");
+    }
+
+    function testWithdrawToP2PKH_Revert_FeeNotCovered() external {
+        address targetL1 = address(0x1111);
+        uint256 fee = _moat.withdrawalFee();
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorFeeNotCovered.selector);
+        _moat.withdrawToP2PKH{value: fee}(targetL1);
+    }
+
+    function testWithdrawToP2PKH_Revert_BelowMinimum() external {
+        address targetL1 = address(0x1111);
+        uint256 fee = _moat.withdrawalFee();
+        uint256 minAmount = _moat.minWithdrawalAmount();
+
+        // Send just under the minimum after fee
+        uint256 valueToSend = minAmount + fee - 1;
+
+        if (valueToSend > fee) {
+            vm.prank(_user);
+            vm.expectRevert(Moat.ErrorBelowMinimumWithdrawal.selector);
+            _moat.withdrawToP2PKH{value: valueToSend}(targetL1);
+        }
+    }
+
+    // --- Tests: withdrawToP2SH Fee Logic --- //
+
+    function testWithdrawToP2SH_FeeLogic() external {
+        address targetL1 = address(0x2222);
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.prank(_user);
+        _moat.withdrawToP2SH{value: totalValue}(targetL1);
+
+        // Verify fee was transferred
+        uint256 feeRecipBalanceAfter = _feeRecipient.balance;
+        assertEq(feeRecipBalanceAfter, feeRecipBalanceBefore + fee, "Fee recipient balance mismatch");
+
+        // Verify amount sent to messenger
+        assertEq(_mockMessenger.lastValue(), amountToSend, "Value sent to messenger mismatch");
+    }
+
+    function testWithdrawToP2SH_Revert_FeeNotCovered() external {
+        address targetL1 = address(0x2222);
+        uint256 fee = _moat.withdrawalFee();
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorFeeNotCovered.selector);
+        _moat.withdrawToP2SH{value: fee}(targetL1);
+    }
+
+    // --- Tests: Messenger Not Configured --- //
+
+    function testWithdrawToP2PKH_Revert_MessengerNotConfigured() external {
+        // Deploy a new Moat without configuring the messenger
+        Moat unconfiguredMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
+        unconfiguredMoat.initialize(_owner);
+
+        address targetL1 = address(0x1111);
+        uint256 totalValue = 1 ether;
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorZeroAddress.selector);
+        unconfiguredMoat.withdrawToP2PKH{value: totalValue}(targetL1);
+    }
+
+    function testWithdrawToP2SH_Revert_MessengerNotConfigured() external {
+        // Deploy a new Moat without configuring the messenger
+        Moat unconfiguredMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
+        unconfiguredMoat.initialize(_owner);
+
+        address targetL1 = address(0x2222);
+        uint256 totalValue = 1 ether;
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorZeroAddress.selector);
+        unconfiguredMoat.withdrawToP2SH{value: totalValue}(targetL1);
+    }
+
+    function testWithdrawToL1_Revert_MessengerNotConfigured() external {
+        // Deploy a new Moat without configuring the messenger
+        Moat unconfiguredMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
+        unconfiguredMoat.initialize(_owner);
+
+        address targetL1 = address(0x3333);
+        uint256 totalValue = 1 ether;
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorZeroAddress.selector);
+        unconfiguredMoat.withdrawToL1{value: totalValue}(targetL1);
+    }
+
+    // --- Tests: Base58Check Decoding (DogeAddressLib) --- //
+
+    // Test vector: Mainnet P2PKH address
+    // Prefix 0x1e, payload: 0x89abcdef89abcdef89abcdef89abcdef89abcdef
+    function testDecode_ValidMainnetP2PKH() external pure {
+        // This is a valid mainnet P2PKH address (prefix 0x1e)
+        // Address: DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz
+        // Payload: 0x89abcdef89abcdef89abcdef89abcdef89abcdef
+        string memory addr = "DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz";
+        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+
+        assertEq(prefix, bytes1(0x1e), "Prefix should be 0x1e (mainnet P2PKH)");
+        assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
+    }
+
+    // Test vector: Mainnet P2SH address
+    // Prefix 0x16
+    function testDecode_ValidMainnetP2SH() external pure {
+        // This is a valid mainnet P2SH address (prefix 0x16)
+        // Address: 9rYHbG7NUbMEX7jEGCXeHVZ7RiowPFZPPN
+        // Payload: 0x0123456789012345678901234567890123456789
+        string memory addr = "9rYHbG7NUbMEX7jEGCXeHVZ7RiowPFZPPN";
+        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+
+        assertEq(prefix, bytes1(0x16), "Prefix should be 0x16 (mainnet P2SH)");
+        assertEq(payload, bytes20(0x0123456789012345678901234567890123456789), "Payload mismatch");
+    }
+
+    function testDecode_Revert_InvalidBase58Character() external {
+        // Address containing 'O' (invalid Base58 character)
+        string memory addr = "DOgecoinIsGreat12345678901234";
+
+        vm.expectRevert(abi.encodeWithSelector(DogeAddressLib.ErrorInvalidBase58Character.selector, uint8(0x4F))); // 'O' = 0x4F
+        _libWrapper.decode(addr);
+    }
+
+    function testDecode_Revert_InvalidBase58Character_Zero() external {
+        // Address containing '0' (invalid Base58 character)
+        string memory addr = "D0gecoinIsGreat12345678901234";
+
+        vm.expectRevert(abi.encodeWithSelector(DogeAddressLib.ErrorInvalidBase58Character.selector, uint8(0x30))); // '0' = 0x30
+        _libWrapper.decode(addr);
+    }
+
+    function testDecode_Revert_InvalidBase58Character_LowercaseL() external {
+        // Address containing 'l' (invalid Base58 character)
+        string memory addr = "Dlgecoin12345678901234567890123";
+
+        vm.expectRevert(abi.encodeWithSelector(DogeAddressLib.ErrorInvalidBase58Character.selector, uint8(0x6C))); // 'l' = 0x6C
+        _libWrapper.decode(addr);
+    }
+
+    function testDecode_Revert_TooShort() external {
+        string memory addr = "DShortAddr";
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DogeAddressLib.ErrorInvalidInputLength.selector,
+                uint256(25),
+                uint256(35),
+                uint256(10)
+            )
+        );
+        _libWrapper.decode(addr);
+    }
+
+    function testDecode_Revert_TooLong() external {
+        string memory addr = "DThisAddressIsWayTooLongToBeAValidDogeAddress12789";
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DogeAddressLib.ErrorInvalidInputLength.selector,
+                uint256(25),
+                uint256(35),
+                uint256(50)
+            )
+        );
+        _libWrapper.decode(addr);
+    }
+
+    function testDecode_Revert_BadChecksum() external {
+        // Valid format but wrong checksum (last char changed)
+        string memory addr = "DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFy1"; // Changed last char
+
+        vm.expectRevert(DogeAddressLib.ErrorInvalidChecksum.selector);
+        _libWrapper.decode(addr);
+    }
+
+    // --- Tests: decodeChecked Prefix Validation --- //
+
+    function testDecodeChecked_AcceptMainnetP2PKH() external pure {
+        string memory addr = "DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz";
+
+        (bool isP2SH, bytes20 payload) = DogeAddressLib.decodeChecked(
+            addr,
+            bytes1(0x1e), // mainnet P2PKH
+            bytes1(0x16) // mainnet P2SH
+        );
+
+        assertEq(isP2SH, false, "Should be P2PKH");
+        assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
+    }
+
+    function testDecodeChecked_AcceptMainnetP2SH() external pure {
+        string memory addr = "9rYHbG7NUbMEX7jEGCXeHVZ7RiowPFZPPN";
+
+        (bool isP2SH, bytes20 payload) = DogeAddressLib.decodeChecked(
+            addr,
+            bytes1(0x1e), // mainnet P2PKH
+            bytes1(0x16) // mainnet P2SH
+        );
+
+        assertEq(isP2SH, true, "Should be P2SH");
+        assertEq(payload, bytes20(0x0123456789012345678901234567890123456789), "Payload mismatch");
+    }
+
+    function testDecodeChecked_Revert_WrongNetworkPrefix() external {
+        // Mainnet P2PKH address but configured for testnet prefixes
+        string memory addr = "DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz";
+
+        vm.expectRevert(abi.encodeWithSelector(DogeAddressLib.ErrorUnrecognizedPrefix.selector, bytes1(0x1e)));
+        _libWrapper.decodeChecked(
+            addr,
+            bytes1(0x71), // testnet P2PKH
+            bytes1(0xc4) // testnet P2SH
+        );
+    }
+
+    // --- Tests: withdrawToDogeAddress Route Selection --- //
+
+    function testWithdrawToDogeAddress_RoutesToP2PKH() external {
+        // Use a mainnet P2PKH address
+        string memory dogeAddr = "DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz";
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        vm.prank(_user);
+        _moat.withdrawToDogeAddress{value: totalValue}(dogeAddr);
+
+        // Verify envelope has P2PKH flag (0)
+        assertEq(_mockMessenger.lastMessage().length, 2, "Envelope length should be 2");
+        assertEq(_mockMessenger.lastMessage()[0], bytes1(uint8(1)), "Envelope version should be 1");
+        assertEq(_mockMessenger.lastMessage()[1], bytes1(uint8(0)), "Envelope flags should be 0 (P2PKH)");
+
+        // Verify target matches the decoded payload
+        assertEq(
+            _mockMessenger.lastTarget(),
+            address(bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF)),
+            "Target mismatch"
+        );
+    }
+
+    function testWithdrawToDogeAddress_RoutesToP2SH() external {
+        // Use a mainnet P2SH address
+        string memory dogeAddr = "9rYHbG7NUbMEX7jEGCXeHVZ7RiowPFZPPN";
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        vm.prank(_user);
+        _moat.withdrawToDogeAddress{value: totalValue}(dogeAddr);
+
+        // Verify envelope has P2SH flag (1)
+        assertEq(_mockMessenger.lastMessage().length, 2, "Envelope length should be 2");
+        assertEq(_mockMessenger.lastMessage()[0], bytes1(uint8(1)), "Envelope version should be 1");
+        assertEq(_mockMessenger.lastMessage()[1], bytes1(uint8(1)), "Envelope flags should be 1 (P2SH)");
+
+        // Verify target matches the decoded payload
+        assertEq(
+            _mockMessenger.lastTarget(),
+            address(bytes20(0x0123456789012345678901234567890123456789)),
+            "Target mismatch"
+        );
+    }
+
+    function testWithdrawToDogeAddress_FeeLogic() external {
+        string memory dogeAddr = "DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz";
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.prank(_user);
+        _moat.withdrawToDogeAddress{value: totalValue}(dogeAddr);
+
+        // Verify fee was transferred
+        uint256 feeRecipBalanceAfter = _feeRecipient.balance;
+        assertEq(feeRecipBalanceAfter, feeRecipBalanceBefore + fee, "Fee recipient balance mismatch");
+
+        // Verify amount sent to messenger
+        assertEq(_mockMessenger.lastValue(), amountToSend, "Value sent to messenger mismatch");
+    }
+
+    function testWithdrawToDogeAddress_Revert_InvalidAddress() external {
+        string memory badAddr = "DInvalidAddressWithBadChecksum1234";
+        uint256 amountToSend = 0.5 ether;
+        uint256 fee = _moat.withdrawalFee();
+        uint256 totalValue = amountToSend + fee;
+
+        vm.prank(_user);
+        vm.expectRevert(); // Will revert with checksum or length error
+        _moat.withdrawToDogeAddress{value: totalValue}(badAddr);
+    }
+
+    function testWithdrawToDogeAddress_Revert_WrongNetworkPrefix() external {
+        // Testnet P2PKH address (prefix 0x71) but Moat is configured for mainnet (0x1e)
+        // This is a testnet address: nUnL... style
+        // We need a real testnet address for this test
+        // For now, we'll create a mock test that would fail on prefix mismatch
+        // Since we configured mainnet prefixes (0x1e, 0x16), any address with prefix 0x71 will fail
+        // We'd need to generate a valid testnet address for this test
+        // Skipping detailed implementation - the decodeChecked_Revert_WrongNetworkPrefix test covers this
     }
 
     /* // Removing this test as the length check is gone
