@@ -1,0 +1,148 @@
+strict digraph {
+rankdir="LR"
+node [shape=box]
+subgraph cluster_131_OwnableUpgradeable {
+label = "OwnableUpgradeable"
+"131___Ownable_init" [label="__Ownable_init"]
+"131__transferOwnership" [label="_transferOwnership"]
+"131___Ownable_init_unchained" [label="__Ownable_init_unchained"]
+"131_renounceOwnership" [label="renounceOwnership"]
+"131_transferOwnership" [label="transferOwnership"]
+"131_owner" [label="owner"]
+"131__checkOwner" [label="_checkOwner"]
+"131___Ownable_init_unchained" -> "131__transferOwnership"
+"131__checkOwner" -> "131__msgSender"
+"131_transferOwnership" -> "131__transferOwnership"
+"131___Ownable_init" -> "131_onlyInitializing"
+"131___Ownable_init_unchained" -> "131__msgSender"
+"131___Ownable_init_unchained" -> "131_onlyInitializing"
+"131__checkOwner" -> "131_owner"
+"131_renounceOwnership" -> "131__transferOwnership"
+"131_renounceOwnership" -> "131_onlyOwner"
+"131_transferOwnership" -> "131_onlyOwner"
+"131___Ownable_init" -> "131___Ownable_init_unchained"
+}subgraph cluster_6505_ScrollMessengerBase {
+label = "ScrollMessengerBase"
+"6505_updateFeeVault" [label="updateFeeVault"]
+"6505__encodeXDomainCalldata" [label="_encodeXDomainCalldata"]
+"6505_receive" [label="receive"]
+"6505_setPause" [label="setPause"]
+"6505___ScrollMessengerBase_init" [label="__ScrollMessengerBase_init"]
+"6505__validateTargetAddress" [label="_validateTargetAddress"]
+"6505_constructor" [label="constructor"]
+"6505___ScrollMessengerBase_init" -> "6505___Pausable_init"
+"6505_setPause" -> "6505_onlyOwner"
+"6505___ScrollMessengerBase_init" -> "6505___ReentrancyGuard_init"
+"6505_setPause" -> "6505__pause"
+"6505_updateFeeVault" -> "6505_onlyOwner"
+"6505___ScrollMessengerBase_init" -> "6505_onlyInitializing"
+"6505___ScrollMessengerBase_init" -> "6505___Ownable_init"
+"6505_receive" -> "6505_onlyOwner"
+"6505_setPause" -> "6505__unpause"
+}subgraph cluster_427_PausableUpgradeable {
+label = "PausableUpgradeable"
+"427___Pausable_init_unchained" [label="__Pausable_init_unchained"]
+"427___Pausable_init" [label="__Pausable_init"]
+"427__requirePaused" [label="_requirePaused"]
+"427__unpause" [label="_unpause"]
+"427__pause" [label="_pause"]
+"427_paused" [label="paused"]
+"427__requireNotPaused" [label="_requireNotPaused"]
+"427___Pausable_init" -> "427___Pausable_init_unchained"
+"427___Pausable_init_unchained" -> "427_onlyInitializing"
+"427__requireNotPaused" -> "427_paused"
+"427__pause" -> "427_whenNotPaused"
+"427__requirePaused" -> "427_paused"
+"427__unpause" -> "427_whenPaused"
+"427__pause" -> "427__msgSender"
+"427___Pausable_init" -> "427_onlyInitializing"
+"427__unpause" -> "427__msgSender"
+}subgraph cluster_300_Initializable {
+label = "Initializable"
+"300__isInitializing" [label="_isInitializing"]
+"300__disableInitializers" [label="_disableInitializers"]
+"300__getInitializedVersion" [label="_getInitializedVersion"]
+}subgraph cluster_4370_L2ScrollMessenger {
+label = "L2ScrollMessenger"
+"4370_sendMessage" [label="sendMessage"]
+"4370__sendMessage" [label="_sendMessage"]
+"4370_relayMessage" [label="relayMessage"]
+"4370_constructor" [label="constructor"]
+"4370_initialize" [label="initialize"]
+"4370__executeMessage" [label="_executeMessage"]
+"4370__executeMessage" -> "4370__validateTargetAddress"
+"4370_initialize" -> "4370___ScrollMessengerBase_init"
+"4370__sendMessage" -> "4370__encodeXDomainCalldata"
+"4370_sendMessage" -> "4370__sendMessage"
+"4370_relayMessage" -> "4370__executeMessage"
+"4370__sendMessage" -> "4370__msgSender"
+"4370_initialize" -> "4370_initializer"
+"4370__sendMessage" -> "4370_nonReentrant"
+"4370_relayMessage" -> "4370__msgSender"
+"4370_constructor" -> "4370__disableInitializers"
+"4370_sendMessage" -> "4370_whenNotPaused"
+"4370_relayMessage" -> "4370__encodeXDomainCalldata"
+"4370_relayMessage" -> "4370_whenNotPaused"
+"4370_constructor" -> "4370_constructor"
+}subgraph cluster_6290_IScrollMessenger {
+label = "IScrollMessenger"
+"6290_xDomainMessageSender" [label="xDomainMessageSender"]
+"6290_sendMessage" [label="sendMessage"]
+}subgraph cluster_883_ContextUpgradeable {
+label = "ContextUpgradeable"
+"883__msgSender" [label="_msgSender"]
+"883___Context_init_unchained" [label="__Context_init_unchained"]
+"883__msgData" [label="_msgData"]
+"883___Context_init" [label="__Context_init"]
+"883___Context_init_unchained" -> "883_onlyInitializing"
+"883___Context_init" -> "883_onlyInitializing"
+}subgraph cluster_5400_L2DogeOsMessenger {
+label = "L2DogeOsMessenger"
+"5400__executeMessage" [label="_executeMessage"]
+"5400_constructor" [label="constructor"]
+"5400__sendMessage" [label="_sendMessage"]
+"5400_constructor" -> "5400_constructor"
+"5400__sendMessage" -> "5400__sendMessage"
+"5400__executeMessage" -> "5400__executeMessage"
+}subgraph cluster_4029_IL2ScrollMessenger {
+label = "IL2ScrollMessenger"
+"4029_relayMessage" [label="relayMessage"]
+}subgraph cluster_511_ReentrancyGuardUpgradeable {
+label = "ReentrancyGuardUpgradeable"
+"511___ReentrancyGuard_init" [label="__ReentrancyGuard_init"]
+"511__reentrancyGuardEntered" [label="_reentrancyGuardEntered"]
+"511___ReentrancyGuard_init_unchained" [label="__ReentrancyGuard_init_unchained"]
+"511__nonReentrantAfter" [label="_nonReentrantAfter"]
+"511__nonReentrantBefore" [label="_nonReentrantBefore"]
+"511___ReentrancyGuard_init" -> "511___ReentrancyGuard_init_unchained"
+"511___ReentrancyGuard_init" -> "511_onlyInitializing"
+"511___ReentrancyGuard_init_unchained" -> "511_onlyInitializing"
+}subgraph cluster_solidity {
+label = "[Solidity]"
+"require(bool,string)" 
+"revert ErrorZeroMoatAddress()" 
+"keccak256(bytes)" 
+"revert ErrorNotMoatAddress(address,address)" 
+"revert ErrorSenderNotMoat(address,address)" 
+"revert ErrorZeroAddress()" 
+"abi.encodeWithSignature()" 
+"4370_relayMessage" -> "keccak256(bytes)"
+"4370_constructor" -> "revert ErrorZeroAddress()"
+"4370__sendMessage" -> "require(bool,string)"
+"4370__executeMessage" -> "require(bool,string)"
+"300__disableInitializers" -> "require(bool,string)"
+"5400__sendMessage" -> "revert ErrorSenderNotMoat(address,address)"
+"6505_constructor" -> "revert ErrorZeroAddress()"
+"5400_constructor" -> "revert ErrorZeroMoatAddress()"
+"511__nonReentrantBefore" -> "require(bool,string)"
+"131_transferOwnership" -> "require(bool,string)"
+"6505__validateTargetAddress" -> "require(bool,string)"
+"4370_relayMessage" -> "require(bool,string)"
+"131__checkOwner" -> "require(bool,string)"
+"4370__sendMessage" -> "keccak256(bytes)"
+"427__requireNotPaused" -> "require(bool,string)"
+"427__requirePaused" -> "require(bool,string)"
+"5400__executeMessage" -> "revert ErrorNotMoatAddress(address,address)"
+"6505__encodeXDomainCalldata" -> "abi.encodeWithSignature()"
+}
+}

@@ -1,0 +1,88 @@
+strict digraph {
+rankdir="LR"
+node [shape=box]
+subgraph cluster_6129_Moat {
+label = "Moat"
+"6129_constructor" [label="constructor"]
+"6129_setMinWithdrawal" [label="setMinWithdrawal"]
+"6129_setWithdrawalFee" [label="setWithdrawalFee"]
+"6129_withdrawToL1" [label="withdrawToL1"]
+"6129_slitherConstructorConstantVariables" [label="slitherConstructorConstantVariables"]
+"6129_withdrawToP2SH" [label="withdrawToP2SH"]
+"6129_setBascule" [label="setBascule"]
+"6129__encodeEnvelope" [label="_encodeEnvelope"]
+"6129_withdrawToDogeAddress" [label="withdrawToDogeAddress"]
+"6129_initialize" [label="initialize"]
+"6129_handleL1Message" [label="handleL1Message"]
+"6129_setDepositFee" [label="setDepositFee"]
+"6129_withdrawToP2PKH" [label="withdrawToP2PKH"]
+"6129_setFeeRecipient" [label="setFeeRecipient"]
+"6129_updateMessenger" [label="updateMessenger"]
+"6129__processWithdrawal" [label="_processWithdrawal"]
+"6129__processWithdrawal" -> "6129__encodeEnvelope"
+"6129_withdrawToDogeAddress" -> "6129__processWithdrawal"
+"6129_withdrawToP2SH" -> "6129_nonReentrant"
+"6129_handleL1Message" -> "6129_nonReentrant"
+"6129_setBascule" -> "6129_onlyOwner"
+"6129_withdrawToP2PKH" -> "6129__processWithdrawal"
+"6129_withdrawToL1" -> "6129_nonReentrant"
+"6129_withdrawToL1" -> "6129__processWithdrawal"
+"6129_updateMessenger" -> "6129_onlyOwner"
+"6129_initialize" -> "6129__transferOwnership"
+"6129_initialize" -> "6129_initializer"
+"6129_setFeeRecipient" -> "6129_onlyOwner"
+"6129_setDepositFee" -> "6129_onlyOwner"
+"6129_withdrawToP2SH" -> "6129__processWithdrawal"
+"6129_withdrawToDogeAddress" -> "6129_nonReentrant"
+"6129_setMinWithdrawal" -> "6129_onlyOwner"
+"6129_initialize" -> "6129___ReentrancyGuard_init"
+"6129_setWithdrawalFee" -> "6129_onlyOwner"
+"6129_withdrawToP2PKH" -> "6129_nonReentrant"
+}subgraph cluster_300_Initializable {
+label = "Initializable"
+"300__isInitializing" [label="_isInitializing"]
+"300__disableInitializers" [label="_disableInitializers"]
+"300__getInitializedVersion" [label="_getInitializedVersion"]
+}subgraph cluster_6814_OwnableBase {
+label = "OwnableBase"
+"6814_renounceOwnership" [label="renounceOwnership"]
+"6814__transferOwnership" [label="_transferOwnership"]
+"6814_transferOwnership" [label="transferOwnership"]
+"6814_renounceOwnership" -> "6814_onlyOwner"
+"6814_transferOwnership" -> "6814__transferOwnership"
+"6814_transferOwnership" -> "6814_onlyOwner"
+"6814_renounceOwnership" -> "6814__transferOwnership"
+}subgraph cluster_511_ReentrancyGuardUpgradeable {
+label = "ReentrancyGuardUpgradeable"
+"511___ReentrancyGuard_init" [label="__ReentrancyGuard_init"]
+"511__reentrancyGuardEntered" [label="_reentrancyGuardEntered"]
+"511___ReentrancyGuard_init_unchained" [label="__ReentrancyGuard_init_unchained"]
+"511__nonReentrantAfter" [label="_nonReentrantAfter"]
+"511__nonReentrantBefore" [label="_nonReentrantBefore"]
+"511___ReentrancyGuard_init" -> "511___ReentrancyGuard_init_unchained"
+"511___ReentrancyGuard_init" -> "511_onlyInitializing"
+"511___ReentrancyGuard_init_unchained" -> "511_onlyInitializing"
+}subgraph cluster_solidity {
+label = "[Solidity]"
+"revert ErrorBelowMinimumWithdrawal()" 
+"require(bool,string)" 
+"revert ErrorFeeNotCovered()" 
+"revert ErrorTargetRevert()" 
+"revert ErrorOnlyMessenger(address,address)" 
+"revert ErrorFeeTransferFailed()" 
+"revert ErrorZeroAddress()" 
+"300__disableInitializers" -> "require(bool,string)"
+"6129_handleL1Message" -> "revert ErrorTargetRevert()"
+"6129__processWithdrawal" -> "revert ErrorZeroAddress()"
+"6129_setFeeRecipient" -> "revert ErrorZeroAddress()"
+"6814_transferOwnership" -> "require(bool,string)"
+"6129_updateMessenger" -> "revert ErrorZeroAddress()"
+"6129_handleL1Message" -> "revert ErrorZeroAddress()"
+"511__nonReentrantBefore" -> "require(bool,string)"
+"6129__processWithdrawal" -> "revert ErrorFeeTransferFailed()"
+"6129__processWithdrawal" -> "revert ErrorFeeNotCovered()"
+"6129_handleL1Message" -> "revert ErrorFeeTransferFailed()"
+"6129__processWithdrawal" -> "revert ErrorBelowMinimumWithdrawal()"
+"6129_handleL1Message" -> "revert ErrorOnlyMessenger(address,address)"
+}
+}
