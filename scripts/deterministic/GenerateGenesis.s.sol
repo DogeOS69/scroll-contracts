@@ -99,7 +99,7 @@ contract GenerateGenesis is DeployScroll {
         bytes32 _isFeynmanSlot = hex"000000000000000000000000000000000000000000000000000000000000000b";
         vm.store(predeployAddr, _isFeynmanSlot, bytes32(uint256(1)));
 
-        bytes32 _isGalileoSlot = hex"000000000000000000000000000000000000000000000000000000000000000b";
+        bytes32 _isGalileoSlot = hex"000000000000000000000000000000000000000000000000000000000000000c";
         vm.store(predeployAddr, _isGalileoSlot, bytes32(uint256(1)));
 
         // reset so its not included state dump
