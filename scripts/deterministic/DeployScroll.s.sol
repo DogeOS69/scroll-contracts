@@ -1366,7 +1366,6 @@ contract DeployScroll is DeterministicDeployment {
         }
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setBlobScalar(BLOB_SCALAR);
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setScalar(SCALAR);
-        L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setPenaltyThreshold(PENALTY_THRESHOLD);
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setPenaltyFactor(PENALTY_FACTOR);
     }
 
