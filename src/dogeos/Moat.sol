@@ -21,6 +21,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     error ErrorTargetRevert();
     error ErrorInvalidDataLength(uint256 length);
     error ErrorFeeTransferFailed();
+    error ErrorInvalidMinWithdrawal();
 
     // --- Events --- //
     event WithdrawalFeeUpdated(uint256 oldFee, uint256 newFee);
@@ -52,7 +53,6 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
     /// @notice The fee required for L1->L2 deposits.
     uint256 public depositFee;
-
 
     // --- Constructor --- //
 
@@ -112,13 +112,16 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         emit DepositFeeUpdated(oldFee, _newFee);
     }
 
-
     /**
      * @notice Update the minimum withdrawal amount (after fee).
      * @dev Can only be called by the owner. Emits a {MinWithdrawalUpdated} event.
      * @param _newMin The new minimum withdrawal amount.
      */
     function setMinWithdrawal(uint256 _newMin) external onlyOwner {
+        // Prevent setting the minimum withdrawal below the Dogecoin dust limit
+        if (_newMin < 0.01 ether) {
+            revert ErrorInvalidMinWithdrawal();
+        }
         uint256 oldMin = minWithdrawalAmount;
         minWithdrawalAmount = _newMin;
         emit MinWithdrawalUpdated(oldMin, _newMin);
@@ -196,7 +199,6 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
                 // Deduct fee and continue to target
                 amountToTarget = msg.value - _depositFee;
                 feeCollected = _depositFee;
-                
                 // Transfer fee to recipient
                 (bool success, ) = _feeRecipient.call{value: _depositFee}("");
                 if (!success) revert ErrorFeeTransferFailed();
