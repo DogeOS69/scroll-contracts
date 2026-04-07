@@ -242,6 +242,13 @@ contract MoatTest is Test {
         _moat.setMinWithdrawal(newMin);
     }
 
+    function testSetMinWithdrawal_Revert_TooSmall() external {
+        uint256 newMin = 0.01 ether - 1 wei;
+        vm.prank(_owner);
+        vm.expectRevert(Moat.ErrorInvalidMinWithdrawal.selector);
+        _moat.setMinWithdrawal(newMin);
+    }
+
     function testSetFeeRecipient_Success() external {
         address newRecip = address(0xabcd);
         address oldRecip = _moat.feeRecipient();
@@ -320,7 +327,6 @@ contract MoatTest is Test {
         vm.expectRevert(bytes("caller is not the owner"));
         _moat.setDepositFee(newFee);
     }
-
 
     // --- Tests: withdrawToL1 ---
 
@@ -674,14 +680,14 @@ contract MoatTest is Test {
         // Setup: Configure deposit fee
         uint256 depositFee = 0.01 ether;
         uint256 depositAmount = 1 ether;
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(depositFee);
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
         bytes32 depositIDValue = bytes32(uint256(0x1111));
-        
+
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
         uint256 expectedAmountToTarget = depositAmount - depositFee;
 
@@ -692,7 +698,7 @@ contract MoatTest is Test {
         // Expect events
         vm.expectEmit(true, true, false, false);
         emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, depositFee);
-        
+
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), expectedAmountToTarget);
 
@@ -707,14 +713,14 @@ contract MoatTest is Test {
         // Setup: Configure deposit fee higher than deposit amount
         uint256 depositFee = 1 ether;
         uint256 depositAmount = 0.5 ether; // Less than fee
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(depositFee);
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
         bytes32 depositIDValue = bytes32(uint256(0x1111));
-        
+
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         // Call from the mock messenger
@@ -724,7 +730,7 @@ contract MoatTest is Test {
         // Expect events (no target execution since all funds go to fee)
         vm.expectEmit(true, true, false, false);
         emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, depositAmount);
-        
+
         // No SimpleTarget.Executed event expected
 
         _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
@@ -734,11 +740,10 @@ contract MoatTest is Test {
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + depositAmount, "All funds should go to fee recipient");
     }
 
-
     function testHandleL1Message_ZeroDepositFee_Success() external {
         // Setup: Zero deposit fee (backward compatibility)
         uint256 depositAmount = 1 ether;
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(0);
         vm.stopPrank();
@@ -753,7 +758,7 @@ contract MoatTest is Test {
         // Expect only DepositReceived and target execution (no fee collection)
         vm.expectEmit(true, true, false, false);
         emit Moat.DepositReceived(address(_mockMessenger), address(target), depositAmount, 0);
-        
+
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), depositAmount);
 
@@ -767,9 +772,9 @@ contract MoatTest is Test {
         // Setup: Configure deposit fee with rejecting recipient
         uint256 depositFee = 0.01 ether;
         uint256 depositAmount = 1 ether;
-        
+
         RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(depositFee);
         _moat.setFeeRecipient(address(rejectingRecipient));
@@ -792,9 +797,9 @@ contract MoatTest is Test {
         // Setup: Configure deposit fee higher than deposit amount with rejecting recipient
         uint256 depositFee = 1 ether;
         uint256 depositAmount = 0.5 ether; // Less than fee
-        
+
         RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
-        
+
         vm.startPrank(_owner);
         _moat.setDepositFee(depositFee);
         _moat.setFeeRecipient(address(rejectingRecipient));
@@ -819,9 +824,9 @@ contract MoatTest is Test {
         uint256 amountToSend = 0.5 ether;
         uint256 fee = _moat.withdrawalFee(); // Use existing fee
         uint256 totalValue = amountToSend + fee;
-        
+
         RejectingFeeRecipient rejectingRecipient = new RejectingFeeRecipient();
-        
+
         vm.startPrank(_owner);
         _moat.setFeeRecipient(address(rejectingRecipient));
         vm.stopPrank();
