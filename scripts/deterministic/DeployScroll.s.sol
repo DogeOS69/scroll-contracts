@@ -209,6 +209,59 @@ contract DeployScroll is DeterministicDeployment {
         console.log("initializeL2Contracts end");
     }
 
+    /// @notice Deterministically deploys a fresh L2 Moat implementation.
+    ///         Does NOT touch the proxy — the ProxyAdmin owner must submit the
+    ///         upgrade() call separately (see the logged cast command).
+    function deployL2MoatImpl(string memory layer, string memory scriptMode) public {
+        broadcastLayer = parseLayer(layer);
+        ScriptMode mode = parseScriptMode(scriptMode);
+
+        DeterministicDeployment.initialize(mode);
+
+        console.log("checkDeployerBalance start");
+        checkDeployerBalance();
+        console.log("checkDeployerBalance end");
+
+        console.log("deployL2MoatImpl start");
+        _deployL2MoatImpl();
+        console.log("deployL2MoatImpl end");
+    }
+
+    function _deployL2MoatImpl() private broadcast(Layer.L2) {
+        // Narrow-purpose entry point: we skip the full deployAllContracts flow, so the
+        // existing proxy/admin addresses have to be pulled from config-contracts.toml.
+        L2_PROXY_ADMIN_ADDR = notnull(contractsCfg.readAddress(".L2_PROXY_ADMIN_ADDR"));
+        L2_MOAT_PROXY_ADDR = notnull(contractsCfg.readAddress(".L2_MOAT_PROXY_ADDR"));
+
+        (bytes1 p2pkh, bytes1 p2sh) = _dogePrefixesFromL1ChainId();
+        console.log("Deploying Moat with Dogecoin prefixes:");
+        console.logBytes1(p2pkh);
+        console.logBytes1(p2sh);
+
+        bytes memory args = abi.encode(p2pkh, p2sh);
+        L2_MOAT_IMPLEMENTATION_ADDR = deploy("L2_MOAT_IMPLEMENTATION", type(Moat).creationCode, args);
+
+        bytes memory callData = abi.encodeWithSignature(
+            "upgrade(address,address)",
+            L2_MOAT_PROXY_ADDR,
+            L2_MOAT_IMPLEMENTATION_ADDR
+        );
+
+        console.log("==============================================================");
+        console.log("Moat implementation deployed. Proxy NOT upgraded.");
+        console.log("ProxyAdmin:              ", L2_PROXY_ADMIN_ADDR);
+        console.log("Moat proxy:              ", L2_MOAT_PROXY_ADDR);
+        console.log("New Moat implementation: ", L2_MOAT_IMPLEMENTATION_ADDR);
+        console.log("");
+        console.log("From the ProxyAdmin owner, submit:");
+        console.log("  target   :", L2_PROXY_ADMIN_ADDR);
+        console.log("  sig      : upgrade(address,address)");
+        console.log("  args     :", L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR);
+        console.log("  calldata :");
+        console.logBytes(callData);
+        console.log("==============================================================");
+    }
+
     /**********************
      * Internal interface *
      **********************/
@@ -290,15 +343,17 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     /// @dev Returns Dogecoin address prefixes (P2PKH, P2SH) based on L1 chain ID.
+    ///      Note: in DogeOS the "L1" is the Dogecoin chain — CHAIN_ID_L1 refers to the
+    ///      Dogecoin-side chain ID, not the Ethereum mainnet ID.
     function _dogePrefixesFromL1ChainId() private view returns (bytes1 p2pkh, bytes1 p2sh) {
         if (CHAIN_ID_L1 == 1) {
-            // Mainnet
+            // Dogecoin mainnet
             return (bytes1(0x1e), bytes1(0x16));
         } else if (CHAIN_ID_L1 == 111_111) {
-            // Testnet
+            // Dogecoin testnet
             return (bytes1(0x71), bytes1(0xc4));
         } else if (CHAIN_ID_L1 == 5_555_555) {
-            // Regtest
+            // Dogecoin regtest
             return (bytes1(0x6f), bytes1(0xc4));
         } else {
             revert(
