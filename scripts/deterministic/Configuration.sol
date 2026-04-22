@@ -99,7 +99,6 @@ abstract contract Configuration is Script {
     // gas price oracle
     uint256 internal BLOB_SCALAR;
     uint256 internal SCALAR;
-    uint256 internal PENALTY_THRESHOLD;
     uint256 internal PENALTY_FACTOR;
 
     /**********************
@@ -193,7 +192,6 @@ abstract contract Configuration is Script {
 
         BLOB_SCALAR = cfg.readUint(".contracts.BLOB_SCALAR");
         SCALAR = cfg.readUint(".contracts.SCALAR");
-        PENALTY_THRESHOLD = cfg.readUint(".contracts.PENALTY_THRESHOLD");
         PENALTY_FACTOR = cfg.readUint(".contracts.PENALTY_FACTOR");
 
         CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");

@@ -316,6 +316,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         address payable feeRecip = payable(feeRecipient);
         if (feeRecip != address(0) && fee > 0) {
             // Use call to avoid potential gas stipend issues with transfer()
+            // slither-disable-next-line arbitrary-send-eth
             (bool success, ) = feeRecip.call{value: fee}("");
             if (!success) revert ErrorFeeTransferFailed();
         }
