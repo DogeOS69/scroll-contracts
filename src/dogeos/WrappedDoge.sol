@@ -39,6 +39,7 @@ contract WrappedDoge is ERC20Permit {
 
         _burn(_sender, wad);
 
+        // slither-disable-next-line arbitrary-send-eth
         (bool success, ) = _sender.call{value: wad}("");
         require(success, "withdraw DOGE failed");
 
