@@ -35,10 +35,15 @@ for the deploy window. The standard scroll-contracts deploys use `--legacy`
 ## Why bash + cast, not forge
 
 These are presigned legacy unprotected txs from third parties (`mds1/multicall3`
-and `pcaversaccio/createx`). Forge's `vm.broadcastRawTransaction` cheatcode
-simulates locally but does not emit the tx to the RPC in forge 1.5.1
-(verified experimentally). `cast publish` is the correct tool for "publish
-this exact pre-signed tx as-is."
+and `pcaversaccio/createx`). The forge-equivalent cheatcode would be
+`vm.broadcastRawTransaction`, but the version of `forge-std` pinned in this
+repo (commit `978ac6fadb`, June 2024) predates that cheatcode and does not
+expose it — Solidity calls fail to compile with `Member "broadcastRawTransaction" not found`. Bumping `forge-std` to bring it in
+would expand the cheatcode surface for every existing script in the repo,
+which is a much larger change than what this PR aims to do.
+
+`cast publish` is the standard tool for "publish this exact pre-signed tx
+as-is" and ships with `cast` (already required for Foundry).
 
 ## Layout
 
