@@ -8,6 +8,14 @@ string constant DEFAULT_DEPLOYMENT_SALT = "ScrollStack";
 ///      See https://github.com/Arachnid/deterministic-deployment-proxy.
 address constant DETERMINISTIC_DEPLOYMENT_PROXY_ADDR = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
+/// @dev The canonical address of Multicall3.
+///      See https://github.com/mds1/multicall3.
+address constant MULTICALL3_ADDR = 0xcA11bde05977b3631167028862bE2a173976CA11;
+
+/// @dev The canonical address of CreateX.
+///      See https://github.com/pcaversaccio/createx.
+address constant CREATEX_ADDR = 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed;
+
 /// @dev The default minimum withdraw amount configured on L2TxFeeVault.
 uint256 constant FEE_VAULT_MIN_WITHDRAW_AMOUNT = 1 ether;
 
