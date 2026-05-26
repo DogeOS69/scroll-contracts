@@ -19,7 +19,6 @@ string constant COORDINATOR_CONFIG_TEMPLATE_PATH = "./docker/templates/coordinat
 string constant CHAIN_MONITOR_CONFIG_TEMPLATE_PATH = "./docker/templates/chain-monitor-config.json";
 string constant BRIDGE_HISTORY_CONFIG_TEMPLATE_PATH = "./docker/templates/bridge-history-config.json";
 string constant BALANCE_CHECKER_CONFIG_TEMPLATE_PATH = "./docker/templates/balance-checker-config.json";
-string constant ROLLUP_EXPLORER_BACKEND_CONFIG_TEMPLATE_PATH = "./docker/templates/rollup-explorer-backend-config.json";
 string constant ADMIN_SYSTEM_BACKEND_CONFIG_TEMPLATE_PATH = "./docker/templates/admin-system-backend-config.json";
 
 // input files
@@ -39,7 +38,6 @@ string constant BRIDGE_HISTORY_CONFIG_PATH = "./volume/bridge-history-config.yam
 string constant BRIDGE_HISTORY_API_CONFIG_PATH = "../../config/bridge-historyv2-api/config.json";
 string constant BALANCE_CHECKER_CONFIG_PATH = "./volume/balance-checker-config.yaml";
 string constant FRONTEND_ENV_PATH = "./volume/frontend-config.yaml";
-string constant ROLLUP_EXPLORER_BACKEND_CONFIG_PATH = "./volume/rollup-explorer-backend-config.yaml";
 string constant ADMIN_SYSTEM_BACKEND_CONFIG_PATH = "./volume/admin-system-backend-config.yaml";
 string constant ADMIN_SYSTEM_CRON_CONFIG_PATH = "../../config/scroll-admin-cron/config.json";
 string constant BRIDGE_HISTORY_FETCHER_CONFIG_PATH = "../../config/bridge-historyv2-fetcher/config.json";

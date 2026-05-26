@@ -61,9 +61,6 @@ abstract contract Configuration is Script {
 
     address internal L2GETH_SIGNER_ADDRESS;
 
-    // db
-    string internal ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING;
-
     // genesis
     uint256 internal L2_MAX_ETH_SUPPLY;
     uint256 internal L2_DEPLOYER_INITIAL_BALANCE;
@@ -165,14 +162,6 @@ abstract contract Configuration is Script {
         OWNER_ADDR = cfg.readAddress(".accounts.OWNER_ADDR");
 
         L2GETH_SIGNER_ADDRESS = cfg.readAddress(".sequencer.L2GETH_SIGNER_ADDRESS");
-
-        ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING = vm.envOr("ROLLUP_EXPLORER_DB_CONNECTION_STRING", string(""));
-
-        if (
-            keccak256(abi.encodePacked(ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING)) == keccak256(abi.encodePacked(""))
-        ) {
-            ROLLUP_EXPLORER_BACKEND_DB_CONNECTION_STRING = cfg.readString(".db.ROLLUP_EXPLORER_DB_CONNECTION_STRING");
-        }
 
         L2_MAX_ETH_SUPPLY = cfg.readUint(".genesis.L2_MAX_ETH_SUPPLY");
         L2_DEPLOYER_INITIAL_BALANCE = cfg.readUint(".genesis.L2_DEPLOYER_INITIAL_BALANCE");
