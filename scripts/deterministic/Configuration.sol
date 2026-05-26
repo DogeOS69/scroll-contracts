@@ -87,10 +87,8 @@ abstract contract Configuration is Script {
     string internal EXTERNAL_RPC_URI_L1;
     string internal EXTERNAL_RPC_URI_L2;
     string internal BRIDGE_API_URI;
-    string internal ROLLUPSCAN_API_URI;
     string internal EXTERNAL_EXPLORER_URI_L1;
     string internal EXTERNAL_EXPLORER_URI_L2;
-    string internal ADMIN_SYSTEM_DASHBOARD_URI;
     string internal GRAFANA_URI;
 
     // gas price oracle
@@ -195,10 +193,8 @@ abstract contract Configuration is Script {
         EXTERNAL_RPC_URI_L1 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L1");
         EXTERNAL_RPC_URI_L2 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L2");
         BRIDGE_API_URI = cfg.readString(".frontend.BRIDGE_API_URI");
-        ROLLUPSCAN_API_URI = cfg.readString(".frontend.ROLLUPSCAN_API_URI");
         EXTERNAL_EXPLORER_URI_L1 = cfg.readString(".frontend.EXTERNAL_EXPLORER_URI_L1");
         EXTERNAL_EXPLORER_URI_L2 = cfg.readString(".frontend.EXTERNAL_EXPLORER_URI_L2");
-        ADMIN_SYSTEM_DASHBOARD_URI = cfg.readString(".frontend.ADMIN_SYSTEM_DASHBOARD_URI");
         GRAFANA_URI = cfg.readString(".frontend.GRAFANA_URI");
 
         FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
