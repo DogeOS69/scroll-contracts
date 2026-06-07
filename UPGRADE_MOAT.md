@@ -1,9 +1,13 @@
-# Moat Upgrade — P2SH Withdrawal Support
+# Moat Upgrade - P2SH Withdrawal Support
 
-This document describes how to upgrade the L2 `Moat` contract (proxy address
-`L2_MOAT_PROXY_ADDR`) to the `feat/p2sh-withdrawals` revision that adds P2SH
-withdrawal support, a versioned message envelope, and on-chain Base58Check
-address decoding.
+This document is split into two parts:
+
+- **Operations:** commands and checks an operator should run.
+- **Explanation:** why the upgrade is needed and how it works.
+
+The target upgrade changes the L2 `Moat` proxy at `L2_MOAT_PROXY_ADDR` to the
+`feat/p2sh-withdrawals` revision. It adds P2SH withdrawal support, a versioned
+message envelope, and on-chain Base58Check address decoding.
 
 Reference merge: [`3e29ab0`](../../commit/3e29ab0) (merges
 `feat/p2sh-withdrawals` into `dogeos-v0.3.0-develop`, introduced by
@@ -11,64 +15,344 @@ Reference merge: [`3e29ab0`](../../commit/3e29ab0) (merges
 
 ---
 
-## 1. What changes
+## 1. Operations
 
-### 1.1 New withdrawal entry points
+Use this section during the actual upgrade. It intentionally focuses on what to
+run and what to verify.
 
-| Function                        | Behavior                                                                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `withdrawToL1(address)`         | **Behavior change.** Still P2PKH, but now attaches a 2-byte envelope (flags=0) instead of empty bytes. Kept for backward compatibility; prefer the typed variants below. |
-| `withdrawToP2PKH(address)`      | New. Semantic alias of `withdrawToL1` — payload is the 20-byte hash160 of the recipient's pubkey.                                                                        |
-| `withdrawToP2SH(address)`       | New. Payload is the 20-byte hash160 of the redeem script; envelope flags=`0x01`.                                                                                         |
-| `withdrawToDogeAddress(string)` | New. Accepts a full Base58Check-encoded Dogecoin address; the contract decodes it on-chain via `DogeAddressLib` and routes to P2PKH or P2SH based on the version byte.   |
+### 1.1 Operational summary
 
-All four go through a common `_processWithdrawal(target, isP2SH)` path: fee/min
-checks, fee transfer, then `IL2ScrollMessenger.sendMessage` with the envelope.
+The live-chain upgrade has only two chain-changing actions:
 
-### 1.2 Message envelope format
+| Action                                                    | Signer             | Script                                                                                       |
+| --------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------- |
+| Deploy the new `Moat` implementation                      | `DEPLOYER`         | `BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh`                                |
+| Point the existing `Moat` proxy to the new implementation | `ProxyAdmin owner` | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-moat-proxy-upgrade.sh` |
 
-Every withdrawal now carries a 2-byte envelope as the `message` field of the
-L2→L1 send:
+The other steps are configuration selection, dry runs, preflight checks, and
+post-upgrade verification. They are included to avoid upgrading the wrong
+network, proxy, or implementation.
 
+Current deterministic scripts do not support an environment-variable-only
+configuration. Network values and contract addresses are read from:
+
+- `volume/config.toml`
+- `volume/config-contracts.toml`
+
+Private keys are the intended environment-variable inputs. For this upgrade,
+`DEPLOYER_PRIVATE_KEY` is used by the implementation deploy step, and
+`OWNER_PRIVATE_KEY` is used by the ProxyAdmin upgrade step.
+
+Use a symlink for `volume` during normal operations. Copying config files into a
+local `volume` directory can work mechanically, but it creates a second copy of
+`config-contracts.toml`; the implementation deploy step writes
+`L2_MOAT_IMPLEMENTATION_ADDR` back to `volume/config-contracts.toml`, so a copy
+can leave the target network's real config stale.
+
+### 1.2 Operator checklist
+
+Before sending any transaction:
+
+- Check out the branch that contains this upgrade.
+- Confirm the target network configuration is symlinked at `<repo-root>/volume`.
+- Confirm the envelope-aware withdraw processor is already deployed.
+- Confirm you control the `ProxyAdmin owner` key printed by the upgrade script.
+- Run the dry-run commands first, then run the same flow with `BROADCAST=1`.
+
+### 1.3 Fresh genesis / new chain
+
+For a fresh chain, run the normal deploy pipeline from this branch. The deploy
+script already deploys the new `Moat` implementation with the correct Dogecoin
+prefixes and upgrades the proxy.
+
+No extra manual Moat command is required for a fresh genesis deployment.
+
+### 1.4 Live chain / existing deployment
+
+Run all commands from the repository root unless noted otherwise.
+
+#### Step 1 - Point `volume` at the target network
+
+```bash
+# Example for testnet. Replace the target path for another network.
+ln -sfn ../dogeos-aws-testnet volume
+
+# Verify the symlink.
+ls -l volume
 ```
+
+Expected shape:
+
+```text
+volume -> ../dogeos-aws-testnet
+```
+
+The scripts read:
+
+- `volume/config.toml`
+- `volume/config-contracts.toml`
+
+#### Step 2 - Dry-run implementation deployment
+
+```bash
+scripts/deterministic/shell/deploy-moat-impl.sh
+```
+
+Check the printed values before continuing:
+
+- L2 RPC
+- `CHAIN_ID_L1`
+- selected Dogecoin prefixes
+- `L2_PROXY_ADMIN_ADDR`
+- `L2_MOAT_PROXY_ADDR`
+- current implementation
+- predicted or target new implementation
+- generated `upgrade(address,address)` calldata
+
+Do not execute the proxy upgrade yet. A dry run can update
+`L2_MOAT_IMPLEMENTATION_ADDR` in `volume/config-contracts.toml` with a predicted
+deterministic address, but that implementation may not exist on-chain until the
+broadcast step succeeds.
+
+#### Step 3 - Broadcast implementation deployment
+
+```bash
+BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh
+```
+
+After this succeeds, confirm `volume/config-contracts.toml` contains the new:
+
+```toml
+L2_MOAT_IMPLEMENTATION_ADDR = "..."
+```
+
+#### Step 4 - Dry-run ProxyAdmin upgrade
+
+```bash
+scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
+```
+
+Check the printed values before continuing:
+
+- `ProxyAdmin owner`
+- implementation before upgrade
+- target implementation
+- pre-upgrade storage snapshot: `messenger`, `basculeVerifier`,
+  `withdrawalFee`, `minWithdrawalAmount`, `depositFee`, `feeRecipient`, `owner`
+
+The target implementation must already have bytecode on-chain.
+
+#### Step 5 - Broadcast ProxyAdmin upgrade
+
+Use the private key for the ProxyAdmin owner. Do not hardcode the key into any
+script file.
+
+```bash
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
+```
+
+The script sends:
+
+```text
+ProxyAdmin.upgrade(L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR)
+```
+
+No `initialize` call is needed.
+
+#### Step 6 - Verify the upgrade
+
+Set the RPC URL used for direct `cast` checks:
+
+```bash
+export L2_RPC=<L2_RPC>
+```
+
+Check the implementation address:
+
+```bash
+cast implementation <L2_MOAT_PROXY_ADDR> --rpc-url "$L2_RPC"
+```
+
+Expected result:
+
+```text
+<L2_MOAT_IMPLEMENTATION_ADDR>
+```
+
+Check the immutable Dogecoin prefixes:
+
+```bash
+cast call <L2_MOAT_PROXY_ADDR> 'P2PKH_PREFIX()(bytes1)' --rpc-url "$L2_RPC"
+cast call <L2_MOAT_PROXY_ADDR> 'P2SH_PREFIX()(bytes1)'  --rpc-url "$L2_RPC"
+```
+
+Expected values:
+
+| Network / L1 chainId | P2PKH prefix | P2SH prefix |
+| -------------------- | ------------ | ----------- |
+| Mainnet / `1`        | `0x1e`       | `0x16`      |
+| Testnet / `111111`   | `0x71`       | `0xc4`      |
+| Regtest / `5555555`  | `0x6f`       | `0xc4`      |
+
+Check that key storage-backed values are preserved:
+
+```bash
+cast call <L2_MOAT_PROXY_ADDR> 'messenger()(address)'           --rpc-url "$L2_RPC"
+cast call <L2_MOAT_PROXY_ADDR> 'withdrawalFee()(uint256)'       --rpc-url "$L2_RPC"
+cast call <L2_MOAT_PROXY_ADDR> 'minWithdrawalAmount()(uint256)' --rpc-url "$L2_RPC"
+cast call <L2_MOAT_PROXY_ADDR> 'owner()(address)'               --rpc-url "$L2_RPC"
+```
+
+Compare these values with the pre-upgrade snapshot printed in Step 4.
+
+Check that a new entry point exists:
+
+```bash
+cast call <L2_MOAT_PROXY_ADDR> \
+  'withdrawToP2SH(address)' \
+  0x0000000000000000000000000000000000000001 \
+  --rpc-url "$L2_RPC"
+```
+
+This static call may revert because it does not provide the required fee. That
+is acceptable. The important check is that it does not fail as an unknown
+function selector.
+
+Finally, send one end-to-end withdrawal through each path and confirm the L1
+side handles the envelope bytes correctly:
+
+- `withdrawToP2PKH`
+- `withdrawToP2SH`
+- `withdrawToDogeAddress`
+
+### 1.5 Manual implementation deployment fallback
+
+Prefer the scripts above. Use this only if the deploy script cannot be used.
+
+```bash
+forge create src/dogeos/Moat.sol:Moat \
+  --rpc-url <L2_RPC> \
+  --private-key <DEPLOYER_KEY> \
+  --constructor-args <P2PKH_PREFIX> <P2SH_PREFIX>
+```
+
+Record the returned address as:
+
+```text
+L2_MOAT_IMPLEMENTATION_ADDR
+```
+
+Use the network-correct constructor args:
+
+| Network / L1 chainId | P2PKH prefix | P2SH prefix |
+| -------------------- | ------------ | ----------- |
+| Mainnet / `1`        | `0x1e`       | `0x16`      |
+| Testnet / `111111`   | `0x71`       | `0xc4`      |
+| Regtest / `5555555`  | `0x6f`       | `0xc4`      |
+
+### 1.6 Manual ProxyAdmin upgrade fallback
+
+Prefer `submit-moat-proxy-upgrade.sh`. Use this only if the upgrade script
+cannot be used.
+
+```bash
+cast send <L2_PROXY_ADMIN_ADDR> \
+  'upgrade(address,address)' \
+  <L2_MOAT_PROXY_ADDR> <L2_MOAT_IMPLEMENTATION_ADDR> \
+  --rpc-url <L2_RPC> \
+  --private-key <PROXY_ADMIN_OWNER_KEY> \
+  --legacy
+```
+
+### 1.7 Rollback command
+
+Rollback points the proxy back to the previous implementation address:
+
+```bash
+cast send <L2_PROXY_ADMIN_ADDR> \
+  'upgrade(address,address)' \
+  <L2_MOAT_PROXY_ADDR> <L2_MOAT_IMPLEMENTATION_ADDR_OLD> \
+  --rpc-url <L2_RPC> \
+  --private-key <PROXY_ADMIN_OWNER_KEY> \
+  --legacy
+```
+
+Before rollback, confirm the withdraw processor can safely handle any
+already-queued `version=1` envelope withdrawals.
+
+---
+
+## 2. Explanation
+
+Use this section to understand what the upgrade changes and why the operational
+ordering matters.
+
+### 2.1 What changes
+
+#### New withdrawal entry points
+
+| Function                        | Behavior                                                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `withdrawToL1(address)`         | Behavior change. Still P2PKH, but now attaches a 2-byte envelope with `flags=0` instead of empty bytes. Kept for backward compatibility; prefer the typed variants below. |
+| `withdrawToP2PKH(address)`      | New. Semantic alias of `withdrawToL1`; payload is the 20-byte hash160 of the recipient's pubkey.                                                                          |
+| `withdrawToP2SH(address)`       | New. Payload is the 20-byte hash160 of the redeem script; envelope flags are `0x01`.                                                                                      |
+| `withdrawToDogeAddress(string)` | New. Accepts a full Base58Check-encoded Dogecoin address; the contract decodes it on-chain via `DogeAddressLib` and routes to P2PKH or P2SH based on the version byte.    |
+
+All four entry points use the common `_processWithdrawal(target, isP2SH)` path:
+
+1. Validate fee and minimum withdrawal amount.
+2. Transfer the fee.
+3. Call `IL2ScrollMessenger.sendMessage` with the versioned envelope.
+
+#### Message envelope format
+
+Every withdrawal now carries a 2-byte envelope in the `message` field of the
+L2-to-L1 send:
+
+```text
 byte 0: ENVELOPE_VERSION = 0x01
 byte 1: flags            (0x00 = P2PKH, 0x01 = P2SH)
 ```
 
 The amount and target address remain in the existing `sendMessage` parameters.
-**Any L1-side consumer that previously assumed an empty `message` must be
-updated** to parse this envelope.
+Any L1-side consumer that previously assumed an empty `message` must be updated
+to parse this envelope.
 
-### 1.3 New address-decoding library
+#### New address-decoding library
 
-New file: [`src/dogeos/DogeAddressLib.sol`](src/dogeos/DogeAddressLib.sol) — a
-`library` with pure `decode(string)` and `decodeChecked(string, bytes1, bytes1)`
-functions. It performs Base58Check decoding, double-sha256 checksum verification,
-and prefix matching. Inlined into `Moat`, not deployed as a separate contract.
+New file: [`src/dogeos/DogeAddressLib.sol`](src/dogeos/DogeAddressLib.sol)
 
-### 1.4 Constructor signature change (breaking)
+This pure Solidity library provides:
+
+- `decode(string)`
+- `decodeChecked(string, bytes1, bytes1)`
+
+It performs Base58Check decoding, double-sha256 checksum verification, and
+prefix matching. The library is inlined into `Moat`; it is not deployed as a
+separate contract.
+
+#### Constructor signature change
+
+Before:
 
 ```solidity
-// Before
 constructor()
+```
 
-// After
+After:
+
+```solidity
 constructor(bytes1 _p2pkhPrefix, bytes1 _p2shPrefix)
 ```
 
-`P2PKH_PREFIX` / `P2SH_PREFIX` are **immutables**, baked into runtime bytecode,
-not storage. The correct values per network (from `DeployScroll.s.sol`):
+`P2PKH_PREFIX` and `P2SH_PREFIX` are immutables. They are baked into the
+implementation runtime bytecode and do not use proxy storage.
 
-| Network (L1 chainId)  | P2PKH prefix | P2SH prefix |
-| --------------------- | ------------ | ----------- |
-| Mainnet (`1`)         | `0x1e`       | `0x16`      |
-| Testnet (`111_111`)   | `0x71`       | `0xc4`      |
-| Regtest (`5_555_555`) | `0x6f`       | `0xc4`      |
+This means a new implementation contract must be deployed per network. The
+implementation address can differ even when the proxy address is the same.
 
-A new implementation contract must be deployed **per network** — the
-implementation address will differ even if the proxy address is the same.
-
-### 1.5 ABI changes (interface)
+#### ABI changes
 
 Additions to `IMoat`:
 
@@ -78,258 +362,121 @@ Additions to `IMoat`:
 - `function withdrawToP2SH(address) external payable;`
 - `function withdrawToDogeAddress(string) external payable;`
 
-Removed custom errors (no longer thrown, interface cleanup):
+Removed custom errors:
 
 - `ErrorUnprovenL1Message()`
 - `ErrorInvalidDataLength(uint256)`
-- `Unauthorized()` (belongs to `OwnableBase`, shouldn't have been re-declared)
+- `Unauthorized()`
 
-### 1.6 Storage layout — unchanged
+The removed errors are no longer thrown by `Moat`; `Unauthorized()` belongs to
+`OwnableBase` and should not have been re-declared in `IMoat`.
 
-The Moat contract layout is **preserved**; this is safe for proxy upgrade:
+### 2.2 Storage layout
 
-| Slot   | Field                                                                                                    |
-| ------ | -------------------------------------------------------------------------------------------------------- |
-| `0x00` | `_owner` (from `OwnableBase`)                                                                            |
-| `0x01` | `_status` + `_initialized`/`_initializing` packing (from `ReentrancyGuardUpgradeable` / `Initializable`) |
-| ...    | `messenger`, `basculeVerifier`, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee`     |
+The Moat contract layout is preserved and safe for proxy upgrade:
 
-`P2PKH_PREFIX` / `P2SH_PREFIX` live in **bytecode** (immutables) and consume no
+| Slot   | Field                                                                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------------- |
+| `0x00` | `_owner` from `OwnableBase`                                                                                 |
+| `0x01` | `_status` plus `_initialized` / `_initializing` packing from `ReentrancyGuardUpgradeable` / `Initializable` |
+| `...`  | `messenger`, `basculeVerifier`, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee`        |
+
+`P2PKH_PREFIX` and `P2SH_PREFIX` live in bytecode as immutables and consume no
 storage slots. No storage migration is required.
 
----
+No `initialize` re-run is required because the proxy is already initialized.
 
-## 2. Upgrade paths
+### 2.3 Upgrade model
 
-### Path A — Fresh genesis (new chain)
+#### Fresh genesis
 
-Handled automatically by [`scripts/deterministic/DeployScroll.s.sol`](scripts/deterministic/DeployScroll.s.sol).
-`deployL2Moat()` now:
+[`scripts/deterministic/DeployScroll.s.sol`](scripts/deterministic/DeployScroll.s.sol)
+handles this automatically in `deployL2Moat()`:
 
 1. Selects prefixes via `_dogePrefixesFromL1ChainId()` based on `CHAIN_ID_L1`.
-2. Encodes them into the implementation's constructor args.
-3. Deploys the new implementation, then calls `upgrade()` on `L2_PROXY_ADMIN`.
+2. Encodes them into the implementation constructor args.
+3. Deploys the new implementation.
+4. Calls `upgrade()` on `L2_PROXY_ADMIN`.
 
-No additional manual steps — just run the usual deploy pipeline from this
-branch.
-
-Additionally, a standalone entry point `deployL2MoatImpl(string layer, string scriptMode)`
-is available in `DeployScroll.s.sol` for deploying **only** the implementation
-contract without running the full deploy flow. It reads the existing
-`L2_PROXY_ADMIN_ADDR` and `L2_MOAT_PROXY_ADDR` from `volume/config-contracts.toml`,
-deploys the new implementation, and logs the exact `upgrade()` calldata the
-ProxyAdmin owner needs to submit. This is the entry point used by the shell
-scripts in Path B below.
-
-### Path B — Live chain (existing deployment)
+#### Live chain
 
 Moat is a `TransparentUpgradeableProxy` owned by `L2_PROXY_ADMIN_ADDR`. The
-upgrade is a normal ProxyAdmin call; **no hard fork, no geth change, no node
-coordination required**.
+upgrade is a normal ProxyAdmin implementation swap.
 
-#### B.1 Prerequisites
+No hard fork, geth change, or node coordination is required.
 
-- **Setup the `volume` symlink**: The upgrade scripts read configuration and addresses from `volume/config.toml` and `volume/config-contracts.toml`. Symlink the target network's configuration directory to `volume` in the repository root:
+### 2.4 Script behavior
 
-  ```bash
-  # run from repo root: ~/github/dogeos69/scroll-contracts
-  # Example for devnet:
-  ln -sfn ../dogeos-aws-devnet volume
+#### `deploy-moat-impl.sh`
 
-  # verify
-  ll volume
-  # expected: volume -> ../dogeos-aws-devnet
-  ```
+[`scripts/deterministic/shell/deploy-moat-impl.sh`](scripts/deterministic/shell/deploy-moat-impl.sh)
+calls `DeployScroll.deployL2MoatImpl("L2", "write-config")` via `forge script`.
 
-- **Execution directory**: Scripts auto-detect repo root from their own path,
-  so they can be executed from any current directory. The `volume` symlink must
-  still exist at `<repo-root>/volume`.
-- Run script preflight checks:
-  ```bash
-  # deploy script preflight + simulation
-  scripts/deterministic/shell/deploy-moat-impl.sh
-  ```
-- Ensure you control the key that matches `ProxyAdmin owner` printed by
-  `submit-moat-proxy-upgrade.sh`.
-- Ensure the envelope-aware withdraw processor is already deployed (see §3)
-  before executing the proxy upgrade transaction.
+It:
 
-#### B.2 Deploy new implementation
-
-Use the provided script [`deploy-moat-impl.sh`](scripts/deterministic/shell/deploy-moat-impl.sh):
-
-```bash
-# 1. Preflight/simulation only (default, no transaction)
-scripts/deterministic/shell/deploy-moat-impl.sh
-
-# 2. Broadcast deploy tx (script still simulates first)
-BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh
-```
-
-The script calls `DeployScroll.deployL2MoatImpl("L2", "write-config")` via
-`forge script`. It:
-
-- sets `FOUNDRY_EVM_VERSION=cancun` and `FOUNDRY_BYTECODE_HASH=none`;
-- reads `EXTERNAL_RPC_URI_L2` from `volume/config.toml` as L2 RPC;
-- reads `L2_PROXY_ADMIN_ADDR` and `L2_MOAT_PROXY_ADDR` from
-  `volume/config-contracts.toml`;
-- auto-selects the Dogecoin prefixes from `CHAIN_ID_L1` in `volume/config.toml`;
-- runs preflight checks (config files present, required commands installed,
-  supported `CHAIN_ID_L1`, ProxyAdmin/proxy code exists, current impl query);
-- runs preflight/simulation only by default;
-- always runs one simulation first;
-- when `BROADCAST=1`, runs a second call with `--broadcast` to actually deploy;
-- writes `L2_MOAT_IMPLEMENTATION_ADDR` to `volume/config-contracts.toml` in
-  `write-config` mode;
-- prints the exact `upgrade(address,address)` calldata for the ProxyAdmin owner.
-
-> **Important:** A simulation-only run can still refresh
-> `L2_MOAT_IMPLEMENTATION_ADDR` in `volume/config-contracts.toml` (predicted
-> deterministic address). Do not execute proxy upgrade until the broadcast
-> deploy is done and the target implementation exists on-chain.
-
-<details>
-<summary>Manual fallback (without the script)</summary>
-
-```bash
-forge create src/dogeos/Moat.sol:Moat \
-  --rpc-url <L2_RPC> \
-  --private-key <DEPLOYER_KEY> \
-  --constructor-args <P2PKH_PREFIX> <P2SH_PREFIX>
-```
-
-Where `<P2PKH_PREFIX>` / `<P2SH_PREFIX>` are the network-correct bytes from §1.4
-(e.g. `0x1e` and `0x16` on mainnet). Record the returned
-`L2_MOAT_IMPLEMENTATION_ADDR_NEW`.
-
-</details>
-
-#### B.3 Upgrade via ProxyAdmin
-
-Use the provided script [`submit-moat-proxy-upgrade.sh`](scripts/deterministic/shell/submit-moat-proxy-upgrade.sh):
-
-```bash
-# 1. Preflight only (default, no transaction, no key required)
-scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
-
-# 2. Broadcast upgrade tx (pass the ProxyAdmin owner key via env — never
-#    hardcode it into the script file)
-OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
-  scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
-```
-
-Run this only after `BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh`
-has succeeded; the script checks that `L2_MOAT_IMPLEMENTATION_ADDR` already has
-deployed bytecode on-chain.
-
-The script:
-
-- reads `L2_PROXY_ADMIN_ADDR`, `L2_MOAT_PROXY_ADDR`, and
-  `L2_MOAT_IMPLEMENTATION_ADDR` from `volume/config-contracts.toml` (updated by
-  the deploy step);
+- sets `FOUNDRY_EVM_VERSION=cancun`;
+- sets `FOUNDRY_BYTECODE_HASH=none`;
 - reads `EXTERNAL_RPC_URI_L2` from `volume/config.toml`;
-- runs preflight checks (config files present, required commands installed,
-  ProxyAdmin/proxy/target-impl code exists, and warns if target impl is already
-  active);
-- prints `ProxyAdmin owner`, `impl before`, and a pre-upgrade storage snapshot
-  (`messenger`, `basculeVerifier`, `withdrawalFee`, `minWithdrawalAmount`,
-  `depositFee`, `feeRecipient`, `owner`);
-- prints impl-after for confirmation;
+- reads `L2_PROXY_ADMIN_ADDR` and `L2_MOAT_PROXY_ADDR` from `volume/config-contracts.toml`;
+- auto-selects Dogecoin prefixes from `CHAIN_ID_L1`;
+- checks config files, required commands, supported `CHAIN_ID_L1`, ProxyAdmin code, proxy code, and the current implementation;
+- runs preflight and simulation only by default;
+- always runs one simulation first;
+- with `BROADCAST=1`, runs a second call with `--broadcast`;
+- writes `L2_MOAT_IMPLEMENTATION_ADDR` to `volume/config-contracts.toml` in `write-config` mode;
+- prints exact `upgrade(address,address)` calldata for the ProxyAdmin owner.
+
+#### `submit-moat-proxy-upgrade.sh`
+
+[`scripts/deterministic/shell/submit-moat-proxy-upgrade.sh`](scripts/deterministic/shell/submit-moat-proxy-upgrade.sh)
+submits the ProxyAdmin upgrade transaction.
+
+It:
+
+- reads `L2_PROXY_ADMIN_ADDR`, `L2_MOAT_PROXY_ADDR`, and `L2_MOAT_IMPLEMENTATION_ADDR` from `volume/config-contracts.toml`;
+- reads `EXTERNAL_RPC_URI_L2` from `volume/config.toml`;
+- checks config files, required commands, ProxyAdmin code, proxy code, and target implementation code;
+- warns if the target implementation is already active;
+- prints `ProxyAdmin owner`;
+- prints `impl before`;
+- prints the pre-upgrade storage snapshot;
+- prints `impl after` for confirmation;
 - runs preflight only by default;
-- sends `cast send upgrade()` only when `BROADCAST=1` (uses `--legacy`).
+- sends `cast send upgrade()` only when `BROADCAST=1`;
+- uses `--legacy` for the transaction.
 
-> **⚠️ Safety:** By default the script does not send transactions. Verify all
-> printed addresses/owner/snapshots first, then run with `BROADCAST=1`.
+### 2.5 External services
 
-<details>
-<summary>Manual fallback (without the script)</summary>
+| Service            | Required action                                                                                                                                                                                       | Severity                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. | Breaking; must ship before upgrade |
+| Frontend / SDK     | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers.                                                                                                         | Additive                           |
+| Bascule verifier   | No change. `handleL1Message` is untouched by this upgrade.                                                                                                                                            | None                               |
 
-From the `L2_PROXY_ADMIN` owner:
+Deploy the envelope-aware relayer before the proxy upgrade. After the proxy is
+upgraded, even `withdrawToL1` emits a `version=1, flags=0` envelope. A relayer
+that only accepts an empty `message` will drop every withdrawal.
 
-```bash
-cast send <L2_PROXY_ADMIN_ADDR> \
-  'upgrade(address,address)' \
-  <L2_MOAT_PROXY_ADDR> <L2_MOAT_IMPLEMENTATION_ADDR_NEW> \
-  --rpc-url <L2_RPC> \
-  --private-key <PROXY_ADMIN_OWNER_KEY> \
-  --legacy
-```
+### 2.6 Rollback behavior
 
-</details>
-
-No `initialize` re-run — the contract is already initialized; the new
-implementation reads existing storage, and immutables come from the new
-bytecode.
-
-#### B.4 Post-upgrade verification
-
-```bash
-# Implementation swapped
-cast implementation <L2_MOAT_PROXY_ADDR> --rpc-url <L2_RPC>
-# expect: L2_MOAT_IMPLEMENTATION_ADDR_NEW
-
-# Immutables reflect the correct network
-cast call <L2_MOAT_PROXY_ADDR> 'P2PKH_PREFIX()(bytes1)' --rpc-url <L2_RPC>
-cast call <L2_MOAT_PROXY_ADDR> 'P2SH_PREFIX()(bytes1)'  --rpc-url <L2_RPC>
-
-# Storage preserved — compare against §B.1 snapshot
-cast call <L2_MOAT_PROXY_ADDR> 'messenger()(address)'           --rpc-url <L2_RPC>
-cast call <L2_MOAT_PROXY_ADDR> 'withdrawalFee()(uint256)'       --rpc-url <L2_RPC>
-cast call <L2_MOAT_PROXY_ADDR> 'minWithdrawalAmount()(uint256)' --rpc-url <L2_RPC>
-cast call <L2_MOAT_PROXY_ADDR> 'owner()(address)'               --rpc-url <L2_RPC>
-
-# New entry points exist (static call, expect revert with fee check — not 'function not found')
-cast call <L2_MOAT_PROXY_ADDR> 'withdrawToP2SH(address)' 0x0000000000000000000000000000000000000001 --rpc-url <L2_RPC>
-```
-
-Also send one end-to-end withdrawal on each path (`withdrawToP2PKH`,
-`withdrawToP2SH`, `withdrawToDogeAddress`) and confirm the L1-side relayer
-picks up the envelope bytes correctly.
-
----
-
-## 3. External services to coordinate
-
-| Service            | Required action                                                                                                                                                                                                  | Severity                                |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| withdraw processor | ✅ **Parse the new 2-byte envelope** from the `message` field of every L2→L1 send. `flags & 0x01` selects P2SH-vs-P2PKH when constructing the Dogecoin output script. Reject messages with unexpected `version`. | **Breaking** — must ship before upgrade |
-| Frontend / SDK     | Expose the three typed entry points; keep `withdrawToL1` as a P2PKH alias for legacy callers                                                                                                                     | Additive                                |
-| Bascule verifier   | No change — `handleL1Message` path untouched by this upgrade                                                                                                                                                     | —                                       |
-
-**Ordering:** deploy the envelope-aware relayer first (it must tolerate the new
-`version=1, flags=0` envelope on P2PKH withdrawals), then execute the proxy
-upgrade. Since `withdrawToL1` starts emitting envelopes immediately post-swap, a
-relayer that only accepts empty `message` will drop every withdrawal.
-
----
-
-## 4. Rollback
-
-Rollback is straightforward — `ProxyAdmin.upgrade()` can point back at the
-previous implementation address:
-
-```bash
-cast send <L2_PROXY_ADMIN_ADDR> \
-  'upgrade(address,address)' \
-  <L2_MOAT_PROXY_ADDR> <L2_MOAT_IMPLEMENTATION_ADDR_OLD> \
-  --rpc-url <L2_RPC> \
-  --private-key <PROXY_ADMIN_OWNER_KEY>
-```
+Rollback is another `ProxyAdmin.upgrade()` call pointing to the previous
+implementation.
 
 Caveats:
 
-- Any withdrawals queued between the forward-upgrade and the rollback carry
-  `version=1` envelopes. The pre-upgrade relayer must be able to either process
-  them or safely park them until a forward roll-forward. **Do not roll back the
-  relayer** unless you are certain no envelope withdrawals are in-flight.
-- Storage is preserved across both directions; no slot will be corrupted by a
-  round-trip.
-- If the rollback is permanent, the P2SH entry points disappear from the ABI —
-  SDKs/frontends must revert to the old interface.
+- Any withdrawals queued between the forward upgrade and rollback carry
+  `version=1` envelopes.
+- The pre-upgrade relayer must be able to process or safely park those envelope
+  withdrawals.
+- Do not roll back the relayer unless you are certain no envelope withdrawals
+  are in flight.
+- Storage is preserved across both directions.
+- If rollback is permanent, the P2SH entry points disappear from the ABI, so
+  SDKs and frontends must revert to the old interface.
 
 ---
 
-## 5. References
+## 3. References
 
 - Contract source: [`src/dogeos/Moat.sol`](src/dogeos/Moat.sol)
 - Interface: [`src/dogeos/IMoat.sol`](src/dogeos/IMoat.sol)
@@ -338,5 +485,5 @@ Caveats:
 - Deploy impl shell script: [`scripts/deterministic/shell/deploy-moat-impl.sh`](scripts/deterministic/shell/deploy-moat-impl.sh)
 - Upgrade proxy shell script: [`scripts/deterministic/shell/submit-moat-proxy-upgrade.sh`](scripts/deterministic/shell/submit-moat-proxy-upgrade.sh)
 - Tests: [`src/test/dogeos/Moat.t.sol`](src/test/dogeos/Moat.t.sol)
-- Merge commit: `3e29ab0` (`feat/p2sh-withdrawals` → `dogeos-v0.3.0-develop`)
+- Merge commit: `3e29ab0` (`feat/p2sh-withdrawals` to `dogeos-v0.3.0-develop`)
 - Source commit: `4cfcad9 feat(moat): add P2SH withdrawal support with message envelope encoding`
