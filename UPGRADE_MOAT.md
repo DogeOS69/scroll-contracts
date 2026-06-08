@@ -43,54 +43,94 @@ Private keys are the intended environment-variable inputs. For this upgrade,
 `DEPLOYER_PRIVATE_KEY` is used by the implementation deploy step, and
 `OWNER_PRIVATE_KEY` is used by the ProxyAdmin upgrade step.
 
-Use a symlink for `volume` during normal operations. Copying config files into a
-local `volume` directory can work mechanically, but it creates a second copy of
-`config-contracts.toml`; the implementation deploy step writes
-`L2_MOAT_IMPLEMENTATION_ADDR` back to `volume/config-contracts.toml`, so a copy
-can leave the target network's real config stale.
+This runbook prepares `volume` as a local working copy of the target network
+configuration. The implementation deploy step writes
+`L2_MOAT_IMPLEMENTATION_ADDR` back to `volume/config-contracts.toml`, so treat
+`volume` as the active config workspace for this upgrade run.
 
-### 1.2 Operator checklist
+### 1.2 Command quick start
+
+Run from the `scroll-contracts` repository root. Replace
+`/path/to/dogeos-aws-testnet` with the real target network configuration
+repository path.
+
+```bash
+CONFIG_DIR=/path/to/dogeos-aws-testnet
+
+cd /path/to/scroll-contracts
+git fetch origin
+git switch dogeos-v0.3.0-develop
+git pull --ff-only origin dogeos-v0.3.0-develop
+
+mkdir -p volume
+cp "$CONFIG_DIR/config.toml" volume/config.toml
+cp "$CONFIG_DIR/config-contracts.toml" volume/config-contracts.toml
+perl -pi -e 's/testnet\.dogeos\.com/devnet.doge.xyz/g' volume/config.toml
+
+# Confirm that dogeos.com no longer appears in volume/config.toml before running deploy scripts.
+if grep -n 'dogeos\.com' volume/config.toml; then
+  echo "ERROR: dogeos.com still appears in volume/config.toml" >&2
+  exit 1
+fi
+
+scripts/deterministic/shell/deploy-moat-impl.sh
+BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh
+
+scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
+
+```
+
+### 1.3 Operator checklist
 
 Before sending any transaction:
 
 - Check out the branch that contains this upgrade.
-- Confirm the target network configuration is symlinked at `<repo-root>/volume`.
+- Copy the target network `config.toml` and `config-contracts.toml` into
+  `<repo-root>/volume`.
+- After copying `config.toml`, replace `testnet.dogeos.com` with
+  `devnet.doge.xyz`.
 - Confirm the envelope-aware withdraw processor is already deployed.
 - Confirm you control the `ProxyAdmin owner` key printed by the upgrade script.
 - Run the dry-run commands first, then run the same flow with `BROADCAST=1`.
 
-### 1.3 Fresh genesis / new chain
-
-For a fresh chain, run the normal deploy pipeline from this branch. The deploy
-script already deploys the new `Moat` implementation with the correct Dogecoin
-prefixes and upgrades the proxy.
-
-No extra manual Moat command is required for a fresh genesis deployment.
-
-### 1.4 Live chain / existing deployment
+### 1.4 Existing deployment
 
 Run all commands from the repository root unless noted otherwise.
 
-#### Step 1 - Point `volume` at the target network
+#### Step 1 - Prepare local `volume` config
+
+Config preparation commands:
 
 ```bash
-# Example for testnet. Replace the target path for another network.
-ln -sfn ../dogeos-aws-testnet volume
+CONFIG_DIR=/path/to/dogeos-aws-testnet
 
-# Verify the symlink.
-ls -l volume
+if [ -L volume ]; then unlink volume; fi
+mkdir -p volume
+cp "$CONFIG_DIR/config.toml" volume/config.toml
+cp "$CONFIG_DIR/config-contracts.toml" volume/config-contracts.toml
+perl -pi -e 's/testnet\.dogeos\.com/devnet.doge.xyz/g' volume/config.toml
+ls -l volume/config.toml volume/config-contracts.toml
 ```
 
 Expected shape:
 
 ```text
-volume -> ../dogeos-aws-testnet
+volume/config.toml
+volume/config-contracts.toml
 ```
 
 The scripts read:
 
 - `volume/config.toml`
 - `volume/config-contracts.toml`
+
+Use the real path to the target network configuration repository as
+`CONFIG_DIR`. If `volume` is currently a symlink from a previous run, remove
+only the symlink before creating the local `volume` directory. After copying
+`config.toml`, replace `testnet.dogeos.com` with `devnet.doge.xyz` so the
+upgrade scripts use the expected RPC host.
 
 #### Step 2 - Dry-run implementation deployment
 
@@ -387,18 +427,6 @@ storage slots. No storage migration is required.
 No `initialize` re-run is required because the proxy is already initialized.
 
 ### 2.3 Upgrade model
-
-#### Fresh genesis
-
-[`scripts/deterministic/DeployScroll.s.sol`](scripts/deterministic/DeployScroll.s.sol)
-handles this automatically in `deployL2Moat()`:
-
-1. Selects prefixes via `_dogePrefixesFromL1ChainId()` based on `CHAIN_ID_L1`.
-2. Encodes them into the implementation constructor args.
-3. Deploys the new implementation.
-4. Calls `upgrade()` on `L2_PROXY_ADMIN`.
-
-#### Live chain
 
 Moat is a `TransparentUpgradeableProxy` owned by `L2_PROXY_ADMIN_ADDR`. The
 upgrade is a normal ProxyAdmin implementation swap.
