@@ -76,6 +76,11 @@ lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 require_file "$CONFIG"
 require_file "$CONFIG_CONTRACTS"
 require_command cast
+require_command python3
+
+# uint256 values (wei) exceed signed 64-bit shell arithmetic — use python3.
+big_add() { python3 -c "import sys; print(int(sys.argv[1]) + int(sys.argv[2]))" "$1" "$2"; }
+big_ge() { python3 -c "import sys; sys.exit(0 if int(sys.argv[1]) >= int(sys.argv[2]) else 1)" "$1" "$2"; }
 
 L2_RPC_ENDPOINT=$(extract EXTERNAL_RPC_URI_L2 "$CONFIG")
 L2_TX_FEE_VAULT_ADDR=$(extract L2_TX_FEE_VAULT_ADDR "$CONFIG_CONTRACTS")
@@ -144,7 +149,7 @@ MIN_BEFORE=$(printf '%s' "$MIN_BEFORE" | awk '{print $1}')
 MESSENGER_BEFORE=$(cast call "$L2_TX_FEE_VAULT_ADDR" 'messenger()(address)' --rpc-url "$L2_RPC_ENDPOINT") || exit 1
 MOAT_MIN=$(cast call "$L2_MOAT_PROXY_ADDR" 'minWithdrawalAmount()(uint256)' --rpc-url "$L2_RPC_ENDPOINT") || exit 1
 MOAT_MIN=$(printf '%s' "$MOAT_MIN" | awk '{print $1}')
-REQUIRED_MIN=$((MOAT_MIN + SATOSHI))
+REQUIRED_MIN=$(big_add "$MOAT_MIN" "$SATOSHI")
 
 echo ""
 echo "current state"
@@ -187,7 +192,7 @@ fi
 
 echo ""
 echo "step 3/4: L2TxFeeVault.updateMinWithdrawAmount($REQUIRED_MIN)"
-if [ "$MIN_BEFORE" -ge "$REQUIRED_MIN" ]; then
+if big_ge "$MIN_BEFORE" "$REQUIRED_MIN"; then
     echo "already >= required — skipping"
 else
     send "$L2_TX_FEE_VAULT_ADDR" 'updateMinWithdrawAmount(uint256)' "$REQUIRED_MIN"

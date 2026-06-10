@@ -19,6 +19,8 @@ import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
 import {ScrollStandardERC20Factory} from "../../src/libraries/token/ScrollStandardERC20Factory.sol";
+import {Moat} from "../../src/dogeos/Moat.sol";
+import {FeeVaultMoatAdapter} from "../../src/dogeos/FeeVaultMoatAdapter.sol";
 
 // solhint-disable max-states-count
 // solhint-disable state-visibility
@@ -45,6 +47,8 @@ contract InitializeL2BridgeContracts is Script {
     // FeeVaultMoatAdapter must be deployed beforehand (this legacy/manual path does not
     // deploy the Moat or the adapter itself).
     address L2_FEE_VAULT_MOAT_ADAPTER_ADDR = vm.envAddress("L2_FEE_VAULT_MOAT_ADAPTER_ADDR");
+    // Dogecoin P2PKH hash160 (as an address) receiving fee vault withdrawals.
+    address FEE_VAULT_DOGE_RECIPIENT_ADDR = vm.envAddress("FEE_VAULT_DOGE_RECIPIENT_ADDR");
     address L1_GAS_PRICE_ORACLE_ADDR = vm.envAddress("L1_GAS_PRICE_ORACLE_ADDR");
     address L2_WHITELIST_ADDR = vm.envAddress("L2_WHITELIST_ADDR");
     address L2_MESSAGE_QUEUE_ADDR = vm.envAddress("L2_MESSAGE_QUEUE_ADDR");
@@ -72,6 +76,18 @@ contract InitializeL2BridgeContracts is Script {
     function run() external {
         ProxyAdmin proxyAdmin = ProxyAdmin(L2_PROXY_ADMIN_ADDR);
 
+        // Preflight (before any broadcast): the fee vault rewire below must not be able
+        // to create a partially configured route. Mirrors the deterministic initializer
+        // and submit-fee-vault-rewire.sh.
+        require(FEE_VAULT_DOGE_RECIPIENT_ADDR != address(0), "FEE_VAULT_DOGE_RECIPIENT_ADDR must not be zero");
+        FeeVaultMoatAdapter adapter = FeeVaultMoatAdapter(L2_FEE_VAULT_MOAT_ADAPTER_ADDR);
+        require(adapter.FEE_VAULT() == L2_TX_FEE_VAULT_ADDR, "adapter FEE_VAULT mismatch");
+        Moat moat = Moat(adapter.MOAT());
+        require(
+            moat.feeExemptCallers(L2_FEE_VAULT_MOAT_ADAPTER_ADDR),
+            "adapter not fee-exempt on Moat: run Moat.setFeeExempt(adapter, true) first"
+        );
+
         vm.startBroadcast(deployerPrivateKey);
 
         // note: we use call upgrade(...) and initialize(...) instead of upgradeAndCall(...),
@@ -81,9 +97,18 @@ contract InitializeL2BridgeContracts is Script {
         L2MessageQueue(L2_MESSAGE_QUEUE_ADDR).initialize(L2_DOGEOS_MESSENGER_PROXY_ADDR);
 
         // initialize L2TxFeeVault: withdrawals are routed through the FeeVaultMoatAdapter
-        // (and thus the Moat) rather than directly through the messenger. The vault's
-        // recipient must separately be set to the Dogecoin P2PKH hash160.
-        L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).updateMessenger(L2_FEE_VAULT_MOAT_ADAPTER_ADDR);
+        // (and thus the Moat) rather than directly through the messenger. All invariants
+        // were verified in the preflight above; establish recipient and minimum BEFORE
+        // the vault is repointed.
+        {
+            L2TxFeeVault vault = L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR));
+            vault.updateRecipient(FEE_VAULT_DOGE_RECIPIENT_ADDR);
+            uint256 minWithdraw = moat.minWithdrawalAmount() + moat.SATOSHI_TO_WEI();
+            if (vault.minWithdrawAmount() < minWithdraw) {
+                vault.updateMinWithdrawAmount(minWithdraw);
+            }
+            vault.updateMessenger(L2_FEE_VAULT_MOAT_ADAPTER_ADDR);
+        }
 
         // initialize L1GasPriceOracle
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).updateWhitelist(L2_WHITELIST_ADDR);
