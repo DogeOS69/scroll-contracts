@@ -313,6 +313,34 @@ contract L1GasPriceOracleTest is DSTestPlus {
         assertEq(oracle.getL1Fee(_data), (_baseTerm + _penaltyTerm) / PRECISION);
     }
 
+    function testEnableGalileo() external {
+        // call by non-owner, should revert
+        hevm.startPrank(address(1));
+        hevm.expectRevert("caller is not the owner");
+        oracle.enableGalileo();
+        hevm.stopPrank();
+
+        // call by owner, should succeed
+        assertBoolEq(oracle.isGalileo(), false);
+        oracle.enableGalileo();
+        assertBoolEq(oracle.isGalileo(), true);
+
+        // enable twice, should revert
+        hevm.expectRevert(L1GasPriceOracle.ErrAlreadyInGalileoFork.selector);
+        oracle.enableGalileo();
+    }
+
+    function testGetL1FeeGalileoRevertOnUnsetPenaltyFactor() external {
+        // Genesis-like state: isGalileo active but penaltyFactor never configured.
+        // The Galileo formula divides by penaltyFactor; this must be a clear revert,
+        // not Panic(0x12).
+        oracle.enableGalileo();
+        assertEq(oracle.penaltyFactor(), 0);
+
+        hevm.expectRevert(L1GasPriceOracle.ErrInvalidPenaltyFactor.selector);
+        oracle.getL1Fee(hex"deadbeef");
+    }
+
     function testSetStorageDuringUpgrade() external {
         assertFalse(oracle.isFeynman());
         assertFalse(oracle.isGalileo());
