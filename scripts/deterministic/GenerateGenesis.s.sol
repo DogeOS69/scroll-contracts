@@ -96,6 +96,13 @@ contract GenerateGenesis is DeployScroll {
         bytes32 _isCurieSlot = hex"0000000000000000000000000000000000000000000000000000000000000008";
         vm.store(predeployAddr, _isCurieSlot, bytes32(uint256(1)));
 
+        // The Galileo fee formula divides by penaltyFactor; since isGalileo is active
+        // from genesis, the factor must be non-zero at genesis too (it is otherwise
+        // only set later by initializeL1GasPriceOracle, and getL1Fee would revert in
+        // the genesis -> initialization window).
+        bytes32 _penaltyFactorSlot = hex"000000000000000000000000000000000000000000000000000000000000000a";
+        vm.store(predeployAddr, _penaltyFactorSlot, bytes32(PENALTY_FACTOR));
+
         bytes32 _isFeynmanSlot = hex"000000000000000000000000000000000000000000000000000000000000000b";
         vm.store(predeployAddr, _isFeynmanSlot, bytes32(uint256(1)));
 
