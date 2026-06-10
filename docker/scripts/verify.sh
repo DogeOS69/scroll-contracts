@@ -170,6 +170,7 @@ get_source_code_name() {
       # L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR) echo L2ERC1155Gateway ;;
       L2_MOAT_IMPLEMENTATION_ADDR) echo Moat ;;
       L2_MOAT_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
+      L2_DOGE_P2PKH_VERIFIER_ADDR) echo DogeP2PKHVerifier ;;
       L2_SYSTEM_CONFIG_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       L2_SYSTEM_CONFIG_IMPLEMENTATION_ADDR) echo L2SystemConfig ;;
       
@@ -181,7 +182,7 @@ get_source_code_name() {
 function is_predeploy_contract() {
   local contract_name="$1"
 
-  if [[ "$contract_name" == "L2MessageQueue" || "$contract_name" == "L1GasPriceOracle" || "$contract_name" == "Whitelist" || "$contract_name" == "WrappedEther" || "$contract_name" == "L2TxFeeVault" ]]; then
+  if [[ "$contract_name" == "L2MessageQueue" || "$contract_name" == "L1GasPriceOracle" || "$contract_name" == "Whitelist" || "$contract_name" == "WrappedEther" || "$contract_name" == "L2TxFeeVault" || "$contract_name" == "DogeP2PKHVerifier" ]]; then
     return 0  # True
   else
     return 1  # False

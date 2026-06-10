@@ -44,6 +44,7 @@ import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20
 import {ScrollStandardERC20FactorySetOwner} from "./contracts/ScrollStandardERC20FactorySetOwner.sol";
 import {ScrollChainMockFinalize} from "../../src/mocks/ScrollChainMockFinalize.sol";
 import {Moat} from "../../src/dogeos/Moat.sol";
+import {DogeP2PKHVerifier} from "../../src/dogeos/DogeP2PKHVerifier.sol";
 
 import "./Constants.sol";
 import "./Configuration.sol";
@@ -141,6 +142,7 @@ contract DeployScroll is DeterministicDeployment {
     address internal L2_WHITELIST_ADDR;
     address internal L2_MOAT_IMPLEMENTATION_ADDR;
     address internal L2_MOAT_PROXY_ADDR;
+    address internal L2_DOGE_P2PKH_VERIFIER_ADDR;
     address internal L2_SYSTEM_CONFIG_IMPLEMENTATION_ADDR;
     address internal L2_SYSTEM_CONFIG_PROXY_ADDR;
 
@@ -502,6 +504,7 @@ contract DeployScroll is DeterministicDeployment {
         deployL1GasPriceOracle();
         deployL2Whitelist();
         deployL2Wdoge();
+        deployL2DogeP2PKHVerifier();
         deployTxFeeVault();
         deployL2ProxyAdmin();
         deployL2PlaceHolder();
@@ -909,6 +912,10 @@ contract DeployScroll is DeterministicDeployment {
 
     function deployL2Wdoge() private {
         L2_WDOGE_ADDR = deploy("L2_WDOGE", type(WrappedDoge).creationCode);
+    }
+
+    function deployL2DogeP2PKHVerifier() private {
+        L2_DOGE_P2PKH_VERIFIER_ADDR = deploy("L2_DOGE_P2PKH_VERIFIER", type(DogeP2PKHVerifier).creationCode);
     }
 
     function deployTxFeeVault() private {
