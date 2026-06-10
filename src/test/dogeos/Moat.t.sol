@@ -1258,6 +1258,43 @@ contract MoatTest is Test {
         assertEq(_mockMessenger.lastValue(), amountAligned, "Exempt withdrawal should succeed in full");
     }
 
+    // --- Tests: Configuration Hardening --- //
+
+    function testConstructor_Revert_EqualPrefixes() external {
+        vm.expectRevert(Moat.ErrorEqualPrefixes.selector);
+        new Moat(bytes1(0x1e), bytes1(0x1e));
+    }
+
+    function testWithdrawToL1_Revert_FeeDueButNoRecipient() external {
+        // Fresh Moat with no feeRecipient configured. Any withdrawal that owes a fee
+        // (here: flooring dust with a zero base fee) must fail closed instead of
+        // stranding the fee in the contract.
+        Moat freshMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
+        freshMoat.initialize(_owner);
+        vm.prank(_owner);
+        freshMoat.updateMessenger(address(_mockMessenger));
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        freshMoat.withdrawToL1{value: 0.5 ether + 42}(address(0x1111));
+    }
+
+    function testFeeExemptCallersStorageSlot() external {
+        // Upgrade-safety regression: feeExemptCallers must stay appended at slot 57
+        // (the first slot after depositFee). A layout shift would silently corrupt
+        // proxy state on upgrade.
+        address account = address(0xabcd);
+        bytes32 slot = keccak256(abi.encode(account, uint256(57)));
+
+        assertFalse(_moat.feeExemptCallers(account), "Should not be exempt initially");
+
+        vm.store(address(_moat), slot, bytes32(uint256(1)));
+        assertTrue(_moat.feeExemptCallers(account), "Getter must read mapping at slot 57");
+
+        vm.store(address(_moat), slot, bytes32(uint256(0)));
+        assertFalse(_moat.feeExemptCallers(account), "Getter must reflect cleared slot");
+    }
+
     // --- Tests: Base58Check Decoding (DogeAddressLib) --- //
 
     // Test vector: Mainnet P2PKH address
@@ -1284,6 +1321,59 @@ contract MoatTest is Test {
 
         assertEq(prefix, bytes1(0x16), "Prefix should be 0x16 (mainnet P2SH)");
         assertEq(payload, bytes20(0x0123456789012345678901234567890123456789), "Payload mismatch");
+    }
+
+    function testDecode_ValidTestnetP2PKH() external pure {
+        // Valid testnet P2PKH address (prefix 0x71)
+        // Payload: 0x89abcdef89abcdef89abcdef89abcdef89abcdef
+        string memory addr = "ngk6ejVecZ9Y7aLGQhKUL7JPBUVVdeoBmd";
+        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+
+        assertEq(prefix, bytes1(0x71), "Prefix should be 0x71 (testnet P2PKH)");
+        assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
+    }
+
+    function testDecode_ValidTestnetP2SH_35Chars() external pure {
+        // Valid testnet/regtest P2SH address (prefix 0xc4). The 0xc4 version byte
+        // pushes the Base58 encoding to 35 characters — the maximum length must
+        // stay 35 to keep these canonical addresses accepted.
+        string memory addr = "2N5oANkEZYXcFzYuTSWxvaWtgRLsngz5GBG";
+        assertEq(bytes(addr).length, 35, "Test vector must be 35 chars");
+        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+
+        assertEq(prefix, bytes1(0xc4), "Prefix should be 0xc4 (testnet P2SH)");
+        assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
+    }
+
+    function testDecode_LeadingOneEncodesLeadingZeroByte() external pure {
+        // Version byte 0x00 (Bitcoin-style) produces a leading '1' character,
+        // exercising the leading-zero handling in the decoder.
+        string memory addr = "1DYwPTp6PAnXhbaUeHgTXwYV4UNuN85ZJw";
+        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+
+        assertEq(prefix, bytes1(0x00), "Prefix should be 0x00");
+        assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
+    }
+
+    function testDecode_InteriorZeroPayload() external pure {
+        // Payload that is almost all zero bytes (mainnet P2PKH prefix) — exercises
+        // the used-length tracking in the big-number conversion.
+        string memory addr = "D596YFweJQuHY1BbjazZYmAbt8jJXaDhSF";
+        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+
+        assertEq(prefix, bytes1(0x1e), "Prefix should be 0x1e (mainnet P2PKH)");
+        assertEq(payload, bytes20(0x0000000000000000000000000000000000000001), "Payload mismatch");
+    }
+
+    function testDecode_Revert_OverflowNonCanonical() external {
+        // 35-char string whose Base58 integer is the canonical
+        // DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz value plus 2^200 — before the carry
+        // guard this silently truncated to the same 25 bytes (valid checksum) and
+        // was accepted as a non-canonical alias.
+        string memory addr = "2zJDSzX4VSmK7bZTFeGwcDoPV4k4gftvWxG";
+
+        vm.expectRevert(abi.encodeWithSelector(DogeAddressLib.ErrorInvalidDecodedLength.selector, 25, 26));
+        _libWrapper.decode(addr);
     }
 
     function testDecode_Revert_InvalidBase58Character() external {
@@ -1465,13 +1555,14 @@ contract MoatTest is Test {
     }
 
     function testWithdrawToDogeAddress_Revert_WrongNetworkPrefix() external {
-        // Testnet P2PKH address (prefix 0x71) but Moat is configured for mainnet (0x1e)
-        // This is a testnet address: nUnL... style
-        // We need a real testnet address for this test
-        // For now, we'll create a mock test that would fail on prefix mismatch
-        // Since we configured mainnet prefixes (0x1e, 0x16), any address with prefix 0x71 will fail
-        // We'd need to generate a valid testnet address for this test
-        // Skipping detailed implementation - the decodeChecked_Revert_WrongNetworkPrefix test covers this
+        // Valid testnet P2PKH address (prefix 0x71, payload 0x89ab..ef) on a Moat
+        // configured with mainnet prefixes (0x1e, 0x16).
+        string memory testnetAddr = "ngk6ejVecZ9Y7aLGQhKUL7JPBUVVdeoBmd";
+        uint256 totalValue = 0.5 ether + _moat.withdrawalFee();
+
+        vm.prank(_user);
+        vm.expectRevert(abi.encodeWithSelector(DogeAddressLib.ErrorUnrecognizedPrefix.selector, bytes1(0x71)));
+        _moat.withdrawToDogeAddress{value: totalValue}(testnetAddr);
     }
 
     /* // Removing this test as the length check is gone
