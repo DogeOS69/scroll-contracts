@@ -66,6 +66,13 @@ library DogeAddressLib {
                 carry = value >> 8;
             }
 
+            // A leftover carry means the value exceeds 25 bytes. Truncating it would
+            // accept non-canonical aliases of valid addresses (same low 25 bytes,
+            // valid checksum), so reject instead.
+            if (carry != 0) {
+                revert ErrorInvalidDecodedLength(25, 26);
+            }
+
             // Track how many bytes are actually used
             for (uint256 j = 0; j < 25; j++) {
                 if (result[j] != 0) {

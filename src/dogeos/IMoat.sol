@@ -15,6 +15,8 @@ interface IMoat {
     error ErrorOnlyMessenger(address sender, address expected);
     error ErrorTargetRevert();
     error ErrorFeeTransferFailed();
+    error ErrorInvalidMinWithdrawal();
+    error ErrorEqualPrefixes();
 
     // --- Events --- //
 

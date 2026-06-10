@@ -21,6 +21,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     error ErrorTargetRevert();
     error ErrorFeeTransferFailed();
     error ErrorInvalidMinWithdrawal();
+    error ErrorEqualPrefixes();
 
     // --- Constants --- //
 
@@ -83,10 +84,15 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
     /**
      * @notice Constructor sets immutable network prefixes.
+     * @dev Equal prefixes would make decodeChecked classify every address as P2PKH,
+     * silently producing the wrong script type for P2SH withdrawals.
      * @param _p2pkhPrefix The P2PKH version byte for this network.
      * @param _p2shPrefix The P2SH version byte for this network.
      */
     constructor(bytes1 _p2pkhPrefix, bytes1 _p2shPrefix) {
+        if (_p2pkhPrefix == _p2shPrefix) {
+            revert ErrorEqualPrefixes();
+        }
         P2PKH_PREFIX = _p2pkhPrefix;
         P2SH_PREFIX = _p2shPrefix;
     }
@@ -141,10 +147,12 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /**
      * @notice Update the minimum withdrawal amount (after fee).
      * @dev Can only be called by the owner. Emits a {MinWithdrawalUpdated} event.
+     * Reverts with {ErrorInvalidMinWithdrawal} when `_newMin` is below 0.01 ether
+     * (0.01 DOGE) — a protocol floor keeping outputs comfortably above typical
+     * Dogecoin dust thresholds.
      * @param _newMin The new minimum withdrawal amount.
      */
     function setMinWithdrawal(uint256 _newMin) external onlyOwner {
-        // Prevent setting the minimum withdrawal below the Dogecoin dust limit
         if (_newMin < 0.01 ether) {
             revert ErrorInvalidMinWithdrawal();
         }
@@ -320,6 +328,8 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * The amount after fee is floored to a multiple of {SATOSHI_TO_WEI} so it is
      * exactly representable on Dogecoin (8 decimals); the sub-satoshi remainder
      * is added to the fee. Callers in {feeExemptCallers} pay no base fee.
+     * Whenever any fee (including dust) is due, `feeRecipient` must be configured
+     * or the withdrawal reverts — fees are never left in this contract.
      * @param _target The 20-byte hash160/script-hash payload.
      * @param _isP2SH True for P2SH, false for P2PKH.
      */
@@ -354,9 +364,12 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             revert ErrorBelowMinimumWithdrawal();
         }
 
-        // Transfer fee to the recipient.
-        address payable feeRecip = payable(feeRecipient);
-        if (feeRecip != address(0) && fee > 0) {
+        // Transfer fee to the recipient. Fail closed when a fee (or dust) is due but
+        // no recipient is configured — otherwise the value would be stranded in this
+        // contract, which has no sweep path, while the event reports it as collected.
+        if (fee > 0) {
+            address payable feeRecip = payable(feeRecipient);
+            if (feeRecip == address(0)) revert ErrorFeeTransferFailed();
             // Use call to avoid potential gas stipend issues with transfer()
             // slither-disable-next-line arbitrary-send-eth
             (bool success, ) = feeRecip.call{value: fee}("");
