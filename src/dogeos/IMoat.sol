@@ -25,6 +25,7 @@ interface IMoat {
     event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
+    event FeeExemptionUpdated(address indexed account, bool exempt);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner); // From OwnableBase inheritance
 
     event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
@@ -44,6 +45,8 @@ interface IMoat {
 
     function feeRecipient() external view returns (address);
 
+    function feeExemptCallers(address _account) external view returns (bool);
+
     function owner() external view returns (address); // From OwnableBase inheritance
 
     // Setters
@@ -59,10 +62,14 @@ interface IMoat {
 
     function setBascule(address _newVerifier) external;
 
-    // Immutable Getters
+    function setFeeExempt(address _account, bool _exempt) external;
+
+    // Immutable/Constant Getters
     function P2PKH_PREFIX() external view returns (bytes1);
 
     function P2SH_PREFIX() external view returns (bytes1);
+
+    function SATOSHI_TO_WEI() external view returns (uint256);
 
     // Core Logic
     function handleL1Message(address _target, bytes32 _depositID) external payable;

@@ -2,7 +2,8 @@
 
 pragma solidity =0.8.24;
 
-import { L2ScrollMessenger } from "../L2/L2ScrollMessenger.sol";
+import {L2ScrollMessenger} from "../L2/L2ScrollMessenger.sol";
+
 // Potentially add import for Moat contract here
 
 /**
@@ -21,7 +22,6 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
     /// @notice The immutable address of the DogeOS Moat contract.
     /// @dev Only messages directed to this address will be executed.
     address public immutable MOAT;
-    address public immutable FEE_VAULT;
 
     // --- Constructor --- //
 
@@ -30,19 +30,16 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
      * @param _counterpart The address of the L1 counterpart messenger.
      * @param _messageQueue The address of the L2 Message Queue predeploy.
      * @param _moat The address of the DogeOS Moat contract.
-     * @param _feeVault The address of the L2TxFeeVault contract.
      */
     constructor(
         address _counterpart,
         address _messageQueue,
-        address _moat,
-        address _feeVault
+        address _moat
     ) L2ScrollMessenger(_counterpart, _messageQueue) {
         if (_moat == address(0)) {
             revert ErrorZeroMoatAddress();
         }
         MOAT = _moat;
-        FEE_VAULT = _feeVault;
     }
 
     // --- Overridden Internal Functions --- //
@@ -69,18 +66,20 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         }
 
         // If the message is for the Moat, proceed with original execution logic.
-        super._executeMessage({ 
+        super._executeMessage({
             _from: _from,
             _to: _to,
             _value: _value,
             _message: _message,
-            _xDomainCalldataHash: _xDomainCalldataHash 
+            _xDomainCalldataHash: _xDomainCalldataHash
         });
     }
 
     /**
      * @notice Overrides the L2 -> L1 message sending logic.
-     * Adds checks, potentially related to the Moat (e.g., onlyMoat modifier).
+     * Only the Moat may send L2 -> L1 messages, so every withdrawal seen on L1 has a
+     * predictable sender, envelope, and 8-decimal-aligned value. Fee vault withdrawals
+     * are routed through the Moat via the FeeVaultMoatAdapter.
      * @param _to The L1 recipient address.
      * @param _value The ETH value to send with the message.
      * @param _message The message calldata.
@@ -92,13 +91,12 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         bytes memory _message,
         uint256 _gasLimit
     ) internal virtual override {
-        // Require that the caller is the MOAT contract or the fee vault.
-        if (msg.sender != MOAT && msg.sender != FEE_VAULT) {
+        // Require that the caller is the MOAT contract.
+        if (msg.sender != MOAT) {
             revert ErrorSenderNotMoat(msg.sender, MOAT);
         }
 
         // Call the original logic
         super._sendMessage(_to, _value, _message, _gasLimit);
     }
-
 }

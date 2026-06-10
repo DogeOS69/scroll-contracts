@@ -1036,6 +1036,228 @@ contract MoatTest is Test {
         unconfiguredMoat.withdrawToL1{value: totalValue}(targetL1);
     }
 
+    // --- Tests: Satoshi Flooring --- //
+
+    function testWithdrawToL1_FloorsDustIntoFee() external {
+        address targetL1 = address(0x1111);
+        uint256 satoshi = _moat.SATOSHI_TO_WEI();
+        uint256 fee = _moat.withdrawalFee();
+        uint256 amountAligned = 0.5 ether; // multiple of SATOSHI_TO_WEI
+        uint256 dust = 123456789; // sub-satoshi remainder
+        assertTrue(dust < satoshi, "dust must be sub-satoshi");
+        uint256 totalValue = amountAligned + dust + fee;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        // WithdrawalQueued must carry the floored amount and the dust-inclusive fee.
+        vm.expectEmit(true, true, false, true);
+        emit Moat.WithdrawalQueued(_user, targetL1, amountAligned, fee + dust);
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: totalValue}(targetL1);
+
+        assertEq(_mockMessenger.lastValue(), amountAligned, "Messenger value should be floored");
+        assertEq(_mockMessenger.lastMsgValue(), amountAligned, "Messenger msg.value should be floored");
+        assertEq(
+            _feeRecipient.balance,
+            feeRecipBalanceBefore + fee + dust,
+            "Fee recipient should receive base fee plus dust"
+        );
+    }
+
+    function testWithdrawToL1_NoDustWhenSatoshiAligned() external {
+        address targetL1 = address(0x1111);
+        uint256 fee = _moat.withdrawalFee();
+        uint256 amountAligned = 0.5 ether;
+        uint256 totalValue = amountAligned + fee;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit Moat.WithdrawalQueued(_user, targetL1, amountAligned, fee);
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: totalValue}(targetL1);
+
+        assertEq(_mockMessenger.lastValue(), amountAligned, "Messenger value should be unchanged");
+        assertEq(_feeRecipient.balance, feeRecipBalanceBefore + fee, "Fee recipient should receive base fee only");
+    }
+
+    function testWithdrawToL1_DustGoesToFeeRecipient_ZeroBaseFee() external {
+        vm.prank(_owner);
+        _moat.setWithdrawalFee(0);
+
+        address targetL1 = address(0x1111);
+        uint256 amountAligned = 0.5 ether;
+        uint256 dust = 123;
+        uint256 totalValue = amountAligned + dust;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit Moat.WithdrawalQueued(_user, targetL1, amountAligned, dust);
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: totalValue}(targetL1);
+
+        assertEq(_mockMessenger.lastValue(), amountAligned, "Messenger value should be floored");
+        assertEq(_feeRecipient.balance, feeRecipBalanceBefore + dust, "Fee recipient should receive only dust");
+    }
+
+    function testWithdrawToL1_Revert_FloorsToZero() external {
+        // Fresh Moat: fee and min both unset (0), so only the zero guard can catch this.
+        Moat freshMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
+        freshMoat.initialize(_owner);
+        vm.prank(_owner);
+        freshMoat.updateMessenger(address(_mockMessenger));
+
+        address targetL1 = address(0x1111);
+        uint256 subSatoshiValue = _moat.SATOSHI_TO_WEI() - 1;
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorBelowMinimumWithdrawal.selector);
+        freshMoat.withdrawToL1{value: subSatoshiValue}(targetL1);
+    }
+
+    function testWithdrawToL1_Revert_BelowMinimumAfterFlooring() external {
+        // A minimum that is not satoshi-aligned: pre-floor amounts can pass it while
+        // their floored value does not.
+        uint256 minAmount = 0.1 ether + 1;
+        vm.prank(_owner);
+        _moat.setMinWithdrawal(minAmount);
+
+        address targetL1 = address(0x1111);
+        uint256 fee = _moat.withdrawalFee();
+        uint256 dust = 5e9;
+        uint256 totalValue = fee + 0.1 ether + dust; // pre-floor amount >= min, post-floor < min
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorBelowMinimumWithdrawal.selector);
+        _moat.withdrawToL1{value: totalValue}(targetL1);
+    }
+
+    function testFuzz_WithdrawAmountSatoshiAligned(uint256 rawValue) external {
+        uint256 satoshi = _moat.SATOSHI_TO_WEI();
+        uint256 fee = _moat.withdrawalFee();
+        uint256 minAmount = _moat.minWithdrawalAmount();
+        uint256 totalValue = bound(rawValue, fee + minAmount + satoshi, 10 ether);
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: totalValue}(address(0x1111));
+
+        uint256 sentAmount = _mockMessenger.lastValue();
+        uint256 feeCollected = _feeRecipient.balance - feeRecipBalanceBefore;
+
+        assertEq(sentAmount % satoshi, 0, "Withdrawal amount must be satoshi-aligned");
+        assertTrue(sentAmount >= minAmount, "Withdrawal amount must meet the minimum");
+        assertEq(sentAmount + feeCollected, totalValue, "Value must be conserved");
+    }
+
+    // --- Tests: Fee Exemption --- //
+
+    function testSetFeeExempt_Success() external {
+        address account = address(0xabcd);
+        assertFalse(_moat.feeExemptCallers(account), "Should not be exempt initially");
+
+        vm.prank(_owner);
+        vm.expectEmit(true, false, false, true);
+        emit Moat.FeeExemptionUpdated(account, true);
+        _moat.setFeeExempt(account, true);
+        assertTrue(_moat.feeExemptCallers(account), "Should be exempt");
+
+        vm.prank(_owner);
+        vm.expectEmit(true, false, false, true);
+        emit Moat.FeeExemptionUpdated(account, false);
+        _moat.setFeeExempt(account, false);
+        assertFalse(_moat.feeExemptCallers(account), "Exemption should be revoked");
+    }
+
+    function testSetFeeExempt_Revert_NotOwner() external {
+        vm.prank(_user);
+        vm.expectRevert(bytes("caller is not the owner"));
+        _moat.setFeeExempt(address(0xabcd), true);
+    }
+
+    function testSetFeeExempt_Revert_ZeroAddress() external {
+        vm.prank(_owner);
+        vm.expectRevert(Moat.ErrorZeroAddress.selector);
+        _moat.setFeeExempt(address(0), true);
+    }
+
+    function testWithdrawToL1_FeeExempt_NoBaseFee() external {
+        vm.prank(_owner);
+        _moat.setFeeExempt(_user, true);
+
+        address targetL1 = address(0x1111);
+        uint256 amountAligned = 0.5 ether;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit Moat.WithdrawalQueued(_user, targetL1, amountAligned, 0);
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: amountAligned}(targetL1);
+
+        assertEq(_mockMessenger.lastValue(), amountAligned, "Full amount should be withdrawn");
+        assertEq(_feeRecipient.balance, feeRecipBalanceBefore, "No fee should be collected");
+    }
+
+    function testWithdrawToL1_FeeExempt_DustStillFloored() external {
+        vm.prank(_owner);
+        _moat.setFeeExempt(_user, true);
+
+        address targetL1 = address(0x1111);
+        uint256 amountAligned = 0.5 ether;
+        uint256 dust = 42;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: amountAligned + dust}(targetL1);
+
+        assertEq(_mockMessenger.lastValue(), amountAligned, "Amount should be floored even when exempt");
+        assertEq(_feeRecipient.balance, feeRecipBalanceBefore + dust, "Dust should still go to the fee recipient");
+    }
+
+    function testWithdrawToL1_FeeExempt_UnexemptRestoresFee() external {
+        vm.startPrank(_owner);
+        _moat.setFeeExempt(_user, true);
+        _moat.setFeeExempt(_user, false);
+        vm.stopPrank();
+
+        address targetL1 = address(0x1111);
+        uint256 fee = _moat.withdrawalFee();
+        uint256 amountAligned = 0.5 ether;
+
+        uint256 feeRecipBalanceBefore = _feeRecipient.balance;
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: amountAligned + fee}(targetL1);
+
+        assertEq(_mockMessenger.lastValue(), amountAligned, "Amount mismatch");
+        assertEq(_feeRecipient.balance, feeRecipBalanceBefore + fee, "Base fee should be charged again");
+    }
+
+    function testWithdrawToL1_FeeExempt_SucceedsWhenFeeExceedsValue() external {
+        // Guards against the fee-coverage check accidentally using the global
+        // withdrawalFee instead of the effective (exempt) fee.
+        vm.startPrank(_owner);
+        _moat.setWithdrawalFee(10 ether);
+        _moat.setFeeExempt(_user, true);
+        vm.stopPrank();
+
+        address targetL1 = address(0x1111);
+        uint256 amountAligned = 0.5 ether; // well below the 10 ether base fee
+
+        vm.prank(_user);
+        _moat.withdrawToL1{value: amountAligned}(targetL1);
+
+        assertEq(_mockMessenger.lastValue(), amountAligned, "Exempt withdrawal should succeed in full");
+    }
+
     // --- Tests: Base58Check Decoding (DogeAddressLib) --- //
 
     // Test vector: Mainnet P2PKH address

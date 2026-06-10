@@ -2,7 +2,7 @@
 
 pragma solidity =0.8.24;
 
-import { IL2ScrollMessenger } from "../L2/IL2ScrollMessenger.sol";
+import {IL2ScrollMessenger} from "../L2/IL2ScrollMessenger.sol";
 
 /**
  * @title IL2DogeOsMessenger
