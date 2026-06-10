@@ -348,8 +348,13 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// @param _data Signed fully RLP-encoded transaction to get the L1 fee for, compressed using zstd.
     /// @return L1 fee that should be paid for the tx
     function _getL1FeeGalileo(bytes memory _data) private view returns (uint256) {
+        // The Galileo formula divides by penaltyFactor (Feynman multiplied by it, so
+        // an unset factor was harmless). Revert explicitly instead of Panic(0x12) if
+        // the factor was never initialized (e.g. genesis state before configuration).
+        uint256 _penaltyFactor = penaltyFactor;
+        if (_penaltyFactor == 0) revert ErrInvalidPenaltyFactor();
         uint256 baseTerm = (commitScalar * l1BaseFee + blobScalar * l1BlobBaseFee) * _data.length;
-        uint256 penaltyTerm = (baseTerm * _data.length) / penaltyFactor;
+        uint256 penaltyTerm = (baseTerm * _data.length) / _penaltyFactor;
         return (baseTerm + penaltyTerm) / PRECISION;
     }
 }

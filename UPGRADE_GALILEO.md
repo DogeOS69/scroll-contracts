@@ -38,10 +38,12 @@ fee         = (baseTerm + penaltyTerm) / PRECISION
 Slots preserved (owner, `l1BaseFee`, `overhead`, `scalar`, `l1BlobBaseFee`,
 `commitScalar`, `blobScalar`, `isCurie`, `penaltyFactor`, `isFeynman`).
 
-| Slot   | Field                              | Notes                                                        |
-| ------ | ---------------------------------- | ------------------------------------------------------------ |
-| `0x0a` | `__penaltyThreshold`               | renamed from `penaltyThreshold`; no longer read by fee logic |
-| `0x0c` | `uint248 __gap` + `bool isGalileo` | `__gap` ensures `isGalileo` owns a fresh slot                |
+| Slot   | Field                              | Notes                                                                                                                                                   |
+| ------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0x09` | `__penaltyThreshold`               | renamed from `penaltyThreshold`; no longer read by fee logic                                                                                            |
+| `0x0a` | `penaltyFactor`                    | preserved; the Galileo formula **divides** by it, so it must be non-zero whenever `isGalileo` is set (fresh genesis now seeds it from `PENALTY_FACTOR`) |
+| `0x0b` | `bool isFeynman` + `uint248 __gap` | packed; `__gap` ensures `isGalileo` owns a fresh slot                                                                                                   |
+| `0x0c` | `bool isGalileo`                   | new                                                                                                                                                     |
 
 **⚠️ Storage compatibility rule**: the upgrade must not touch slots
 `0x00`–`0x0b`. Only slot `0x0c` (`isGalileo`) is newly set.
@@ -77,6 +79,18 @@ No manual `forge inspect` export, no embedding of bytecode, no custom
 `ApplyGalileoHardFork` implementation needed. The Solidity source in this repo
 must stay in sync with what `scroll-v5.10.0` embeds, which this branch already
 ensures.
+
+Before `galileoTime`, confirm `penaltyFactor() != 0` on the oracle (slot
+`0x0a`): the Galileo formula divides by it, and `getL1Fee` reverts with
+`ErrInvalidPenaltyFactor` while it is unset. On a configured live chain it is
+already non-zero (`setPenaltyFactor` rejects zero); fresh genesis seeds it.
+
+Note: this repo's source now guards that division explicitly
+(`ErrInvalidPenaltyFactor` instead of `Panic(0x12)`). A geth build embedding
+the pre-guard bytecode installs that version at the fork — harmless on a
+configured chain, but sync the geth-embedded bytecode with this source at the
+next geth release so fresh-genesis and forked networks converge on identical
+oracle code.
 
 #### B.2 Required chain config update
 
