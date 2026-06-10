@@ -31,6 +31,7 @@ import {L2ERC721Gateway} from "../../src/L2/gateways/L2ERC721Gateway.sol";
 import {L2ETHGateway} from "../../src/L2/gateways/L2ETHGateway.sol";
 import {L2GatewayRouter} from "../../src/L2/gateways/L2GatewayRouter.sol";
 import {L2DogeOsMessenger} from "../../src/dogeos/L2DogeOsMessenger.sol";
+import {FeeVaultMoatAdapter} from "../../src/dogeos/FeeVaultMoatAdapter.sol";
 import {L2StandardERC20Gateway} from "../../src/L2/gateways/L2StandardERC20Gateway.sol";
 import {L2WETHGateway} from "../../src/L2/gateways/L2WETHGateway.sol";
 import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
@@ -134,6 +135,7 @@ contract DeployScroll is DeterministicDeployment {
     address internal L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR;
     address internal L2_TX_FEE_VAULT_ADDR;
+    address internal L2_FEE_VAULT_MOAT_ADAPTER_ADDR;
     address internal L2_WDOGE_ADDR;
     address internal L2_WETH_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L2_WETH_GATEWAY_PROXY_ADDR;
@@ -432,6 +434,7 @@ contract DeployScroll is DeterministicDeployment {
     function deployL2Contracts2ndPass() private broadcast(Layer.L2) {
         // upgradable
         deployL2DogeOsMessenger();
+        deployFeeVaultMoatAdapter();
         deployL2GatewayRouter();
         deployL2StandardERC20Gateway();
         deployL2ETHGateway();
@@ -470,7 +473,6 @@ contract DeployScroll is DeterministicDeployment {
     // @notice initializeL2Contracts initializes contracts deployed on L2.
     function initializeL2Contracts() private broadcast(Layer.L2) only(Layer.L2) {
         initializeL2MessageQueue();
-        initializeL2TxFeeVault();
         initializeL1GasPriceOracle();
         initializeL2DogeOsMessenger();
         initializeL2GatewayRouter();
@@ -483,6 +485,9 @@ contract DeployScroll is DeterministicDeployment {
         initializeScrollStandardERC20Factory();
         initializeL2Whitelist();
         initializeL2Moat();
+        // must run after initializeL2Moat: the Moat must be fully configured (fee, min,
+        // adapter fee exemption) before the fee vault is repointed at the adapter.
+        initializeL2TxFeeVault();
         initializeL2SystemConfig();
         transferL2ContractOwnership();
     }
@@ -1070,8 +1075,7 @@ contract DeployScroll is DeterministicDeployment {
         bytes memory args = abi.encode(
             notnull(L1_SCROLL_MESSENGER_PROXY_ADDR),
             notnull(L2_MESSAGE_QUEUE_ADDR),
-            notnull(L2_MOAT_PROXY_ADDR),
-            notnull(L2_TX_FEE_VAULT_ADDR)
+            notnull(L2_MOAT_PROXY_ADDR)
         );
 
         L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = deploy(
@@ -1081,6 +1085,16 @@ contract DeployScroll is DeterministicDeployment {
         );
 
         upgrade(L2_PROXY_ADMIN_ADDR, L2_DOGEOS_MESSENGER_PROXY_ADDR, L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR);
+    }
+
+    function deployFeeVaultMoatAdapter() private {
+        bytes memory args = abi.encode(notnull(L2_TX_FEE_VAULT_ADDR), notnull(L2_MOAT_PROXY_ADDR));
+
+        L2_FEE_VAULT_MOAT_ADAPTER_ADDR = deploy(
+            "L2_FEE_VAULT_MOAT_ADAPTER",
+            type(FeeVaultMoatAdapter).creationCode,
+            args
+        );
     }
 
     function deployL2GatewayRouter() private {
@@ -1435,8 +1449,28 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function initializeL2TxFeeVault() private {
-        if (L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).messenger() != notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)) {
-            L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
+        L2TxFeeVault vault = L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR));
+        Moat moat = Moat(L2_MOAT_PROXY_ADDR);
+
+        // 1. The vault recipient is the Dogecoin P2PKH hash160 that receives fee
+        //    withdrawals. It must be set before the messenger is repointed at the
+        //    adapter, otherwise withdrawals would target the EVM-style address the
+        //    vault was constructed with.
+        if (vault.recipient() != notnull(FEE_VAULT_DOGE_RECIPIENT_ADDR)) {
+            vault.updateRecipient(FEE_VAULT_DOGE_RECIPIENT_ADDR);
+        }
+
+        // 2. Keep the vault minimum above the Moat minimum (plus one satoshi of dust
+        //    headroom), otherwise a vault balance passing the vault's own check could
+        //    still revert inside the Moat. No fee term: the adapter is fee-exempt.
+        uint256 minWithdraw = moat.minWithdrawalAmount() + moat.SATOSHI_TO_WEI();
+        if (vault.minWithdrawAmount() < minWithdraw) {
+            vault.updateMinWithdrawAmount(minWithdraw);
+        }
+
+        // 3. Route withdrawals through the adapter (and thus the Moat).
+        if (vault.messenger() != notnull(L2_FEE_VAULT_MOAT_ADAPTER_ADDR)) {
+            vault.updateMessenger(L2_FEE_VAULT_MOAT_ADAPTER_ADDR);
         }
     }
 
@@ -1569,6 +1603,14 @@ contract DeployScroll is DeterministicDeployment {
                 moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
             }
             moat.setBascule(L2_BASCULE_MOCK_VERIFIER_ADDR);
+        }
+
+        // Exempt the fee vault adapter from the withdrawal fee so the protocol does
+        // not pay its own fee. Compare-and-set so reruns are idempotent; on networks
+        // where Moat ownership has already been transferred, this is done via the
+        // upgrade runbook instead of this initializer.
+        if (!moat.feeExemptCallers(notnull(L2_FEE_VAULT_MOAT_ADAPTER_ADDR))) {
+            moat.setFeeExempt(L2_FEE_VAULT_MOAT_ADAPTER_ADDR, true);
         }
     }
 

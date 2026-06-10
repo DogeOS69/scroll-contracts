@@ -158,6 +158,10 @@ contract GenerateGenesis is DeployScroll {
         }
 
         // set code
+        // note: the genesis-time messenger/recipient wiring is temporary. The messenger
+        // no longer accepts the vault as a sender, so fee withdrawals revert (fail-closed)
+        // until DeployScroll's initializeL2TxFeeVault() repoints the vault at the
+        // FeeVaultMoatAdapter and sets the Dogecoin recipient.
         address _vaultAddr;
         vm.prank(DEPLOYER_ADDR);
         L2TxFeeVault _vault = new L2TxFeeVault(DEPLOYER_ADDR, L1_FEE_VAULT_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT);

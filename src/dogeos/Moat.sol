@@ -30,6 +30,11 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /// @notice Flag indicating P2SH address type in message envelope.
     uint8 private constant FLAG_P2SH = 0x01;
 
+    /// @notice One satoshi (the smallest Dogecoin unit, 10^-8 DOGE) expressed in wei.
+    /// Withdrawal amounts are floored to a multiple of this so they are exactly
+    /// representable as a Dogecoin UTXO output.
+    uint256 public constant SATOSHI_TO_WEI = 1e10;
+
     // --- Immutables --- //
 
     /// @notice The P2PKH version byte for this network (0x1e mainnet, 0x71 testnet, 0x6f regtest).
@@ -46,6 +51,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
+    event FeeExemptionUpdated(address indexed account, bool exempt);
 
     event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
 
@@ -68,6 +74,10 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
     /// @notice The fee required for L1->L2 deposits.
     uint256 public depositFee;
+
+    /// @notice Callers exempt from the base withdrawal fee (e.g. the fee vault adapter).
+    /// Exempt callers still have their withdrawal amount floored to SATOSHI_TO_WEI.
+    mapping(address => bool) public feeExemptCallers;
 
     // --- Constructor --- //
 
@@ -158,6 +168,22 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     }
 
     /**
+     * @notice Grant or revoke an exemption from the base withdrawal fee.
+     * @dev Can only be called by the owner. Emits a {FeeExemptionUpdated} event.
+     * Intended for protocol callers (e.g. the fee vault adapter) whose withdrawals
+     * should not pay the protocol's own fee. Flooring to SATOSHI_TO_WEI still applies.
+     * @param _account The caller address to update.
+     * @param _exempt True to exempt the caller from the withdrawal fee.
+     */
+    function setFeeExempt(address _account, bool _exempt) external onlyOwner {
+        if (_account == address(0)) {
+            revert ErrorZeroAddress();
+        }
+        feeExemptCallers[_account] = _exempt;
+        emit FeeExemptionUpdated(_account, _exempt);
+    }
+
+    /**
      * @notice Update the Bascule verifier contract address.
      * @dev Can only be called by the owner. Emits a {BasculeVerifierUpdated} event.
      * @param _newVerifier The new Bascule verifier address.
@@ -238,6 +264,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /**
      * @notice (Deprecated) Initiates a P2PKH withdrawal; use withdrawToP2PKH instead.
      * @dev Now emits v1 envelope with flags=0 (P2PKH). Kept for backward compatibility.
+     * The amount after fee is floored to a satoshi multiple; the remainder joins the fee.
      * @param _target The recipient address (hash160 payload).
      */
     function withdrawToL1(address _target) external payable nonReentrant {
@@ -247,6 +274,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /**
      * @notice Initiates a P2PKH withdrawal from L2 to L1 (Dogecoin).
      * @dev The target address is the hash160 of the public key.
+     * The amount after fee is floored to a satoshi multiple; the remainder joins the fee.
      * @param _target The 20-byte hash160 payload as an address type.
      */
     function withdrawToP2PKH(address _target) external payable nonReentrant {
@@ -256,6 +284,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /**
      * @notice Initiates a P2SH withdrawal from L2 to L1 (Dogecoin).
      * @dev The target address is the hash160 of the redeem script.
+     * The amount after fee is floored to a satoshi multiple; the remainder joins the fee.
      * @param _target The 20-byte script hash as an address type.
      */
     function withdrawToP2SH(address _target) external payable nonReentrant {
@@ -265,6 +294,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /**
      * @notice Withdraw to a Base58Check-encoded Dogecoin address.
      * @dev Decodes the address on-chain and routes to P2PKH or P2SH.
+     * The amount after fee is floored to a satoshi multiple; the remainder joins the fee.
      * @param _dogeAddress The full Base58Check-encoded Dogecoin address.
      */
     function withdrawToDogeAddress(string calldata _dogeAddress) external payable nonReentrant {
@@ -287,6 +317,9 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
     /**
      * @dev Internal function to process withdrawals with envelope encoding.
+     * The amount after fee is floored to a multiple of {SATOSHI_TO_WEI} so it is
+     * exactly representable on Dogecoin (8 decimals); the sub-satoshi remainder
+     * is added to the fee. Callers in {feeExemptCallers} pay no base fee.
      * @param _target The 20-byte hash160/script-hash payload.
      * @param _isP2SH True for P2SH, false for P2PKH.
      */
@@ -297,7 +330,8 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             revert ErrorZeroAddress();
         }
 
-        uint256 fee = withdrawalFee;
+        // Effective fee: exempt callers (e.g. the fee vault adapter) pay no base fee.
+        uint256 fee = feeExemptCallers[msg.sender] ? 0 : withdrawalFee;
         uint256 minAmount = minWithdrawalAmount;
 
         // Check 1: Fee must be covered by msg.value.
@@ -307,8 +341,16 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
         uint256 amountAfterFee = msg.value - fee;
 
-        // Check 2: Amount after fee must meet the minimum.
-        if (amountAfterFee < minAmount) {
+        // Floor the amount to a satoshi multiple; the dust joins the fee so that
+        // amountAfterFee + fee == msg.value still holds.
+        uint256 dust = amountAfterFee % SATOSHI_TO_WEI;
+        if (dust > 0) {
+            amountAfterFee -= dust;
+            fee += dust;
+        }
+
+        // Check 2: The floored amount must be non-zero and meet the minimum.
+        if (amountAfterFee == 0 || amountAfterFee < minAmount) {
             revert ErrorBelowMinimumWithdrawal();
         }
 

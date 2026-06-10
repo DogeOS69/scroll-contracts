@@ -71,6 +71,8 @@ abstract contract Configuration is Script {
     string internal DEPLOYMENT_SALT;
     address internal L1_FEE_VAULT_ADDR;
     address internal L2_BRIDGE_FEE_RECIPIENT_ADDR;
+    // Dogecoin P2PKH hash160 (encoded as an address) that receives fee vault withdrawals.
+    address internal FEE_VAULT_DOGE_RECIPIENT_ADDR;
 
     // bridge fees
     uint256 internal DEPOSIT_FEE;
@@ -172,6 +174,12 @@ abstract contract Configuration is Script {
         L1_FEE_VAULT_ADDR = cfg.readAddress(".contracts.L1_FEE_VAULT_ADDR");
 
         L2_BRIDGE_FEE_RECIPIENT_ADDR = cfg.readAddress(".contracts.L2_BRIDGE_FEE_RECIPIENT_ADDR");
+
+        // Optional key for older configs; required (notnull) when wiring the fee vault
+        // to the FeeVaultMoatAdapter during initialization.
+        if (vm.keyExistsToml(cfg, ".contracts.FEE_VAULT_DOGE_RECIPIENT_ADDR")) {
+            FEE_VAULT_DOGE_RECIPIENT_ADDR = cfg.readAddress(".contracts.FEE_VAULT_DOGE_RECIPIENT_ADDR");
+        }
 
         DEPOSIT_FEE = cfg.readUint(".contracts.DEPOSIT_FEE");
         WITHDRAWAL_FEE = cfg.readUint(".contracts.WITHDRAWAL_FEE");

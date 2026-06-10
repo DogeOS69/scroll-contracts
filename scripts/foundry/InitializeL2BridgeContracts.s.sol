@@ -42,6 +42,9 @@ contract InitializeL2BridgeContracts is Script {
     address L1_WDOGE_GATEWAY_PROXY_ADDR = vm.envAddress("L1_WDOGE_GATEWAY_PROXY_ADDR");
 
     address L2_TX_FEE_VAULT_ADDR = vm.envAddress("L2_TX_FEE_VAULT_ADDR");
+    // FeeVaultMoatAdapter must be deployed beforehand (this legacy/manual path does not
+    // deploy the Moat or the adapter itself).
+    address L2_FEE_VAULT_MOAT_ADAPTER_ADDR = vm.envAddress("L2_FEE_VAULT_MOAT_ADAPTER_ADDR");
     address L1_GAS_PRICE_ORACLE_ADDR = vm.envAddress("L1_GAS_PRICE_ORACLE_ADDR");
     address L2_WHITELIST_ADDR = vm.envAddress("L2_WHITELIST_ADDR");
     address L2_MESSAGE_QUEUE_ADDR = vm.envAddress("L2_MESSAGE_QUEUE_ADDR");
@@ -77,8 +80,10 @@ contract InitializeL2BridgeContracts is Script {
         // initialize L2MessageQueue
         L2MessageQueue(L2_MESSAGE_QUEUE_ADDR).initialize(L2_DOGEOS_MESSENGER_PROXY_ADDR);
 
-        // initialize L2TxFeeVault
-        L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
+        // initialize L2TxFeeVault: withdrawals are routed through the FeeVaultMoatAdapter
+        // (and thus the Moat) rather than directly through the messenger. The vault's
+        // recipient must separately be set to the Dogecoin P2PKH hash160.
+        L2TxFeeVault(payable(L2_TX_FEE_VAULT_ADDR)).updateMessenger(L2_FEE_VAULT_MOAT_ADAPTER_ADDR);
 
         // initialize L1GasPriceOracle
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).updateWhitelist(L2_WHITELIST_ADDR);

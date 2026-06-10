@@ -58,8 +58,7 @@ contract L2DogeOsMessengerTest is Test {
         _l2Messenger = new L2DogeOsMessenger(
             address(_l1Messenger), // counterpart
             address(_l2MessageQueue), // messageQueue
-            address(_moat), // initialMoat
-            address(0xfee) // _feeVault (Assuming address(0xfee) is suitable placeholder)
+            address(_moat) // initialMoat
         );
 
         // Link Moat back to Messenger (requires owner call)
@@ -175,6 +174,21 @@ contract L2DogeOsMessengerTest is Test {
         );
         // Use named parameters for clarity
         _l2Messenger.sendMessage{value: 0}({_to: targetL1, _value: 0, _message: message, _gasLimit: 100000}); // Value doesn't matter for this check
+    }
+
+    // Test that the fee vault can no longer send L2 -> L1 messages directly;
+    // its withdrawals must be routed through the Moat via the FeeVaultMoatAdapter.
+    function testSendMessageFromFeeVaultReverts() external {
+        address feeVault = address(0xfee);
+        address targetL1 = address(0x111);
+        bytes memory message = new bytes(0);
+
+        vm.deal(feeVault, 1 ether);
+        vm.prank(feeVault);
+        vm.expectRevert(
+            abi.encodeWithSelector(L2DogeOsMessenger.ErrorSenderNotMoat.selector, feeVault, address(_moat))
+        );
+        _l2Messenger.sendMessage{value: 1 ether}({_to: targetL1, _value: 1 ether, _message: message, _gasLimit: 0});
     }
 
     // Test that sendMessage succeeds when called by the Moat address.
