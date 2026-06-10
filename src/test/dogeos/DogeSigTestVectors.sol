@@ -27,7 +27,7 @@ abstract contract DogeSigTestVectors {
     }
 
     function _sigVectors() internal pure returns (SigVector[] memory vectors) {
-        vectors = new SigVector[](9);
+        vectors = new SigVector[](10);
         // compressed short ascii (recId 1)
         vectors[0] = SigVector({
             name: "compressed short ascii",
@@ -144,6 +144,19 @@ abstract contract DogeSigTestVectors {
             y: bytes32(0xcc338921b0a7d9fd64380971763b61e9add888a4375f8e0f05cc262ac64f9c37),
             keyHash: hex"b46abf4d9e1746e33bcc39cea3de876c29c4adf3",
             compressed: true
+        });
+        // uncompressed recId zero (recId 0)
+        vectors[9] = SigVector({
+            name: "uncompressed recId zero",
+            message: hex"756e636f6d70726573736564207265636f76657279206964207a65726f",
+            msgHash: bytes32(0x03656ca9446d1399a6387418d423599b5bd592e661ff3b0103e6a4759f8aec88),
+            header: 27,
+            r: bytes32(0x04c938a8b94ab4c69ef6cd52649d0cdbc1c1c7c4aeea7e4971a20acc640e47d0),
+            s: bytes32(0x058b0164ec67c5680ce82dfe31fc7ecd426ccae149188dc20de8510c4c3e8e73),
+            x: bytes32(0x774ae7f858a9411e5ef4246b70c65aac5649980be5c17891bbec17895da008cb),
+            y: bytes32(0xd984a032eb6b5e190243dd56d7b7b365372db1e2dff9d6a8301d74c9c953c61b),
+            keyHash: hex"ef31f6db0c690071007448c034d35e1d4ef2ec4a",
+            compressed: false
         });
         return vectors;
     }

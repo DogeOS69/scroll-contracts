@@ -17,6 +17,9 @@ interface IDogeP2PKHVerifier {
     function dogecoinMessageHash(bytes calldata message) external pure returns (bytes32 digest);
 
     /// @notice Compute the Dogecoin P2PKH key hash (HASH160) of a public key.
+    /// @dev Pure serialization utility: does NOT validate that (x, y) is a point on the
+    ///      secp256k1 curve. Integrators needing that guarantee must check it themselves
+    ///      (the verification entrypoints below do validate the witness).
     /// @param x The public key x coordinate.
     /// @param y The public key y coordinate.
     /// @param compressed Whether to serialize the key in compressed form.
@@ -25,11 +28,13 @@ interface IDogeP2PKHVerifier {
         bytes32 x,
         bytes32 y,
         bool compressed
-    ) external pure returns (bytes20 keyHash);
+    ) external view returns (bytes20 keyHash);
 
     /// @notice Recover the Dogecoin P2PKH key hash proven by a compact signature.
     /// @param dogeMessageHash The Dogecoin signmessage digest.
-    /// @param header The compact-signature header byte (27..34).
+    /// @param header The compact-signature header byte. Valid range is 27..34, but
+    ///        headers 29/30/33/34 carry recovery ids 2/3 and always revert
+    ///        (unsupported by EVM ecrecover; ~2^-128 of honest signatures).
     /// @param r The signature r value.
     /// @param s The signature s value.
     /// @param x The public key witness x coordinate.
@@ -43,12 +48,14 @@ interface IDogeP2PKHVerifier {
         bytes32 s,
         bytes32 x,
         bytes32 y
-    ) external pure returns (bytes20 keyHash, bool ok);
+    ) external view returns (bytes20 keyHash, bool ok);
 
     /// @notice Verify that the owner of a Dogecoin P2PKH key hash signed a message hash.
     /// @param expectedKeyHash The 20-byte P2PKH key hash the signature must prove.
     /// @param dogeMessageHash The Dogecoin signmessage digest.
-    /// @param header The compact-signature header byte (27..34).
+    /// @param header The compact-signature header byte. Valid range is 27..34, but
+    ///        headers 29/30/33/34 carry recovery ids 2/3 and always revert
+    ///        (unsupported by EVM ecrecover; ~2^-128 of honest signatures).
     /// @param r The signature r value.
     /// @param s The signature s value.
     /// @param x The public key witness x coordinate.
@@ -62,11 +69,11 @@ interface IDogeP2PKHVerifier {
         bytes32 s,
         bytes32 x,
         bytes32 y
-    ) external pure returns (bool ok);
+    ) external view returns (bool ok);
 
     /// @notice Packed-calldata variant of {verifyP2PKH} for hot paths.
     /// @param packed 181 bytes: keyHash(20) || msgHash(32) || header(1) || r(32) ||
     ///        s(32) || x(32) || y(32).
     /// @return ok True if the signature proves ownership of the packed key hash.
-    function verifyP2PKHPacked(bytes calldata packed) external pure returns (bool ok);
+    function verifyP2PKHPacked(bytes calldata packed) external view returns (bool ok);
 }

@@ -40,7 +40,7 @@ contract DogeP2PKHVerifier is IDogeP2PKHVerifier {
         bytes32 x,
         bytes32 y,
         bool compressed
-    ) external pure returns (bytes20 keyHash) {
+    ) external view returns (bytes20 keyHash) {
         return DogeSig.p2pkhFromPubKey(x, y, compressed);
     }
 
@@ -52,7 +52,7 @@ contract DogeP2PKHVerifier is IDogeP2PKHVerifier {
         bytes32 s,
         bytes32 x,
         bytes32 y
-    ) external pure returns (bytes20 keyHash, bool ok) {
+    ) external view returns (bytes20 keyHash, bool ok) {
         return DogeSig.recoverP2PKH(dogeMessageHash, header, r, s, x, y);
     }
 
@@ -65,14 +65,14 @@ contract DogeP2PKHVerifier is IDogeP2PKHVerifier {
         bytes32 s,
         bytes32 x,
         bytes32 y
-    ) external pure returns (bool ok) {
+    ) external view returns (bool ok) {
         return DogeSig.verifyP2PKH(expectedKeyHash, dogeMessageHash, header, r, s, x, y);
     }
 
     /// @inheritdoc IDogeP2PKHVerifier
     /// @dev Layout: keyHash(20) || msgHash(32) || header(1) || r(32) || s(32) || x(32) || y(32).
     ///      Reverts with {ErrorInvalidPackedLength} unless `packed` is exactly 181 bytes.
-    function verifyP2PKHPacked(bytes calldata packed) external pure returns (bool ok) {
+    function verifyP2PKHPacked(bytes calldata packed) external view returns (bool ok) {
         if (packed.length != PACKED_LENGTH) {
             revert ErrorInvalidPackedLength(packed.length);
         }

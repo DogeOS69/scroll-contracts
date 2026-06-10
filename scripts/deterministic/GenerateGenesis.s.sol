@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity =0.8.24;
 
+import {console} from "forge-std/Script.sol";
+
 import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
 import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
@@ -168,6 +170,10 @@ contract GenerateGenesis is DeployScroll {
         address predeployAddr = tryGetOverride("L2_DOGE_P2PKH_VERIFIER");
 
         if (predeployAddr == address(0)) {
+            // Loud skip: a stale config.toml (predating this override) would otherwise
+            // produce a genesis without code at the canonical DogeOSPredeploy address
+            // while DeployScroll falls back to a CREATE2 deployment elsewhere.
+            console.log("WARNING: L2_DOGE_P2PKH_VERIFIER override not set; skipping predeploy etch");
             return;
         }
 

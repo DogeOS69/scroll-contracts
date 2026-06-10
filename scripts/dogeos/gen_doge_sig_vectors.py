@@ -115,6 +115,30 @@ def ripemd160(data: bytes) -> bytes:
         return _ripemd160_pure(data)
 
 
+def _ripemd160_self_test() -> None:
+    """Known-answer tests, run at import time.
+
+    The pure-Python fallback is exercised unconditionally (it only runs in production
+    when OpenSSL lacks the legacy provider, so without this it would be dead untested
+    code), and whichever implementation `ripemd160()` dispatches to is checked too.
+    """
+    kats = {
+        b"": bytes.fromhex("9c1185a5c5e9fc54612808977ee8f548b2258d31"),
+        b"abc": bytes.fromhex("8eb208f7e05d987a9b044a8e98c6b087f15a0bfc"),
+        b"message digest": bytes.fromhex("5d0689ef49d2fae572b881b123a85ffa21595f36"),
+    }
+    for msg, want in kats.items():
+        got = _ripemd160_pure(msg)
+        if got != want:
+            raise RuntimeError(f"pure-Python RIPEMD-160 KAT failed for {msg!r}: {got.hex()}")
+        got = ripemd160(msg)
+        if got != want:
+            raise RuntimeError(f"ripemd160() dispatch KAT failed for {msg!r}: {got.hex()}")
+
+
+_ripemd160_self_test()
+
+
 def sha256(data: bytes) -> bytes:
     return hashlib.sha256(data).digest()
 
@@ -156,19 +180,23 @@ class Vector:
         digest = message_hash(self.message)
         # coincurve returns r(32) || s(32) || recId(1); hasher=None signs the raw digest.
         sig = priv.sign_recoverable(digest, hasher=None)
-        assert len(sig) == 65
+        # plain raises (not assert): asserts vanish under `python -O`
+        if len(sig) != 65:
+            raise RuntimeError(f"vector {self.name!r}: unexpected signature length {len(sig)}")
         r, s, rec_id = sig[:32], sig[32:64], sig[64]
 
         if rec_id != self.expected_rec_id:
-            raise AssertionError(
+            raise RuntimeError(
                 f"vector {self.name!r}: recId {rec_id}, expected {self.expected_rec_id}; "
                 "tweak the key or message constant"
             )
-        assert int.from_bytes(s, "big") <= SECP256K1_N // 2, "libsecp256k1 always signs low-s"
+        if int.from_bytes(s, "big") > SECP256K1_N // 2:
+            raise RuntimeError(f"vector {self.name!r}: high-s output; libsecp256k1 should sign low-s")
 
         # Self-check: recover the pubkey from the compact signature.
         recovered = PublicKey.from_signature_and_message(sig, digest, hasher=None)
-        assert recovered.format(compressed=False) == pub.format(compressed=False)
+        if recovered.format(compressed=False) != pub.format(compressed=False):
+            raise RuntimeError(f"vector {self.name!r}: pubkey recovery self-check failed")
 
         header = 27 + rec_id + (4 if self.compressed else 0)
         serialized_pub = pub.format(compressed=self.compressed)
@@ -200,6 +228,8 @@ VECTORS = [
     Vector("message length 1024", 0x07, b"g" * 1024, True, 0),
     Vector("recId zero", 0x08, b"recovery id zero", True, 0),
     Vector("recId one", 0x09, b"recovery id one!", True, 1),
+    # header 27: uncompressed + recId 0 completes the header matrix (27/28/31/32)
+    Vector("uncompressed recId zero", 0x0B, b"uncompressed recovery id zero", False, 0),
 ]
 
 

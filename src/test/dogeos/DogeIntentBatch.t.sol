@@ -107,7 +107,7 @@ contract DogeIntentBatchInternal is DogeIntentLedgerBase {
         bytes32 s,
         bytes32 x,
         bytes32 y
-    ) internal pure override returns (bool) {
+    ) internal view override returns (bool) {
         return DogeSig.verifyP2PKH(from, msgHash, header, r, s, x, y);
     }
 }
