@@ -1,17 +1,33 @@
-# Moat Upgrade - P2SH Withdrawal Support
+# Moat Upgrade - v0.3.0 Withdrawal Bridge (P2SH + Satoshi Flooring + Fee Vault Routing)
 
 This document is split into two parts:
 
 - **Operations:** commands and checks an operator should run.
 - **Explanation:** why the upgrade is needed and how it works.
 
-The target upgrade changes the L2 `Moat` proxy at `L2_MOAT_PROXY_ADDR` to the
-`feat/p2sh-withdrawals` revision. It adds P2SH withdrawal support, a versioned
-message envelope, and on-chain Base58Check address decoding.
+This is the consolidated v0.3.0 withdrawal-bridge upgrade for networks running
+v0.2.0. It covers, in one upgrade window:
 
-Reference merge: [`3e29ab0`](../../commit/3e29ab0) (merges
-`feat/p2sh-withdrawals` into `dogeos-v0.3.0-develop`, introduced by
-[`4cfcad9`](../../commit/4cfcad9)).
+1. **P2SH withdrawal support** — typed entry points, a versioned 2-byte message
+   envelope, and on-chain Base58Check address decoding
+   (`feat/p2sh-withdrawals`).
+2. **Satoshi flooring** — withdrawal amounts are floored to a multiple of
+   `1e10` wei (1 Dogecoin satoshi) so every L2->L1 value is exactly
+   representable as a Dogecoin UTXO output; sub-satoshi dust joins the fee
+   (`fix/floor-withdrawal-amounts`, PR #38).
+3. **Fee vault routing** — `L2TxFeeVault` withdrawals are routed through the
+   new `FeeVaultMoatAdapter` (fee-exempt via `Moat.setFeeExempt`), and the
+   `FEE_VAULT` exemption is removed from `L2DogeOsMessenger`, making the Moat
+   the only possible L2->L1 sender (same PR).
+
+No predeploy bytecode changes: the fee vault keeps its v0.2.0 code and is
+reconfigured purely through its owner setters. The only implementation swaps
+are the two proxied contracts (`Moat`, `L2DogeOsMessenger`); the adapter is a
+fresh standalone deployment.
+
+Reference merges: [`3e29ab0`](../../commit/3e29ab0) (`feat/p2sh-withdrawals`,
+introduced by [`4cfcad9`](../../commit/4cfcad9)) and PR #38
+(`fix/floor-withdrawal-amounts`).
 
 ---
 
@@ -22,12 +38,27 @@ run and what to verify.
 
 ### 1.1 Operational summary
 
-The live-chain upgrade has only two chain-changing actions:
+The live-chain upgrade has six chain-changing actions, **in this order**:
 
-| Action                                                    | Signer             | Script                                                                                       |
-| --------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------- |
-| Deploy the new `Moat` implementation                      | `DEPLOYER`         | `BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh`                                |
-| Point the existing `Moat` proxy to the new implementation | `ProxyAdmin owner` | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-moat-proxy-upgrade.sh` |
+| #   | Action                                                   | Signer                   | Script                                                                                                   |
+| --- | -------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 1   | Deploy the new `Moat` implementation                     | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh`                                            |
+| 2   | Point the `Moat` proxy to the new implementation         | `ProxyAdmin owner`       | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-moat-proxy-upgrade.sh`             |
+| 3   | Deploy the `FeeVaultMoatAdapter`                         | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh`                               |
+| 4   | Rewire the fee vault through the adapter (4 owner calls) | `Moat + fee vault owner` | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-fee-vault-rewire.sh`               |
+| 5   | Deploy the new `L2DogeOsMessenger` implementation        | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh`                                |
+| 6   | Point the messenger proxy to the new implementation      | `ProxyAdmin owner`       | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh` |
+
+The ordering is load-bearing and fail-closed:
+
+- Step 2 before step 4: the rewire calls `Moat.setFeeExempt`, which only exists
+  on the new implementation.
+- Step 4 before step 6: after the messenger upgrade, only the Moat can send
+  L2->L1 messages — a vault still pointing directly at the messenger would have
+  its withdrawals revert (fees accumulate, nothing is lost, but withdrawals
+  stall until rewired). `submit-dogeos-messenger-proxy-upgrade.sh` refuses to
+  broadcast while the vault is unrewired.
+- Stopping after any step leaves the bridge in a working state.
 
 The other steps are configuration selection, dry runs, preflight checks, and
 post-upgrade verification. They are included to avoid upgrading the wrong
@@ -39,14 +70,24 @@ configuration. Network values and contract addresses are read from:
 - `volume/config.toml`
 - `volume/config-contracts.toml`
 
+**New config prerequisite:** `volume/config.toml` must define
+`FEE_VAULT_DOGE_RECIPIENT_ADDR` under `[contracts]` — the Dogecoin P2PKH
+hash160 (20 bytes, encoded as an EVM address) that receives fee vault
+withdrawals. Add it to the network configuration repository before starting.
+The rewire script refuses to run without it.
+
 Private keys are the intended environment-variable inputs. For this upgrade,
-`DEPLOYER_PRIVATE_KEY` is used by the implementation deploy step, and
-`OWNER_PRIVATE_KEY` is used by the ProxyAdmin upgrade step.
+`DEPLOYER_PRIVATE_KEY` is used by the implementation deploy steps, and
+`OWNER_PRIVATE_KEY` is used by the ProxyAdmin upgrade and rewire steps (the
+Moat, fee vault, and ProxyAdmin are expected to share one owner; the scripts
+print the actual owners during preflight).
 
 This runbook prepares `volume` as a local working copy of the target network
-configuration. The implementation deploy step writes
-`L2_MOAT_IMPLEMENTATION_ADDR` back to `volume/config-contracts.toml`, so treat
-`volume` as the active config workspace for this upgrade run.
+configuration. The deploy steps write `L2_MOAT_IMPLEMENTATION_ADDR`,
+`L2_FEE_VAULT_MOAT_ADAPTER_ADDR`, and `L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR`
+back to `volume/config-contracts.toml`, so treat `volume` as the active config
+workspace for this upgrade run and sync it back to the network configuration
+repository afterwards.
 
 ### 1.2 Command quick start
 
@@ -73,12 +114,30 @@ if grep -n 'dogeos\.com' volume/config.toml; then
   exit 1
 fi
 
+# 1+2: Moat implementation + proxy upgrade
 scripts/deterministic/shell/deploy-moat-impl.sh
 BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh
 
 scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
 OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
   scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
+
+# 3: FeeVaultMoatAdapter
+scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh
+BROADCAST=1 scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh
+
+# 4: rewire fee vault (setFeeExempt -> updateRecipient -> updateMinWithdrawAmount -> updateMessenger)
+scripts/deterministic/shell/submit-fee-vault-rewire.sh
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-fee-vault-rewire.sh
+
+# 5+6: messenger implementation + proxy upgrade (refuses to run before step 4)
+scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh
+BROADCAST=1 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh
+
+scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh
 
 ```
 
@@ -91,9 +150,16 @@ Before sending any transaction:
   `<repo-root>/volume`.
 - After copying `config.toml`, replace `testnet.dogeos.com` with
   `devnet.doge.xyz`.
-- Confirm the envelope-aware withdraw processor is already deployed.
-- Confirm you control the `ProxyAdmin owner` key printed by the upgrade script.
+- Add `FEE_VAULT_DOGE_RECIPIENT_ADDR` to `volume/config.toml` under
+  `[contracts]` (the Dogecoin P2PKH hash160 for fee withdrawals) and to the
+  network configuration repository.
+- Confirm the envelope-aware withdraw processor is already deployed, and that
+  it floors / expects satoshi-aligned amounts consistently with the contract.
+- Confirm you control the `ProxyAdmin owner` key printed by the upgrade
+  scripts, and the Moat / fee vault owner key used by the rewire script.
 - Run the dry-run commands first, then run the same flow with `BROADCAST=1`.
+- Follow the step order from 1.1 — the scripts enforce the critical ordering,
+  but do not skip ahead.
 
 ### 1.4 Existing deployment
 
@@ -200,7 +266,79 @@ ProxyAdmin.upgrade(L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR)
 
 No `initialize` call is needed.
 
-#### Step 6 - Verify the upgrade
+#### Step 6 - Deploy the FeeVaultMoatAdapter
+
+```bash
+scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh
+BROADCAST=1 scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh
+```
+
+The adapter is a small immutable contract: `FeeVaultMoatAdapter(feeVault, moatProxy)`.
+After broadcast, confirm `volume/config-contracts.toml` contains the new:
+
+```toml
+L2_FEE_VAULT_MOAT_ADAPTER_ADDR = "..."
+```
+
+The deploy script warns (but does not fail) if `FEE_VAULT_DOGE_RECIPIENT_ADDR`
+is still missing from `volume/config.toml` — fix that before the next step.
+
+#### Step 7 - Rewire the fee vault through the adapter
+
+```bash
+scripts/deterministic/shell/submit-fee-vault-rewire.sh
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-fee-vault-rewire.sh
+```
+
+The script performs four owner calls, in order, skipping any that are already
+in the desired state (safe to rerun):
+
+1. `Moat.setFeeExempt(adapter, true)` — fee vault withdrawals pay no base
+   withdrawal fee (only sub-satoshi dust goes to the Moat `feeRecipient`).
+2. `L2TxFeeVault.updateRecipient(FEE_VAULT_DOGE_RECIPIENT_ADDR)` — the vault's
+   recipient is reinterpreted by the adapter as the Dogecoin P2PKH hash160; the
+   old EVM-style recipient must not be left in place.
+3. `L2TxFeeVault.updateMinWithdrawAmount(moat.minWithdrawalAmount() + moat.SATOSHI_TO_WEI())`
+   — guarantees a balance passing the vault's own minimum cannot revert inside
+   the Moat. Re-run this step whenever the Moat minimum is raised.
+4. `L2TxFeeVault.updateMessenger(adapter)` — from this point fee vault
+   withdrawals are standard Moat withdrawals.
+
+Preflight refuses to run if the Moat proxy does not yet expose
+`SATOSHI_TO_WEI()` (i.e. steps 2-3 of the summary have not landed) or if the
+adapter's immutables do not match the configured vault and Moat proxy.
+
+#### Step 8 - Deploy the L2DogeOsMessenger implementation
+
+```bash
+scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh
+BROADCAST=1 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh
+```
+
+Constructor args are read from `volume/config-contracts.toml`
+(`L1_SCROLL_MESSENGER_PROXY_ADDR`, `L2_MESSAGE_QUEUE_ADDR`,
+`L2_MOAT_PROXY_ADDR`) — the fee vault is no longer a constructor argument.
+After broadcast, confirm `volume/config-contracts.toml` contains the new:
+
+```toml
+L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = "..."
+```
+
+#### Step 9 - Upgrade the messenger proxy
+
+```bash
+scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh
+```
+
+After this transaction the Moat is the only address that can send L2->L1
+messages. The script refuses to broadcast while
+`L2TxFeeVault.messenger() != L2_FEE_VAULT_MOAT_ADAPTER_ADDR` (override with
+`FORCE=1` only if you intentionally accept stalled fee withdrawals).
+
+#### Step 10 - Verify the upgrade
 
 Set the RPC URL used for direct `cast` checks:
 
@@ -259,12 +397,52 @@ This static call may revert because it does not provide the required fee. That
 is acceptable. The important check is that it does not fail as an unknown
 function selector.
 
-Finally, send one end-to-end withdrawal through each path and confirm the L1
-side handles the envelope bytes correctly:
+Check the flooring constant and fee exemption:
 
-- `withdrawToP2PKH`
-- `withdrawToP2SH`
-- `withdrawToDogeAddress`
+```bash
+cast call <L2_MOAT_PROXY_ADDR> 'SATOSHI_TO_WEI()(uint256)' --rpc-url "$L2_RPC"
+# expected: 10000000000
+
+cast call <L2_MOAT_PROXY_ADDR> 'feeExemptCallers(address)(bool)' \
+  <L2_FEE_VAULT_MOAT_ADAPTER_ADDR> --rpc-url "$L2_RPC"
+# expected: true
+```
+
+Check the fee vault rewire:
+
+```bash
+cast call <L2_TX_FEE_VAULT_ADDR> 'messenger()(address)' --rpc-url "$L2_RPC"
+# expected: <L2_FEE_VAULT_MOAT_ADAPTER_ADDR>
+
+cast call <L2_TX_FEE_VAULT_ADDR> 'recipient()(address)' --rpc-url "$L2_RPC"
+# expected: <FEE_VAULT_DOGE_RECIPIENT_ADDR> (the doge hash160, not an EVM wallet)
+
+cast call <L2_TX_FEE_VAULT_ADDR> 'minWithdrawAmount()(uint256)' --rpc-url "$L2_RPC"
+# expected: >= moat.minWithdrawalAmount() + 1e10
+```
+
+Check that the messenger rejects non-Moat senders (the fee vault path):
+
+```bash
+cast call <L2_DOGEOS_MESSENGER_PROXY_ADDR> \
+  'sendMessage(address,uint256,bytes,uint256)' \
+  0x0000000000000000000000000000000000000001 0 0x 0 \
+  --from <L2_TX_FEE_VAULT_ADDR> --rpc-url "$L2_RPC"
+# expected: revert ErrorSenderNotMoat
+```
+
+Finally, send end-to-end withdrawals and confirm the L1 side handles them
+correctly:
+
+- `withdrawToP2PKH`, `withdrawToP2SH`, `withdrawToDogeAddress` — including one
+  with a **sub-satoshi dust amount** (e.g. value ending in `...123` wei):
+  confirm the `WithdrawalQueued` amount is a multiple of `1e10` wei, the dust
+  landed with the fee recipient, and the Dogecoin UTXO matches the floored
+  amount exactly.
+- One fee vault withdrawal (`L2TxFeeVault.withdraw()` once the balance exceeds
+  its minimum): confirm the resulting L2->L1 message is sent **by the Moat**
+  with a `version=1, flags=0` envelope, the value is satoshi-aligned, and no
+  base withdrawal fee was deducted.
 
 ### 1.5 Manual implementation deployment fallback
 
@@ -341,9 +519,46 @@ ordering matters.
 
 All four entry points use the common `_processWithdrawal(target, isP2SH)` path:
 
-1. Validate fee and minimum withdrawal amount.
-2. Transfer the fee.
-3. Call `IL2ScrollMessenger.sendMessage` with the versioned envelope.
+1. Compute the effective fee (zero for fee-exempt callers, see below).
+2. Floor the post-fee amount to a multiple of `SATOSHI_TO_WEI` (`1e10` wei);
+   the sub-satoshi remainder is added to the fee.
+3. Validate the floored amount against the minimum (and against zero).
+4. Transfer the fee (base fee + dust) to `feeRecipient`.
+5. Call `IL2ScrollMessenger.sendMessage` with the versioned envelope.
+
+Invariants: `amount + fee == msg.value` and `amount % 1e10 == 0` in every
+branch, so the Dogecoin UTXO output value always identifies the L2 withdrawal
+exactly.
+
+#### Satoshi flooring
+
+The L2 native token has 18 decimals; Dogecoin has 8. The Doge-side withdraw
+processor maps a UTXO output back to its originating L2 transaction using only
+what it sees on Dogecoin, so the queued value must be exactly representable in
+8 decimals. Any withdrawal value with sub-satoshi precision is floored and the
+dust joins the fee. A withdrawal that floors to zero reverts.
+
+#### Fee vault routing and fee exemption
+
+`L2TxFeeVault.withdraw()` used to send value L2->L1 directly through the
+messenger (`from = vault`, empty message, arbitrary precision) — invisible to a
+processor that assumes all withdrawals come from the Moat. v0.3.0 routes it
+through the new [`FeeVaultMoatAdapter`](src/dogeos/FeeVaultMoatAdapter.sol):
+the vault's owner-settable `messenger` points at the adapter, which forwards
+the value into `Moat.withdrawToP2PKH`, reinterpreting the vault's `recipient`
+as the Dogecoin P2PKH hash160. Fee vault withdrawals therefore become standard
+Moat withdrawals.
+
+The new `Moat.setFeeExempt(address,bool)` (owner-only) exempts the adapter from
+the base withdrawal fee so the protocol does not pay its own fee; flooring and
+the minimum still apply.
+
+#### Messenger sender restriction
+
+`L2DogeOsMessenger` drops the `FEE_VAULT` constructor argument and sender
+exemption: `_sendMessage` now requires `msg.sender == MOAT`. Every L2->L1
+message on the network is a Moat withdrawal with a v1 envelope and a
+satoshi-aligned value — enforced on-chain, not by convention.
 
 #### Message envelope format
 
@@ -398,9 +613,16 @@ Additions to `IMoat`:
 
 - `function P2PKH_PREFIX() external view returns (bytes1);`
 - `function P2SH_PREFIX() external view returns (bytes1);`
+- `function SATOSHI_TO_WEI() external view returns (uint256);`
+- `function feeExemptCallers(address) external view returns (bool);`
+- `function setFeeExempt(address, bool) external;`
 - `function withdrawToP2PKH(address) external payable;`
 - `function withdrawToP2SH(address) external payable;`
 - `function withdrawToDogeAddress(string) external payable;`
+- `event FeeExemptionUpdated(address indexed account, bool exempt);`
+
+`L2DogeOsMessenger` removals: the `FEE_VAULT()` getter and the fee vault
+constructor argument.
 
 Removed custom errors:
 
@@ -415,14 +637,17 @@ The removed errors are no longer thrown by `Moat`; `Unauthorized()` belongs to
 
 The Moat contract layout is preserved and safe for proxy upgrade:
 
-| Slot   | Field                                                                                                       |
-| ------ | ----------------------------------------------------------------------------------------------------------- |
-| `0x00` | `_owner` from `OwnableBase`                                                                                 |
-| `0x01` | `_status` plus `_initialized` / `_initializing` packing from `ReentrancyGuardUpgradeable` / `Initializable` |
-| `...`  | `messenger`, `basculeVerifier`, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee`        |
+| Slot          | Field                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `0x00`        | `_owner` from `OwnableBase` packed with `_initialized` / `_initializing` from `Initializable`        |
+| `0x01`        | `_status` from `ReentrancyGuardUpgradeable`                                                          |
+| `0x02`-`0x32` | `__gap` from `ReentrancyGuardUpgradeable`                                                            |
+| `0x33`-`0x38` | `messenger`, `basculeVerifier`, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee` |
+| `0x39` (57)   | **new in v0.3.0:** `feeExemptCallers` mapping — appended after the previously-last variable          |
 
-`P2PKH_PREFIX` and `P2SH_PREFIX` live in bytecode as immutables and consume no
-storage slots. No storage migration is required.
+`P2PKH_PREFIX`, `P2SH_PREFIX`, and `SATOSHI_TO_WEI` live in bytecode as
+immutables/constants and consume no storage slots. The only layout change is
+the appended mapping, so no storage migration is required.
 
 No `initialize` re-run is required because the proxy is already initialized.
 
@@ -475,11 +700,12 @@ It:
 
 ### 2.5 External services
 
-| Service            | Required action                                                                                                                                                                                       | Severity                           |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. | Breaking; must ship before upgrade |
-| Frontend / SDK     | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers.                                                                                                         | Additive                           |
-| Bascule verifier   | No change. `handleL1Message` is untouched by this upgrade.                                                                                                                                            | None                               |
+| Service            | Required action                                                                                                                                                                                                                                                                                                                                                               | Severity                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping). | Breaking; must ship before upgrade |
+| Frontend / SDK     | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers. Surface the flooring: amounts below 1e10-wei precision are truncated into the fee.                                                                                                                                                                                              | Additive                           |
+| Fee collection ops | Fee vault withdrawals now land at the configured Dogecoin address (`FEE_VAULT_DOGE_RECIPIENT_ADDR`), not an L1 EVM wallet. Update treasury monitoring accordingly.                                                                                                                                                                                                            | Breaking; coordinate with step 7   |
+| Bascule verifier   | No change. `handleL1Message` is untouched by this upgrade.                                                                                                                                                                                                                                                                                                                    | None                               |
 
 Deploy the envelope-aware relayer before the proxy upgrade. After the proxy is
 upgraded, even `withdrawToL1` emits a `version=1, flags=0` envelope. A relayer
@@ -498,9 +724,16 @@ Caveats:
   withdrawals.
 - Do not roll back the relayer unless you are certain no envelope withdrawals
   are in flight.
-- Storage is preserved across both directions.
+- Storage is preserved across both directions (the appended
+  `feeExemptCallers` slot is simply ignored by the old implementation).
 - If rollback is permanent, the P2SH entry points disappear from the ABI, so
   SDKs and frontends must revert to the old interface.
+- **Rolling back the Moat while the fee vault is routed through the adapter
+  breaks fee withdrawals**: the adapter calls `withdrawToP2PKH`, which does not
+  exist on the v0.2.0 implementation. Roll back in reverse order — messenger
+  proxy first (restores the vault's direct-send permission), then
+  `vault.updateMessenger(<messenger proxy>)` and
+  `vault.updateRecipient(<old EVM recipient>)`, then the Moat proxy.
 
 ---
 
@@ -509,9 +742,11 @@ Caveats:
 - Contract source: [`src/dogeos/Moat.sol`](src/dogeos/Moat.sol)
 - Interface: [`src/dogeos/IMoat.sol`](src/dogeos/IMoat.sol)
 - Address decoder: [`src/dogeos/DogeAddressLib.sol`](src/dogeos/DogeAddressLib.sol)
-- Deploy script: [`scripts/deterministic/DeployScroll.s.sol`](scripts/deterministic/DeployScroll.s.sol) (`deployL2Moat`, `deployL2MoatImpl`, `_dogePrefixesFromL1ChainId`)
-- Deploy impl shell script: [`scripts/deterministic/shell/deploy-moat-impl.sh`](scripts/deterministic/shell/deploy-moat-impl.sh)
-- Upgrade proxy shell script: [`scripts/deterministic/shell/submit-moat-proxy-upgrade.sh`](scripts/deterministic/shell/submit-moat-proxy-upgrade.sh)
-- Tests: [`src/test/dogeos/Moat.t.sol`](src/test/dogeos/Moat.t.sol)
+- Fee vault adapter: [`src/dogeos/FeeVaultMoatAdapter.sol`](src/dogeos/FeeVaultMoatAdapter.sol)
+- Messenger: [`src/dogeos/L2DogeOsMessenger.sol`](src/dogeos/L2DogeOsMessenger.sol)
+- Deploy script: [`scripts/deterministic/DeployScroll.s.sol`](scripts/deterministic/DeployScroll.s.sol) (`deployL2MoatImpl`, `deployL2FeeVaultMoatAdapter`, `deployL2DogeOsMessengerImpl`, `_dogePrefixesFromL1ChainId`)
+- Shell scripts: [`scripts/deterministic/shell/`](scripts/deterministic/shell/) — `deploy-moat-impl.sh`, `submit-moat-proxy-upgrade.sh`, `deploy-fee-vault-moat-adapter.sh`, `submit-fee-vault-rewire.sh`, `deploy-dogeos-messenger-impl.sh`, `submit-dogeos-messenger-proxy-upgrade.sh`
+- Tests: [`src/test/dogeos/Moat.t.sol`](src/test/dogeos/Moat.t.sol), [`src/test/dogeos/FeeVaultMoatAdapter.t.sol`](src/test/dogeos/FeeVaultMoatAdapter.t.sol), [`src/test/dogeos/L2DogeOsMessenger.t.sol`](src/test/dogeos/L2DogeOsMessenger.t.sol)
 - Merge commit: `3e29ab0` (`feat/p2sh-withdrawals` to `dogeos-v0.3.0-develop`)
 - Source commit: `4cfcad9 feat(moat): add P2SH withdrawal support with message envelope encoding`
+- Flooring + fee vault routing: PR #38 (`fix/floor-withdrawal-amounts`)

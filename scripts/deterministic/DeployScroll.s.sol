@@ -264,6 +264,107 @@ contract DeployScroll is DeterministicDeployment {
         console.log("==============================================================");
     }
 
+    /// @notice Deterministically deploys a fresh L2DogeOsMessenger implementation
+    ///         (Moat-only L2->L1 sender, no fee vault exemption) for an existing
+    ///         network. Does NOT touch the proxy — the ProxyAdmin owner must
+    ///         submit the upgrade() call separately (see the logged cast command).
+    function deployL2DogeOsMessengerImpl(string memory layer, string memory scriptMode) public {
+        broadcastLayer = parseLayer(layer);
+        ScriptMode mode = parseScriptMode(scriptMode);
+
+        DeterministicDeployment.initialize(mode);
+
+        console.log("checkDeployerBalance start");
+        checkDeployerBalance();
+        console.log("checkDeployerBalance end");
+
+        console.log("deployL2DogeOsMessengerImpl start");
+        _deployL2DogeOsMessengerImpl();
+        console.log("deployL2DogeOsMessengerImpl end");
+    }
+
+    function _deployL2DogeOsMessengerImpl() private broadcast(Layer.L2) {
+        // Narrow-purpose entry point: we skip the full deployAllContracts flow, so the
+        // existing proxy/admin/constructor addresses are pulled from config-contracts.toml.
+        L2_PROXY_ADMIN_ADDR = notnull(contractsCfg.readAddress(".L2_PROXY_ADMIN_ADDR"));
+        L2_DOGEOS_MESSENGER_PROXY_ADDR = notnull(contractsCfg.readAddress(".L2_DOGEOS_MESSENGER_PROXY_ADDR"));
+        L1_SCROLL_MESSENGER_PROXY_ADDR = notnull(contractsCfg.readAddress(".L1_SCROLL_MESSENGER_PROXY_ADDR"));
+        L2_MESSAGE_QUEUE_ADDR = notnull(contractsCfg.readAddress(".L2_MESSAGE_QUEUE_ADDR"));
+        L2_MOAT_PROXY_ADDR = notnull(contractsCfg.readAddress(".L2_MOAT_PROXY_ADDR"));
+
+        bytes memory args = abi.encode(L1_SCROLL_MESSENGER_PROXY_ADDR, L2_MESSAGE_QUEUE_ADDR, L2_MOAT_PROXY_ADDR);
+
+        L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = deploy(
+            "L2_DOGEOS_MESSENGER_IMPLEMENTATION",
+            type(L2DogeOsMessenger).creationCode,
+            args
+        );
+
+        bytes memory callData = abi.encodeWithSignature(
+            "upgrade(address,address)",
+            L2_DOGEOS_MESSENGER_PROXY_ADDR,
+            L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR
+        );
+
+        console.log("==============================================================");
+        console.log("L2DogeOsMessenger implementation deployed. Proxy NOT upgraded.");
+        console.log("ProxyAdmin:                   ", L2_PROXY_ADMIN_ADDR);
+        console.log("Messenger proxy:              ", L2_DOGEOS_MESSENGER_PROXY_ADDR);
+        console.log("New messenger implementation: ", L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR);
+        console.log("");
+        console.log("WARNING: after this upgrade only the Moat can send L2->L1 messages.");
+        console.log("Repoint the fee vault at the FeeVaultMoatAdapter BEFORE upgrading,");
+        console.log("otherwise fee vault withdrawals will revert until it is repointed.");
+        console.log("");
+        console.log("From the ProxyAdmin owner, submit:");
+        console.log("  target   :", L2_PROXY_ADMIN_ADDR);
+        console.log("  sig      : upgrade(address,address)");
+        console.log("  args     :", L2_DOGEOS_MESSENGER_PROXY_ADDR, L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR);
+        console.log("  calldata :");
+        console.logBytes(callData);
+        console.log("==============================================================");
+    }
+
+    /// @notice Deterministically deploys the FeeVaultMoatAdapter for an existing
+    ///         network. Does NOT reconfigure the fee vault or the Moat — the owner
+    ///         must run the rewire calls separately (see the logged commands).
+    function deployL2FeeVaultMoatAdapter(string memory layer, string memory scriptMode) public {
+        broadcastLayer = parseLayer(layer);
+        ScriptMode mode = parseScriptMode(scriptMode);
+
+        DeterministicDeployment.initialize(mode);
+
+        console.log("checkDeployerBalance start");
+        checkDeployerBalance();
+        console.log("checkDeployerBalance end");
+
+        console.log("deployL2FeeVaultMoatAdapter start");
+        _deployL2FeeVaultMoatAdapterStandalone();
+        console.log("deployL2FeeVaultMoatAdapter end");
+    }
+
+    function _deployL2FeeVaultMoatAdapterStandalone() private broadcast(Layer.L2) {
+        // Narrow-purpose entry point: constructor addresses come from config-contracts.toml.
+        L2_TX_FEE_VAULT_ADDR = notnull(contractsCfg.readAddress(".L2_TX_FEE_VAULT_ADDR"));
+        L2_MOAT_PROXY_ADDR = notnull(contractsCfg.readAddress(".L2_MOAT_PROXY_ADDR"));
+
+        deployFeeVaultMoatAdapter();
+
+        console.log("==============================================================");
+        console.log("FeeVaultMoatAdapter deployed. Fee vault NOT rewired.");
+        console.log("Adapter:    ", L2_FEE_VAULT_MOAT_ADAPTER_ADDR);
+        console.log("Fee vault:  ", L2_TX_FEE_VAULT_ADDR);
+        console.log("Moat proxy: ", L2_MOAT_PROXY_ADDR);
+        console.log("");
+        console.log("From the Moat / fee vault owner, in this order:");
+        console.log("  1. Moat.setFeeExempt(adapter, true)");
+        console.log("  2. L2TxFeeVault.updateRecipient(<doge P2PKH hash160>)");
+        console.log("  3. L2TxFeeVault.updateMinWithdrawAmount(moat.minWithdrawalAmount() + moat.SATOSHI_TO_WEI())");
+        console.log("  4. L2TxFeeVault.updateMessenger(adapter)");
+        console.log("(see scripts/deterministic/shell/submit-fee-vault-rewire.sh)");
+        console.log("==============================================================");
+    }
+
     /**********************
      * Internal interface *
      **********************/
