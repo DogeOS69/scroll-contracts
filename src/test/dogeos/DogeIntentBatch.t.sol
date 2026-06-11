@@ -337,4 +337,85 @@ contract DogeIntentBatchBenchmarkTest is DogeIntentBatchTest {
         used = gasBefore - gasleft();
         console2.log("ERC20 transfer (warm recipient):", used);
     }
+
+    /// @dev Raw verification cost with NO ledger storage involved: one fixed valid
+    ///      signature measured through (a) the internal DogeSig library (inlined -
+    ///      what a hot batch path pays), (b) the predeploy's field-level ABI
+    ///      entrypoint, and (c) the predeploy's packed entrypoint. The verifier
+    ///      account is warmed first so (b)/(c) show the steady-state external cost;
+    ///      add 2,500 gas for the first (cold) call of a transaction.
+    function testBench_RawVerificationCost() external {
+        Vm.Wallet memory wallet = _wallets[0];
+        bytes32 msgHash = DogeSig.dogecoinMessageHash("raw verification benchmark");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKeys[0], msgHash);
+        uint8 header = v + 4;
+        bytes32 x = bytes32(wallet.publicKeyX);
+        bytes32 y = bytes32(wallet.publicKeyY);
+        bytes20 keyHash = DogeSig.p2pkhFromPubKey(x, y, true);
+        bytes memory packed = abi.encodePacked(keyHash, msgHash, header, r, s, x, y);
+
+        // warm the verifier account
+        _verifier.verifyP2PKHPacked(packed);
+
+        uint256 gasBefore = gasleft();
+        bool okInternal = DogeSig.verifyP2PKH(keyHash, msgHash, header, r, s, x, y);
+        uint256 usedInternal = gasBefore - gasleft();
+
+        gasBefore = gasleft();
+        bool okExternal = _verifier.verifyP2PKH(keyHash, msgHash, header, r, s, x, y);
+        uint256 usedExternal = gasBefore - gasleft();
+
+        gasBefore = gasleft();
+        bool okPacked = _verifier.verifyP2PKHPacked(packed);
+        uint256 usedPacked = gasBefore - gasleft();
+
+        assertTrue(okInternal && okExternal && okPacked);
+        console2.log("raw verify, internal DogeSig (inlined):", usedInternal);
+        console2.log("raw verify, external ABI (warm):", usedExternal);
+        console2.log("raw verify, external packed (warm):", usedPacked);
+        console2.log("external call overhead vs internal:", usedExternal - usedInternal);
+    }
+
+    /// @dev Puts the batch numbers next to ordinary ways of moving DOGE on the L2.
+    ///
+    ///      A batched intent op pays: its share of the 21,000 intrinsic tx gas, its
+    ///      exact EIP-2028 calldata gas (193 bytes/op, 16 per nonzero / 4 per zero
+    ///      byte), and its measured execution gas. A standalone alternative pays a
+    ///      full 21,000 intrinsic per transfer: a native DOGE send is 21,000 total
+    ///      (no execution), an ERC-20 transfer adds its execution on top. N native
+    ///      sends cannot be batched by users themselves - each is its own signed
+    ///      transaction - which is exactly the gap the intent ledger closes.
+    ///
+    ///      L1 data fees are out of scope here (chain-specific), but note each
+    ///      standalone tx also posts ~110+ bytes to DA vs 193 bytes per batched op.
+    function testBench_PerOpVsStandaloneTransfers() external {
+        uint256 count = 100;
+        DogeIntentBatchInternal ledger = new DogeIntentBatchInternal();
+        _fund(ledger);
+        bytes memory ops = _buildBatch(ledger, count);
+
+        uint256 gasBefore = gasleft();
+        ledger.applyBatch(ops);
+        uint256 execPerOp = (gasBefore - gasleft()) / count;
+
+        // exact EIP-2028 calldata gas for the op payload
+        uint256 calldataGas = 0;
+        for (uint256 i = 0; i < ops.length; i++) {
+            calldataGas += ops[i] == 0 ? 4 : 16;
+        }
+        uint256 calldataPerOp = calldataGas / count;
+        uint256 batchedPerOp = 21000 / count + calldataPerOp + execPerOp;
+
+        // standalone ERC-20 transfer tx (cold recipient) for comparison
+        _token.mint(address(this), 100 ether);
+        gasBefore = gasleft();
+        _token.transfer(address(0xCAFE), 1 ether);
+        uint256 erc20Exec = gasBefore - gasleft();
+
+        console2.log("batched intent op: execution", execPerOp);
+        console2.log("batched intent op: calldata", calldataPerOp);
+        console2.log("batched intent op: total incl amortized 21k intrinsic", batchedPerOp);
+        console2.log("standalone native DOGE send tx (intrinsic only):", uint256(21000));
+        console2.log("standalone ERC20 transfer tx (21k + cold transfer):", 21000 + erc20Exec);
+    }
 }
