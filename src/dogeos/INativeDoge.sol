@@ -24,10 +24,12 @@ pragma solidity =0.8.24;
  *        2. a predeploy token contract at a canonical DogeOSPredeploy address that
  *           calls that precompile;
  *        3. genesis integration for the predeploy.
- *      None of that exists yet - it is protocol work tracked separately. This
- *      interface and the cheatcode-backed `DualityDogeShim` (src/test/mocks/) exist
- *      so contracts can be developed and functionally tested against duality
- *      semantics today. Do NOT use the shim's gas numbers; cheatcodes distort them.
+ *      Items 2 and 3 exist (DogeDualToken and its genesis integration); item 1 - the
+ *      native-transfer precompile - is still outstanding protocol work, and until it
+ *      lands every DogeDualToken transfer path reverts loudly. This interface and the
+ *      cheatcode-backed `DualityDogeShim` (src/test/mocks/) exist so contracts can be
+ *      developed and functionally tested against duality semantics today. Do NOT use
+ *      the shim's gas numbers; cheatcodes distort them.
  */
 interface INativeDoge {
     event Transfer(address indexed from, address indexed to, uint256 value);

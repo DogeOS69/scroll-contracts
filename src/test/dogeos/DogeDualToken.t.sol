@@ -143,6 +143,16 @@ abstract contract DogeDualTokenTestBase is Test {
 contract DogeDualTokenTest is DogeDualTokenTestBase {
     // --- ERC-20 / INativeDoge conformance --- //
 
+    /// @dev Pins the typehash as a LITERAL so a domain-breaking edit to the typehash
+    ///      string in the contract fails CI (the signing helper reads the constant from
+    ///      the contract, so without this pin such an edit would pass silently).
+    function testTypehashLiteralPinned() external view {
+        assertEq(
+            DogeDualToken(DogeOSPredeploy.L2_DOGE_DUAL_TOKEN).P2PKH_TRANSFER_AUTHORIZATION_TYPEHASH(),
+            0x526599c158e107850c215104699c0cd4d91c884aabec0a04962537beb697b377
+        );
+    }
+
     function testMetadata() external view {
         assertEq(_token.name(), "Dogecoin");
         assertEq(_token.symbol(), "DOGE");
@@ -559,6 +569,28 @@ contract DogeDualTokenTest is DogeDualTokenTestBase {
             abi.encodeWithSelector(DogeDualToken.ErrorReservedAuthorizationTarget.selector, address(uint160(0xfd)))
         );
         _token.transferWithP2PKHAuthorization(auth, sig);
+    }
+
+    /// @dev Reserved fromKeyHash alias: structural check fires before signature work,
+    ///      so a dummy signature suffices.
+    function testRevertReservedFromKeyHash() external {
+        IDogeDualToken.P2PKHTransferAuthorization memory auth = _defaultAuth(0, 0, bytes20(_bob), 1 ether);
+        auth.fromKeyHash = bytes20(uint160(0x5300000000000000000000000000000000000002));
+        auth.nonce = 0;
+        IDogeDualToken.DogeSignature memory sig; // all-zero dummy
+        vm.expectRevert(
+            abi.encodeWithSelector(DogeDualToken.ErrorReservedAuthorizationTarget.selector, address(auth.fromKeyHash))
+        );
+        _token.transferWithP2PKHAuthorization(auth, sig);
+    }
+
+    /// @dev Authorized self-transfer (to == fromKeyHash): nets to zero balance change,
+    ///      consumes the nonce (the precompile's debit-first ordering makes it safe).
+    function testAuthorizedSelfTransfer() external {
+        IDogeDualToken.P2PKHTransferAuthorization memory auth = _defaultAuth(0, 1, _keyHashes[0], 5 ether);
+        _token.transferWithP2PKHAuthorization(auth, _signAuth(0, auth));
+        assertEq(_token.balanceOfP2PKH(_keyHashes[0]), 1000 ether);
+        assertEq(_token.nonceOfP2PKH(_keyHashes[0]), 1);
     }
 
     function testRevertReservedFeeRecipient() external {

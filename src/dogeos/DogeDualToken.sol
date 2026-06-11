@@ -30,9 +30,9 @@ import {INativeDoge} from "./INativeDoge.sol";
  *      recover funds sent into system contracts.
  *
  *      Signed payload: the Dogecoin user signs the raw 32-byte intent hash
- *      (`abi.encodePacked(intentHash)`) with `signmessage`. A human-readable v2 format
- *      ("DogeOS DOGE Transfer Authorization v1:0x<64 lowercase hex chars>") is specified
- *      here for future wallet UX work but deliberately not implemented in the MVP.
+ *      (`abi.encodePacked(intentHash)`) with `signmessage`. A deferred human-readable
+ *      alternative ("DogeOS DOGE Transfer Authorization v1:0x<64 lowercase hex chars>")
+ *      is specified here for future wallet UX work but deliberately not implemented.
  *
  *      Signature malleability: per DogeSig (Dogecoin Core parity, no low-s rule) each
  *      valid signature has a verifying twin. Replay protection is the sequential nonce
@@ -260,7 +260,9 @@ contract DogeDualToken is IDogeDualToken {
 
             (address recipient, address feeTo, bytes32 intentHash, uint8 reason) = _validateAuthorization(a, s);
             if (reason != REASON_OK) {
-                emit P2PKHOpSkipped(i, reason);
+                // NOT a cancellation: the authorization stays replayable until its
+                // nonce is consumed or validBefore passes (see IDogeDualToken docs)
+                emit P2PKHOpSkipped(i, a.fromKeyHash, a.nonce, reason);
                 continue;
             }
             _executeAuthorizedTransfer(a, recipient, feeTo, intentHash);
@@ -377,11 +379,14 @@ contract DogeDualToken is IDogeDualToken {
         if (reason == REASON_BAD_NONCE) revert ErrorInvalidNonce(_p2pkhNonces[auth.fromKeyHash], auth.nonce);
         if (reason == REASON_MALFORMED_SIGNATURE) revert ErrorMalformedSignature();
         if (reason == REASON_INVALID_SIGNATURE) revert ErrorInvalidSignature();
-        // REASON_INSUFFICIENT_BALANCE
-        revert ErrorInsufficientBalance(
-            address(auth.fromKeyHash).balance,
-            uint256(auth.amount) + uint256(auth.relayerFee)
-        );
+        if (reason == REASON_INSUFFICIENT_BALANCE) {
+            revert ErrorInsufficientBalance(
+                address(auth.fromKeyHash).balance,
+                uint256(auth.amount) + uint256(auth.relayerFee)
+            );
+        }
+        // unreachable: every non-OK reason code is mapped above
+        assert(false);
     }
 
     /// @dev Domain-bound intent hash; see {P2PKH_TRANSFER_AUTHORIZATION_TYPEHASH}.

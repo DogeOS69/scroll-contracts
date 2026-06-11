@@ -75,7 +75,10 @@ interface IDogeDualToken is INativeDoge {
     ///         skipped. `reason` values: 1 invalid toKind, 2 not yet valid, 3 expired,
     ///         4 reserved target, 5 bad nonce, 6 malformed signature, 7 invalid signature,
     ///         8 insufficient balance.
-    event P2PKHOpSkipped(uint256 indexed opIndex, uint8 reason);
+    /// @dev A skip is NOT a cancellation: the signed authorization remains valid and
+    ///      replayable (by anyone holding it) until its nonce is consumed or its
+    ///      validBefore passes. Signers who want an op dead must spend the nonce.
+    event P2PKHOpSkipped(uint256 indexed opIndex, bytes20 indexed fromKeyHash, uint64 nonce, uint8 reason);
 
     // --- P2PKH views --- //
 

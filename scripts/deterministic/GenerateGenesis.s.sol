@@ -191,11 +191,8 @@ contract GenerateGenesis is DeployScroll {
         address predeployAddr = tryGetOverride("L2_DOGE_DUAL_TOKEN");
 
         if (predeployAddr == address(0)) {
-            // Loud skip: a stale config.toml (predating this override) would otherwise
-            // produce a genesis without code at the canonical DogeOSPredeploy address
-            // while DeployScroll falls back to a CREATE2 deployment elsewhere.
-            console.log("WARNING: L2_DOGE_DUAL_TOKEN override not set; skipping predeploy etch");
-            return;
+            // Hard failure - see setL2DogeP2PKHVerifier for the rationale.
+            revert("L2_DOGE_DUAL_TOKEN override missing from config.toml [contracts.overrides]");
         }
 
         // set code (no vm.store: the contract's only storage is two mappings, both

@@ -2,6 +2,10 @@
 
 pragma solidity ^0.8.24;
 
+/// @dev ADDRESS POLICY: DogeDualToken's reserved-alias protection covers only the low
+///      band [0x0, 0xffff] and the namespace 0x5300...0000-0x5300...ffff. Any future
+///      predeploy or system contract placed OUTSIDE those bands would be targetable as
+///      a P2PKH alias by authorized transfers - keep new addresses inside them.
 library DogeOSPredeploy {
     /// @notice Canonical address of the DogeP2PKHVerifier predeploy.
     address internal constant L2_DOGE_P2PKH_VERIFIER = 0x5300000000000000000000000000000000000006;

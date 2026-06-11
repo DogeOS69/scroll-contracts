@@ -10,7 +10,9 @@ import {IDogeDualToken} from "../../dogeos/IDogeDualToken.sol";
 import {DogeOSPredeploy} from "../../libraries/constants/DogeOSPredeploy.sol";
 import {DogeDualTokenTestBase} from "./DogeDualToken.t.sol";
 
-contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
+/// @dev Packing/batch-building helpers shared by the batch tests and the benchmark
+///      (the benchmark inherits THIS, not the test contract, so batch tests run once).
+abstract contract DogeDualTokenBatchHelper is DogeDualTokenTestBase {
     function _packOp(IDogeDualToken.P2PKHTransferAuthorization memory auth, IDogeDualToken.DogeSignature memory sig)
         internal
         pure
@@ -44,7 +46,9 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
             ops = bytes.concat(ops, _packOp(auth, _signAuth(signerIdx, auth)));
         }
     }
+}
 
+contract DogeDualTokenBatchTest is DogeDualTokenBatchHelper {
     // --- Correctness --- //
 
     function testPackedOpLength() external {
@@ -90,8 +94,8 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
         // tamper op 2's amount field (offset 2*278 + 41, high byte of uint128)
         ops[2 * 278 + 41] = bytes1(uint8(ops[2 * 278 + 41]) ^ 1);
 
-        vm.expectEmit(true, false, false, true);
-        emit IDogeDualToken.P2PKHOpSkipped(2, 7); // invalid signature
+        vm.expectEmit(true, true, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(2, _keyHashes[2], 0, 7); // invalid signature
         uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
 
         assertEq(count, 4);
@@ -109,8 +113,8 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
         bytes memory ops = bytes.concat(_packOp(auth, sig), _buildBatch(1, 1 ether));
         // _buildBatch built signer 0's op with the fresh nonce (1)
 
-        vm.expectEmit(true, false, false, true);
-        emit IDogeDualToken.P2PKHOpSkipped(0, 5); // bad nonce
+        vm.expectEmit(true, true, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(0, _keyHashes[0], 0, 5); // bad nonce
         uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
         assertEq(count, 1);
         assertEq(_bob.balance, 2 ether);
@@ -123,8 +127,8 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
 
         bytes memory ops = bytes.concat(_packOp(expired, _signAuth(0, expired)), _packOp(good, _signAuth(1, good)));
 
-        vm.expectEmit(true, false, false, true);
-        emit IDogeDualToken.P2PKHOpSkipped(0, 3); // expired
+        vm.expectEmit(true, true, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(0, _keyHashes[0], 0, 3); // expired
         uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
         assertEq(count, 1);
         assertEq(_bob.balance, 1 ether);
@@ -135,8 +139,8 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
         // drain signer 0's alias after signing
         vm.deal(address(_keyHashes[0]), 0.5 ether);
 
-        vm.expectEmit(true, false, false, true);
-        emit IDogeDualToken.P2PKHOpSkipped(0, 8); // insufficient balance
+        vm.expectEmit(true, true, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(0, _keyHashes[0], 0, 8); // insufficient balance
         uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
         assertEq(count, 1);
         assertEq(_bob.balance, 1 ether);
@@ -149,8 +153,8 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
         // which DogeSig would revert on; the batch pre-check must skip instead
         ops[149] = bytes1(uint8(26));
 
-        vm.expectEmit(true, false, false, true);
-        emit IDogeDualToken.P2PKHOpSkipped(0, 6); // malformed signature
+        vm.expectEmit(true, true, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(0, _keyHashes[0], 0, 6); // malformed signature
         uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
         assertEq(count, 1);
         assertEq(_bob.balance, 1 ether);
@@ -163,8 +167,8 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
         uint256 yOffset = 246;
         ops[yOffset + 31] = bytes1(uint8(ops[yOffset + 31]) ^ 1);
 
-        vm.expectEmit(true, false, false, true);
-        emit IDogeDualToken.P2PKHOpSkipped(0, 6); // malformed signature
+        vm.expectEmit(true, true, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(0, _keyHashes[0], 0, 6); // malformed signature
         uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
         assertEq(count, 1);
     }
@@ -173,8 +177,8 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
         bytes memory ops = _buildBatch(1, 1 ether);
         assertEq(_token.transferBatchWithP2PKHAuthorizations(ops), 1);
 
-        vm.expectEmit(true, false, false, true);
-        emit IDogeDualToken.P2PKHOpSkipped(0, 5); // bad nonce
+        vm.expectEmit(true, true, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(0, _keyHashes[0], 0, 5); // bad nonce
         assertEq(_token.transferBatchWithP2PKHAuthorizations(ops), 0);
         assertEq(_bob.balance, 1 ether);
     }
@@ -193,6 +197,67 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
         assertEq(_relayer.balance, 0.3 ether);
     }
 
+    /// @dev The batch must NEVER revert on attacker-controlled signature bytes - skips
+    ///      only. Pins the pre-check (header range, on-curve witness) that keeps
+    ///      DogeSig's malformed-input reverts unreachable from the batch path.
+    function testFuzz_BatchNeverRevertsOnArbitrarySignature(
+        uint8 header,
+        bytes32 r,
+        bytes32 s,
+        bytes32 x,
+        bytes32 y
+    ) external {
+        IDogeDualToken.P2PKHTransferAuthorization memory auth = _defaultAuth(0, 0, bytes20(_bob), 1 ether);
+        IDogeDualToken.DogeSignature memory sig = IDogeDualToken.DogeSignature({
+            header: header,
+            r: r,
+            s: s,
+            x: x,
+            y: y
+        });
+        uint256 count = _token.transferBatchWithP2PKHAuthorizations(_packOp(auth, sig));
+        assertEq(count, 0, "garbage signature must skip, not execute");
+    }
+
+    /// @dev Intra-batch funding dependency: effects apply sequentially, so op 1 can
+    ///      spend funds it only receives in op 0 of the same batch.
+    function testBatchIntraBatchFundingDependency() external {
+        vm.deal(address(_keyHashes[1]), 1 ether); // signer 1 starts underfunded
+
+        IDogeDualToken.P2PKHTransferAuthorization memory fund = _defaultAuth(0, 1, _keyHashes[1], 10 ether);
+        IDogeDualToken.P2PKHTransferAuthorization memory spend = _defaultAuth(1, 0, bytes20(_bob), 5 ether);
+        bytes memory ops = bytes.concat(_packOp(fund, _signAuth(0, fund)), _packOp(spend, _signAuth(1, spend)));
+
+        uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
+        assertEq(count, 2);
+        assertEq(_bob.balance, 5 ether);
+        assertEq(_token.balanceOfP2PKH(_keyHashes[1]), 6 ether);
+    }
+
+    /// @dev Round-trip with a distinctive value in every field: the signature binds all
+    ///      of them, so batch success pins every parsed offset of the 278-byte layout.
+    function testPackedFieldOffsetsRoundTrip() external {
+        IDogeDualToken.P2PKHTransferAuthorization memory auth = IDogeDualToken.P2PKHTransferAuthorization({
+            fromKeyHash: _keyHashes[3],
+            toKind: 1,
+            to: _keyHashes[4],
+            amount: 1.23 ether,
+            relayerFee: 0.045 ether,
+            relayerFeeRecipient: _relayer,
+            nonce: 0,
+            validAfter: uint64(block.timestamp - 1),
+            validBefore: uint64(block.timestamp + 1000),
+            contextHash: keccak256("distinctive context")
+        });
+        uint256 toBalanceBefore = _token.balanceOfP2PKH(_keyHashes[4]);
+
+        uint256 count = _token.transferBatchWithP2PKHAuthorizations(_packOp(auth, _signAuth(3, auth)));
+        assertEq(count, 1);
+        assertEq(_token.balanceOfP2PKH(_keyHashes[4]), toBalanceBefore + 1.23 ether);
+        assertEq(_relayer.balance, 0.045 ether);
+        assertEq(_token.nonceOfP2PKH(_keyHashes[3]), 1);
+    }
+
     function testBatchInvalidEnvelopeReverts() external {
         vm.expectRevert(abi.encodeWithSelector(DogeDualToken.ErrorInvalidBatchLength.selector, 0));
         _token.transferBatchWithP2PKHAuthorizations("");
@@ -208,7 +273,7 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
 /// @dev CAVEAT: the native-transfer precompile mock moves balances via cheatcodes, so
 ///      these numbers EXCLUDE real precompile pricing. Celo's reference is 9,000 gas per
 ///      transfer — add 9k per op (18k with a relayer fee) for a Celo-priced estimate.
-contract DogeDualTokenBenchmarkTest is DogeDualTokenBatchTest {
+contract DogeDualTokenBenchmarkTest is DogeDualTokenBatchHelper {
     function _calldataGas(bytes memory data) internal pure returns (uint256 total) {
         for (uint256 i = 0; i < data.length; i++) {
             total += data[i] == 0 ? 4 : 16;
