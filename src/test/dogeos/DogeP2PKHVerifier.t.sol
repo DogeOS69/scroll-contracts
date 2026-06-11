@@ -8,6 +8,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {DogeSig} from "../../dogeos/DogeSig.sol";
 import {DogeP2PKHVerifier} from "../../dogeos/DogeP2PKHVerifier.sol";
 import {IDogeP2PKHVerifier} from "../../dogeos/IDogeP2PKHVerifier.sol";
+import {DogeOSPredeploy} from "../../libraries/constants/DogeOSPredeploy.sol";
 import {DogeSigTestVectors} from "./DogeSigTestVectors.sol";
 
 contract DogeP2PKHVerifierTest is Test, DogeSigTestVectors {
@@ -152,6 +153,43 @@ contract DogeP2PKHVerifierTest is Test, DogeSigTestVectors {
         } else {
             assertEq(packedRet, unpackedRet, "revert data must match");
         }
+    }
+
+    // --- Canonical predeploy smoke test --- //
+
+    /// @dev Runs the Dogecoin Core 1.14.9 fixture (provenance: DogeSig.t.sol,
+    ///      testVerifyP2PKH_DogecoinCoreFixture) through the verifier etched at the
+    ///      canonical DogeOSPredeploy address, pinning the address constant and the
+    ///      packed ABI wiring end to end.
+    ///
+    ///      NOTE: this cannot validate target-chain prover/precompile support - revm
+    ///      always provides RIPEMD-160. To smoke-test a live network (genesis etching,
+    ///      RIPEMD-160 precompile, prover acceptance) run the same call via:
+    ///
+    ///      cast call 0x5300000000000000000000000000000000000006 \
+    ///        "verifyP2PKHPacked(bytes)(bool)" \
+    ///        0x018acf4c5710029e360ba3d29cef5c6dddbb659d8eafacef30410bc4c5713e7e28874b9a02dea012a1d32032bc8253b5dc648db41f164decfc9e8a3a984347edb5b6112d04edda0f2be7443cc1e2726700d1ebe2205538c0303729c06ea2746c77c72c809855a2858f2524e9d2d756d5715d9c2e6d142364aacf2c7e710e94f1b4b34c40e9dbfa45b93f247464a9cab569e79b77b9e8d677d2eb14750d7a96001b8bb8ad7601e16209372100578e81711b58749b55 \
+    ///        --rpc-url <l2-rpc>
+    ///
+    ///      Expected output: true.
+    function testCanonicalPredeploy_DogecoinCoreFixture() external {
+        vm.etch(DogeOSPredeploy.L2_DOGE_P2PKH_VERIFIER, address(_verifier).code);
+        IDogeP2PKHVerifier predeploy = IDogeP2PKHVerifier(DogeOSPredeploy.L2_DOGE_P2PKH_VERIFIER);
+
+        bytes20 keyHash = hex"018acf4c5710029e360ba3d29cef5c6dddbb659d";
+        bytes32 msgHash = predeploy.dogecoinMessageHash("DogeOS signmessage fixture");
+        assertEq(msgHash, 0x8eafacef30410bc4c5713e7e28874b9a02dea012a1d32032bc8253b5dc648db4);
+
+        bytes memory packed = _pack(
+            keyHash,
+            msgHash,
+            31,
+            0x164decfc9e8a3a984347edb5b6112d04edda0f2be7443cc1e2726700d1ebe220,
+            0x5538c0303729c06ea2746c77c72c809855a2858f2524e9d2d756d5715d9c2e6d,
+            0x142364aacf2c7e710e94f1b4b34c40e9dbfa45b93f247464a9cab569e79b77b9,
+            0xe8d677d2eb14750d7a96001b8bb8ad7601e16209372100578e81711b58749b55
+        );
+        assertTrue(predeploy.verifyP2PKHPacked(packed));
     }
 
     // --- Sanity: works with a vm.sign-produced signature --- //

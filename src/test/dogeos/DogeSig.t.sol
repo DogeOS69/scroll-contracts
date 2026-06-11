@@ -206,6 +206,57 @@ contract DogeSigTest is Test, DogeSigTestVectors {
         }
     }
 
+    /// @dev Off-diagonal malleability matrix: the high-s twin verifies only with the
+    ///      toggled recovery id (positive case in {testVerifyP2PKH_HighSTwinVerifies}).
+    ///      The two mismatched combinations - original s with toggled recId, and the
+    ///      high-s twin with the original recId - must both fail.
+    function testVerifyP2PKH_OffDiagonalMalleabilityFails() external view {
+        SigVector[] memory vectors = _sigVectors();
+        for (uint256 i = 0; i < vectors.length; i++) {
+            SigVector memory v = vectors[i];
+            bytes32 sTwin = bytes32(SECP256K1_N - uint256(v.s));
+            uint8 code = v.header - 27;
+            uint8 headerTwin = 27 + ((code & 3) ^ 1) + (code >= 4 ? 4 : 0);
+            assertFalse(_lib.verifyP2PKH(v.keyHash, v.msgHash, headerTwin, v.r, v.s, v.x, v.y), v.name);
+            assertFalse(_lib.verifyP2PKH(v.keyHash, v.msgHash, v.header, v.r, sTwin, v.x, v.y), v.name);
+        }
+    }
+
+    /// @dev Even when the attacker supplies the negated witness AND its matching key
+    ///      hash, verification must fail: ecrecover binds the signature to (x, y), not
+    ///      to (x, p - y). Documents that signing as the negated key's address is not
+    ///      possible with the original signature.
+    function testVerifyP2PKH_NegatedWitnessWithItsOwnKeyHashRejected() external view {
+        SigVector[] memory vectors = _sigVectors();
+        for (uint256 i = 0; i < vectors.length; i++) {
+            SigVector memory v = vectors[i];
+            bytes32 negY = bytes32(SECP256K1_P - uint256(v.y));
+            bytes20 negKeyHash = _lib.p2pkhFromPubKey(v.x, negY, v.compressed);
+            assertFalse(_lib.verifyP2PKH(negKeyHash, v.msgHash, v.header, v.r, v.s, v.x, negY), v.name);
+        }
+    }
+
+    /// @dev The negated point must never share a key hash with the original, in either
+    ///      serialization: compressed flips the parity prefix (p is odd, so p - y flips
+    ///      y's parity), uncompressed changes the y bytes directly.
+    function testP2pkhFromPubKey_NegatedYProducesDifferentKeyHash() external view {
+        SigVector[] memory vectors = _sigVectors();
+        for (uint256 i = 0; i < vectors.length; i++) {
+            SigVector memory v = vectors[i];
+            bytes32 negY = bytes32(SECP256K1_P - uint256(v.y));
+            assertNotEq(
+                uint160(_lib.p2pkhFromPubKey(v.x, v.y, true)),
+                uint160(_lib.p2pkhFromPubKey(v.x, negY, true)),
+                v.name
+            );
+            assertNotEq(
+                uint160(_lib.p2pkhFromPubKey(v.x, v.y, false)),
+                uint160(_lib.p2pkhFromPubKey(v.x, negY, false)),
+                v.name
+            );
+        }
+    }
+
     /// @dev The committed vector set must cover the full supported header matrix:
     ///      27 (uncompressed/recId 0), 28 (uncompressed/recId 1), 31 (compressed/recId 0),
     ///      32 (compressed/recId 1).
@@ -244,6 +295,20 @@ contract DogeSigTest is Test, DogeSigTestVectors {
         SigVector memory v = _sigVectors()[0];
         vm.expectRevert(abi.encodeWithSelector(DogeSig.ErrorInvalidSignatureHeader.selector, 26));
         _lib.verifyP2PKH(v.keyHash, v.msgHash, 26, v.r, v.s, v.x, v.y);
+    }
+
+    /// @dev recId 2/3 headers must revert through the verification entrypoints too,
+    ///      not only through parseHeader directly.
+    function testVerifyAndRecover_RevertUnsupportedRecoveryIdHeaders() external {
+        SigVector memory v = _sigVectors()[0];
+        uint8[4] memory headers = [29, 30, 33, 34];
+        for (uint256 i = 0; i < headers.length; i++) {
+            uint8 recId = (headers[i] - 27) & 3;
+            vm.expectRevert(abi.encodeWithSelector(DogeSig.ErrorUnsupportedRecoveryId.selector, recId));
+            _lib.verifyP2PKH(v.keyHash, v.msgHash, headers[i], v.r, v.s, v.x, v.y);
+            vm.expectRevert(abi.encodeWithSelector(DogeSig.ErrorUnsupportedRecoveryId.selector, recId));
+            _lib.recoverP2PKH(v.msgHash, headers[i], v.r, v.s, v.x, v.y);
+        }
     }
 
     function testVerifyP2PKH_RevertInvalidPublicKey() external {
