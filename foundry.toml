@@ -28,7 +28,7 @@ block_coinbase = '0x0000000000000000000000000000000000000000' # the address of `
 block_timestamp = 0                                           # the value of `block.timestamp` in tests
 block_difficulty = 0                                          # the value of `block.difficulty` in tests
 
-gas_reports = ["L2GasPriceOracle", "DogeP2PKHVerifier"]
+gas_reports = ["L2GasPriceOracle", "DogeP2PKHVerifier", "DogeDualToken"]
 
 # remove bytecode hash for reliable deterministic addresses
 bytecode_hash = 'none'

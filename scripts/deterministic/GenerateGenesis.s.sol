@@ -6,6 +6,7 @@ import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
 import {DogeP2PKHVerifier} from "../../src/dogeos/DogeP2PKHVerifier.sol";
+import {DogeDualToken} from "../../src/dogeos/DogeDualToken.sol";
 import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
 
 import {DETERMINISTIC_DEPLOYMENT_PROXY_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT, GENESIS_ALLOC_JSON_PATH, GENESIS_JSON_PATH, GENESIS_JSON_TEMPLATE_PATH} from "./Constants.sol";
@@ -44,6 +45,7 @@ contract GenerateGenesis is DeployScroll {
         setL2Weth();
         setL2FeeVault();
         setL2DogeP2PKHVerifier();
+        setL2DogeDualToken();
 
         // other predeploys
         setDeterministicDeploymentProxy();
@@ -183,6 +185,27 @@ contract GenerateGenesis is DeployScroll {
         // reset so its not included state dump
         vm.etch(address(_verifier), "");
         vm.resetNonce(address(_verifier));
+    }
+
+    function setL2DogeDualToken() internal {
+        address predeployAddr = tryGetOverride("L2_DOGE_DUAL_TOKEN");
+
+        if (predeployAddr == address(0)) {
+            // Loud skip: a stale config.toml (predating this override) would otherwise
+            // produce a genesis without code at the canonical DogeOSPredeploy address
+            // while DeployScroll falls back to a CREATE2 deployment elsewhere.
+            console.log("WARNING: L2_DOGE_DUAL_TOKEN override not set; skipping predeploy etch");
+            return;
+        }
+
+        // set code (no vm.store: the contract's only storage is two mappings, both
+        // of which start empty at genesis)
+        DogeDualToken _dualToken = new DogeDualToken();
+        vm.etch(predeployAddr, address(_dualToken).code);
+
+        // reset so its not included state dump
+        vm.etch(address(_dualToken), "");
+        vm.resetNonce(address(_dualToken));
     }
 
     function setL2FeeVault() internal {
