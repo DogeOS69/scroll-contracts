@@ -140,6 +140,50 @@ contract BenchERC20 is MockERC20 {
     }
 }
 
+/// @dev Test-only gas emulation of Celo-style "token duality": an ERC20-shaped
+///      transfer whose balance effects are native value moves instead of storage
+///      writes. A real implementation debits the caller via a native-transfer
+///      precompile; gas-wise that is one value-bearing CALL, which is what this
+///      mock performs (from this contract's own balance - the sender debit is
+///      part of the same native balance update the CALL already prices).
+contract DualityDoge {
+    function transfer(address to, uint256 amount) external returns (bool ok) {
+        (ok, ) = payable(to).call{value: amount}("");
+        require(ok, "duality transfer failed");
+    }
+
+    receive() external payable {}
+}
+
+/// @dev One-transaction multicall disburser: a single sender fanning out N
+///      transfers in one call frame. NOTE the semantic difference from the intent
+///      batch: a multicall needs no per-op authorization (one sender), while the
+///      intent batch verifies N independent Dogecoin-key signatures. Batching N
+///      DISTINCT senders' ERC-20 transfers would require approve/permit machinery
+///      whose per-op cost (signature verify + nonce + allowance updates) converges
+///      toward what the intent ledger already pays.
+contract Disburser {
+    function erc20Many(
+        BenchERC20 token,
+        address[] calldata tos,
+        uint256[] calldata amounts
+    ) external {
+        for (uint256 i = 0; i < tos.length; i++) {
+            token.transfer(tos[i], amounts[i]);
+        }
+    }
+
+    function dualityMany(
+        DualityDoge doge,
+        address[] calldata tos,
+        uint256[] calldata amounts
+    ) external {
+        for (uint256 i = 0; i < tos.length; i++) {
+            doge.transfer(tos[i], amounts[i]);
+        }
+    }
+}
+
 contract DogeIntentBatchTest is Test {
     uint256 internal constant SIGNER_COUNT = 8;
 
@@ -417,5 +461,64 @@ contract DogeIntentBatchBenchmarkTest is DogeIntentBatchTest {
         console2.log("batched intent op: total incl amortized 21k intrinsic", batchedPerOp);
         console2.log("standalone native DOGE send tx (intrinsic only):", uint256(21000));
         console2.log("standalone ERC20 transfer tx (21k + cold transfer):", 21000 + erc20Exec);
+    }
+
+    /// @dev Token-duality and one-tx multicall comparisons (see DualityDoge /
+    ///      Disburser NatSpec for the emulation caveats and the one-sender vs
+    ///      N-signers semantic difference). Same conventions as
+    ///      {testBench_PerOpVsStandaloneTransfers}: single pre-warmed recipient,
+    ///      exact EIP-2028 calldata gas, 21k intrinsic amortized over the batch.
+    function testBench_DualityAndMulticall() external {
+        uint256 count = 100;
+        address payable recipient = payable(address(0xBEEF));
+        // pre-seed 1 wei so the first native transfer doesn't pay the one-off
+        // 25k new-account surcharge (noise for a per-op comparison)
+        vm.deal(recipient, 1 wei);
+
+        DualityDoge duality = new DualityDoge();
+        vm.deal(address(duality), 1000 ether);
+        Disburser disburser = new Disburser();
+        _token.mint(address(disburser), 1000 ether);
+
+        address[] memory tos = new address[](count);
+        uint256[] memory amounts = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            tos[i] = recipient;
+            amounts[i] = 1 ether;
+        }
+
+        // standalone duality transfer tx
+        bytes memory call1 = abi.encodeCall(DualityDoge.transfer, (recipient, 1 ether));
+        uint256 gasBefore = gasleft();
+        duality.transfer(recipient, 1 ether);
+        uint256 dualityExec = gasBefore - gasleft();
+        console2.log("standalone duality transfer tx (21k + cd + exec):", 21000 + _calldataGas(call1) + dualityExec);
+
+        // one-tx multicall of duality transfers
+        // (measure into its own statement BEFORE any other computation: Solidity
+        // evaluates binary-operator operands right-to-left, so an inline
+        // `(gasBefore - gasleft()) / n + _calldataGas(...)` would run the calldata
+        // loop before gasleft() and inflate the measurement)
+        bytes memory callN = abi.encodeCall(Disburser.dualityMany, (duality, tos, amounts));
+        gasBefore = gasleft();
+        disburser.dualityMany(duality, tos, amounts);
+        uint256 execTotal = gasBefore - gasleft();
+        uint256 perOp = execTotal / count + _calldataGas(callN) / count + 21000 / count;
+        console2.log("multicall duality transfer, per op all-in:", perOp);
+
+        // one-tx multicall of ERC-20 transfers (single sender)
+        callN = abi.encodeCall(Disburser.erc20Many, (_token, tos, amounts));
+        gasBefore = gasleft();
+        disburser.erc20Many(_token, tos, amounts);
+        execTotal = gasBefore - gasleft();
+        perOp = execTotal / count + _calldataGas(callN) / count + 21000 / count;
+        console2.log("multicall ERC20 transfer, per op all-in:", perOp);
+    }
+
+    function _calldataGas(bytes memory data) internal pure returns (uint256 total) {
+        for (uint256 i = 0; i < data.length; i++) {
+            total += data[i] == 0 ? 4 : 16;
+        }
+        // 4-byte selector and offsets included; matches EIP-2028 pricing of the payload
     }
 }
