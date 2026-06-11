@@ -143,6 +143,32 @@ contract DogeDualTokenBatchTest is DogeDualTokenTestBase {
         assertEq(_token.nonceOfP2PKH(_keyHashes[0]), 0);
     }
 
+    function testBatchSkipsMalformedSignature() external {
+        bytes memory ops = _buildBatch(2, 1 ether);
+        // corrupt op 0's header byte (offset 149) to 26 - outside the valid range,
+        // which DogeSig would revert on; the batch pre-check must skip instead
+        ops[149] = bytes1(uint8(26));
+
+        vm.expectEmit(true, false, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(0, 6); // malformed signature
+        uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
+        assertEq(count, 1);
+        assertEq(_bob.balance, 1 ether);
+        assertEq(_token.nonceOfP2PKH(_keyHashes[0]), 0);
+    }
+
+    function testBatchSkipsOffCurveWitness() external {
+        bytes memory ops = _buildBatch(2, 1 ether);
+        // corrupt op 0's y witness (offsets 246..278): y+1 is off-curve
+        uint256 yOffset = 246;
+        ops[yOffset + 31] = bytes1(uint8(ops[yOffset + 31]) ^ 1);
+
+        vm.expectEmit(true, false, false, true);
+        emit IDogeDualToken.P2PKHOpSkipped(0, 6); // malformed signature
+        uint256 count = _token.transferBatchWithP2PKHAuthorizations(ops);
+        assertEq(count, 1);
+    }
+
     function testBatchCrossBatchReplaySkipped() external {
         bytes memory ops = _buildBatch(1, 1 ether);
         assertEq(_token.transferBatchWithP2PKHAuthorizations(ops), 1);

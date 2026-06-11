@@ -346,11 +346,13 @@ contract DogeDualToken is IDogeDualToken {
         _p2pkhNonces[auth.fromKeyHash] = auth.nonce + 1;
 
         _nativeTransfer(fromAlias, recipient, auth.amount);
+        emit Transfer(fromAlias, recipient, auth.amount);
         if (auth.relayerFee > 0) {
             _nativeTransfer(fromAlias, feeTo, auth.relayerFee);
+            // the fee is a token move performed by this contract, so it gets an
+            // ERC-20 Transfer log too (indexers must see every mediated move)
+            emit Transfer(fromAlias, feeTo, auth.relayerFee);
         }
-
-        emit Transfer(fromAlias, recipient, auth.amount);
         if (auth.toKind == TO_KIND_EVM) {
             emit TransferFromP2PKHToAddress(auth.fromKeyHash, recipient, auth.amount, auth.relayerFee, feeTo);
         } else {

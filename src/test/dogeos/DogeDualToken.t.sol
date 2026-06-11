@@ -363,6 +363,11 @@ contract DogeDualTokenTest is DogeDualTokenTestBase {
         auth.relayerFeeRecipient = _relayer;
         IDogeDualToken.DogeSignature memory sig = _signAuth(0, auth);
 
+        // both the amount and the fee moves emit ERC-20 Transfer logs
+        vm.expectEmit(true, true, false, true);
+        emit INativeDoge.Transfer(address(_keyHashes[0]), _bob, 10 ether);
+        vm.expectEmit(true, true, false, true);
+        emit INativeDoge.Transfer(address(_keyHashes[0]), _relayer, 1 ether);
         _token.transferWithP2PKHAuthorization(auth, sig);
         assertEq(_bob.balance, 10 ether);
         assertEq(_relayer.balance, 1 ether);
@@ -376,6 +381,8 @@ contract DogeDualTokenTest is DogeDualTokenTestBase {
         IDogeDualToken.DogeSignature memory sig = _signAuth(0, auth);
 
         vm.prank(_relayer);
+        vm.expectEmit(true, true, false, true);
+        emit INativeDoge.Transfer(address(_keyHashes[0]), _relayer, 1 ether);
         _token.transferWithP2PKHAuthorization(auth, sig);
         assertEq(_relayer.balance, 1 ether);
     }
