@@ -578,10 +578,12 @@ byte 1: flags            (0x00 = P2PKH, 0x01 = P2SH)
 
 The amount and target address remain in the existing `sendMessage` parameters.
 Any L1-side consumer that previously assumed an empty `message` must be updated
-to parse this envelope. Empty messages are invalid after the upgrade — the
-messenger rejects them (`ErrorInvalidWithdrawalEnvelope`), so consumers must
-NOT retain a legacy empty-message acceptance path: the envelope is uniquely
-determined by the recipient's address type.
+to parse this envelope. After the upgrade the messenger rejects non-envelope
+messages (`ErrorInvalidWithdrawalEnvelope`), so no NEW empty-message
+withdrawal can exist and the envelope is uniquely determined by the
+recipient's address type. How consumers treat pre-upgrade empty-message
+history, and when legacy handling is retired, is deliberately left open — it
+will be settled alongside the hardfork / protocol-version-bump mechanics.
 
 #### New address-decoding library
 
@@ -711,17 +713,17 @@ It:
 
 | Service            | Required action                                                                                                                                                                                                                                                                                                                                                               | Severity                           |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping) — enforced by the messenger, which rejects anything that is not exactly `0x0100`/`0x0101`. The message is therefore deterministically reconstructable from the Dogecoin address type; do not keep an empty-message fallback. | Breaking; must ship before upgrade |
+| withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping) — enforced by the messenger, which rejects anything that is not exactly `0x0100`/`0x0101`. New messages are therefore deterministically reconstructable from the Dogecoin address type. (Treatment of pre-upgrade empty-message history is left open pending hardfork/protocol-version mechanics.) | Breaking; must ship before upgrade |
 | Frontend / SDK     | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers. Surface the flooring: amounts below 1e10-wei precision are truncated into the fee.                                                                                                                                                                                              | Additive                           |
 | Fee collection ops | Fee vault withdrawals now land at the configured Dogecoin address (`FEE_VAULT_DOGE_RECIPIENT_ADDR`), not an L1 EVM wallet. Update treasury monitoring accordingly.                                                                                                                                                                                                            | Breaking; coordinate with step 7   |
 | Bascule verifier   | No change. `handleL1Message` is untouched by this upgrade.                                                                                                                                                                                                                                                                                                                    | None                               |
 
 Deploy the envelope-aware relayer before the proxy upgrade. After the proxy is
 upgraded, even `withdrawToL1` emits a `version=1, flags=0` envelope, and the
-messenger refuses anything else — blank messages cannot exist on the network. A
-relayer that only accepts an empty `message` will drop every withdrawal, and a
-relayer that still accepts empty messages as P2PKH carries dead (and ambiguity-
-introducing) code that should be deleted.
+messenger refuses anything else — no new blank-message withdrawal can be
+created. A relayer that only accepts an empty `message` will drop every
+withdrawal. The retirement timeline for legacy empty-message handling on the
+consumer side is TBD pending the hardfork / protocol-version-bump plan.
 
 ### 2.6 Rollback behavior
 
