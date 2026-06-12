@@ -7,6 +7,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/se
 import {IL2ScrollMessenger} from "../L2/IL2ScrollMessenger.sol";
 import {IBasculeVerifier} from "./IBasculeVerifier.sol";
 import {DogeAddressLib} from "./DogeAddressLib.sol";
+import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
 
 /**
  * @title Moat
@@ -24,12 +25,6 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     error ErrorEqualPrefixes();
 
     // --- Constants --- //
-
-    /// @notice Message envelope version for P2PKH/P2SH withdrawals.
-    uint8 private constant ENVELOPE_VERSION = 1;
-
-    /// @notice Flag indicating P2SH address type in message envelope.
-    uint8 private constant FLAG_P2SH = 0x01;
 
     /// @notice One satoshi (the smallest Dogecoin unit, 10^-8 DOGE) expressed in wei.
     /// Withdrawal amounts are floored to a multiple of this so they are exactly
@@ -313,17 +308,6 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     // --- Internal Functions --- //
 
     /**
-     * @dev Encode the message envelope for withdrawal.
-     * @param _isP2SH True for P2SH, false for P2PKH.
-     * @return envelope The 2-byte message envelope (version, flags).
-     */
-    function _encodeEnvelope(bool _isP2SH) internal pure returns (bytes memory envelope) {
-        envelope = new bytes(2);
-        envelope[0] = bytes1(ENVELOPE_VERSION);
-        envelope[1] = _isP2SH ? bytes1(FLAG_P2SH) : bytes1(0);
-    }
-
-    /**
      * @dev Internal function to process withdrawals with envelope encoding.
      * The amount after fee is floored to a multiple of {SATOSHI_TO_WEI} so it is
      * exactly representable on Dogecoin (8 decimals); the sub-satoshi remainder
@@ -376,8 +360,9 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             if (!success) revert ErrorFeeTransferFailed();
         }
 
-        // Encode the message envelope.
-        bytes memory envelope = _encodeEnvelope(_isP2SH);
+        // Encode the message envelope (shared with the messenger's validation, so the
+        // producer and the enforcer cannot drift).
+        bytes memory envelope = WithdrawalEnvelope.encode(_isP2SH);
 
         // Send the message via the L2 messenger.
         IL2ScrollMessenger(_messenger).sendMessage{value: amountAfterFee}(_target, amountAfterFee, envelope, 0);

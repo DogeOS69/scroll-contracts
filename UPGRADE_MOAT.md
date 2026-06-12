@@ -556,9 +556,15 @@ the minimum still apply.
 #### Messenger sender restriction
 
 `L2DogeOsMessenger` drops the `FEE_VAULT` constructor argument and sender
-exemption: `_sendMessage` now requires `msg.sender == MOAT`. Every L2->L1
-message on the network is a Moat withdrawal with a v1 envelope and a
-satoshi-aligned value — enforced on-chain, not by convention.
+exemption: `_sendMessage` now requires `msg.sender == MOAT` **and** that the
+message is exactly a valid v1 envelope (`0x0100` for P2PKH, `0x0101` for P2SH;
+shared `WithdrawalEnvelope` library, so producer and enforcer cannot drift).
+Every L2->L1 message on the network is a Moat withdrawal with a v1 envelope and
+a satoshi-aligned value — enforced on-chain, not by convention. Legacy blank
+messages are rejected outright: there is exactly ONE message representation per
+Dogecoin recipient type, so the message bytes (and the message hash) are
+deterministically reconstructable from the Dogecoin address used in the
+withdrawal alone.
 
 #### Message envelope format
 
@@ -572,7 +578,10 @@ byte 1: flags            (0x00 = P2PKH, 0x01 = P2SH)
 
 The amount and target address remain in the existing `sendMessage` parameters.
 Any L1-side consumer that previously assumed an empty `message` must be updated
-to parse this envelope.
+to parse this envelope. Empty messages are invalid after the upgrade — the
+messenger rejects them (`ErrorInvalidWithdrawalEnvelope`), so consumers must
+NOT retain a legacy empty-message acceptance path: the envelope is uniquely
+determined by the recipient's address type.
 
 #### New address-decoding library
 
@@ -702,14 +711,17 @@ It:
 
 | Service            | Required action                                                                                                                                                                                                                                                                                                                                                               | Severity                           |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping). | Breaking; must ship before upgrade |
+| withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping) — enforced by the messenger, which rejects anything that is not exactly `0x0100`/`0x0101`. The message is therefore deterministically reconstructable from the Dogecoin address type; do not keep an empty-message fallback. | Breaking; must ship before upgrade |
 | Frontend / SDK     | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers. Surface the flooring: amounts below 1e10-wei precision are truncated into the fee.                                                                                                                                                                                              | Additive                           |
 | Fee collection ops | Fee vault withdrawals now land at the configured Dogecoin address (`FEE_VAULT_DOGE_RECIPIENT_ADDR`), not an L1 EVM wallet. Update treasury monitoring accordingly.                                                                                                                                                                                                            | Breaking; coordinate with step 7   |
 | Bascule verifier   | No change. `handleL1Message` is untouched by this upgrade.                                                                                                                                                                                                                                                                                                                    | None                               |
 
 Deploy the envelope-aware relayer before the proxy upgrade. After the proxy is
-upgraded, even `withdrawToL1` emits a `version=1, flags=0` envelope. A relayer
-that only accepts an empty `message` will drop every withdrawal.
+upgraded, even `withdrawToL1` emits a `version=1, flags=0` envelope, and the
+messenger refuses anything else — blank messages cannot exist on the network. A
+relayer that only accepts an empty `message` will drop every withdrawal, and a
+relayer that still accepts empty messages as P2PKH carries dead (and ambiguity-
+introducing) code that should be deleted.
 
 ### 2.6 Rollback behavior
 
@@ -728,10 +740,13 @@ Caveats:
   `feeExemptCallers` slot is simply ignored by the old implementation).
 - If rollback is permanent, the P2SH entry points disappear from the ABI, so
   SDKs and frontends must revert to the old interface.
-- **Rolling back the Moat while the fee vault is routed through the adapter
-  breaks fee withdrawals**: the adapter calls `withdrawToP2PKH`, which does not
-  exist on the v0.2.0 implementation. Roll back in reverse order — messenger
-  proxy first (restores the vault's direct-send permission), then
+- **Rolling back the Moat while the new messenger is live breaks ALL
+  withdrawals**, not only fee withdrawals: the v0.2.0 Moat sends empty
+  messages, which the new messenger rejects with
+  `ErrorInvalidWithdrawalEnvelope` (and the adapter calls `withdrawToP2PKH`,
+  which does not exist on the v0.2.0 implementation). Roll back in reverse
+  order — messenger proxy first (restores the vault's direct-send permission
+  and empty-message acceptance), then
   `vault.updateMessenger(<messenger proxy>)` and
   `vault.updateRecipient(<old EVM recipient>)`, then the Moat proxy.
 

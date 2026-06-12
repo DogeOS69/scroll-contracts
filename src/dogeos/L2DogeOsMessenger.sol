@@ -4,6 +4,8 @@ pragma solidity =0.8.24;
 
 import {L2ScrollMessenger} from "../L2/L2ScrollMessenger.sol";
 
+import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
+
 // Potentially add import for Moat contract here
 
 /**
@@ -16,6 +18,7 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
     error ErrorNotMoatAddress(address provided, address expected);
     error ErrorSenderNotMoat(address sender, address expected);
     error ErrorZeroMoatAddress();
+    error ErrorInvalidWithdrawalEnvelope(bytes message);
 
     // --- State Variables --- //
 
@@ -77,12 +80,20 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
 
     /**
      * @notice Overrides the L2 -> L1 message sending logic.
-     * Only the Moat may send L2 -> L1 messages, so every withdrawal seen on L1 has a
-     * predictable sender, envelope, and 8-decimal-aligned value. Fee vault withdrawals
-     * are routed through the Moat via the FeeVaultMoatAdapter.
+     * Only the Moat may send L2 -> L1 messages, and every message must be exactly a
+     * valid v1 withdrawal envelope (P2PKH 0x0100 / P2SH 0x0101) - so every withdrawal
+     * seen on L1 has a predictable sender, ONE deterministic message representation
+     * per Dogecoin recipient type, and an 8-decimal-aligned value. Downstream
+     * consumers can reconstruct the exact message bytes (and thus the message hash)
+     * from the Dogecoin address used in the withdrawal alone.
+     *
+     * Legacy pre-v0.3.0 blank messages are rejected here, not just avoided by the
+     * Moat: even a Moat rollback to an implementation that sends empty messages
+     * cannot reintroduce a second P2PKH representation (such sends revert).
+     * Fee vault withdrawals are routed through the Moat via the FeeVaultMoatAdapter.
      * @param _to The L1 recipient address.
      * @param _value The ETH value to send with the message.
-     * @param _message The message calldata.
+     * @param _message The message calldata; must be a valid v1 withdrawal envelope.
      * @param _gasLimit The gas limit for L1 execution.
      */
     function _sendMessage(
@@ -94,6 +105,11 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         // Require that the caller is the MOAT contract.
         if (msg.sender != MOAT) {
             revert ErrorSenderNotMoat(msg.sender, MOAT);
+        }
+
+        // Require the canonical v1 envelope - no blank/legacy messages.
+        if (!WithdrawalEnvelope.isValid(_message)) {
+            revert ErrorInvalidWithdrawalEnvelope(_message);
         }
 
         // Call the original logic

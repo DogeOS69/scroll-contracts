@@ -6,6 +6,7 @@ import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import {Test} from "forge-std/Test.sol";
 
 // DogeOS Contracts
+import {WithdrawalEnvelope} from "../../dogeos/WithdrawalEnvelope.sol";
 import {L2DogeOsMessenger} from "../../dogeos/L2DogeOsMessenger.sol";
 import {Moat} from "../../dogeos/Moat.sol";
 import {BasculeMockVerifier} from "../../dogeos/BasculeMockVerifier.sol";
@@ -195,7 +196,7 @@ contract L2DogeOsMessengerTest is Test {
     function testSendMessageFromMoat() external {
         address targetL1 = address(0x111);
         uint256 valueToSend = 1 ether;
-        bytes memory message = abi.encode("hello from moat");
+        bytes memory message = WithdrawalEnvelope.encode(false); // canonical P2PKH envelope
         uint256 gasLimit = 100000;
 
         // Mock call coming from the MOAT address
@@ -221,6 +222,56 @@ contract L2DogeOsMessengerTest is Test {
 
         // Verify nonce was incremented in the queue
         assertEq(_l2MessageQueue.nextMessageIndex(), expectedNonce + 1, "Nonce mismatch");
+    }
+
+    // Test that the P2SH envelope is also accepted from the Moat.
+    function testSendMessageFromMoatP2SHEnvelope() external {
+        bytes memory message = WithdrawalEnvelope.encode(true);
+        vm.deal(address(_moat), 1 ether);
+        vm.prank(address(_moat));
+        _l2Messenger.sendMessage{value: 1 ether}({
+            _to: address(0x111),
+            _value: 1 ether,
+            _message: message,
+            _gasLimit: 0
+        });
+    }
+
+    /// @dev The envelope gate: legacy blank messages and every malformed variant must
+    ///      revert even from the Moat itself. This is what guarantees exactly ONE
+    ///      message representation per Dogecoin recipient type, so downstream consumers
+    ///      can deterministically reconstruct the message from the withdrawal address -
+    ///      and it holds even across a Moat rollback to a blank-message implementation.
+    function testSendMessageFromMoatRejectsNonEnvelopeMessages() external {
+        bytes[] memory bad = new bytes[](6);
+        bad[0] = new bytes(0); // legacy blank (pre-v0.3.0 representation)
+        bad[1] = hex"01"; // truncated
+        bad[2] = hex"010000"; // overlong
+        bad[3] = hex"0000"; // version 0
+        bad[4] = hex"0200"; // unknown version
+        bad[5] = hex"0102"; // unknown flags
+
+        vm.deal(address(_moat), 100 ether);
+        for (uint256 i = 0; i < bad.length; i++) {
+            vm.prank(address(_moat));
+            vm.expectRevert(abi.encodeWithSelector(L2DogeOsMessenger.ErrorInvalidWithdrawalEnvelope.selector, bad[i]));
+            _l2Messenger.sendMessage{value: 1 ether}({
+                _to: address(0x111),
+                _value: 1 ether,
+                _message: bad[i],
+                _gasLimit: 0
+            });
+        }
+    }
+
+    /// @dev Library-level pin of the canonical encodings and validity partition.
+    function testEnvelopeCanonicalEncodings() external pure {
+        assertEq(WithdrawalEnvelope.encode(false), hex"0100");
+        assertEq(WithdrawalEnvelope.encode(true), hex"0101");
+        assertTrue(WithdrawalEnvelope.isValid(hex"0100"));
+        assertTrue(WithdrawalEnvelope.isValid(hex"0101"));
+        assertFalse(WithdrawalEnvelope.isValid(new bytes(0)));
+        assertFalse(WithdrawalEnvelope.isValid(hex"0102"));
     }
 
     // Test relayMessage reverts when Bascule verification fails (via Moat)
