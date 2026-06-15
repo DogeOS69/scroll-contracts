@@ -243,8 +243,8 @@ Check the printed values before continuing:
 - `ProxyAdmin owner`
 - implementation before upgrade
 - target implementation
-- pre-upgrade storage snapshot: `messenger`, `basculeVerifier`,
-  `withdrawalFee`, `minWithdrawalAmount`, `depositFee`, `feeRecipient`, `owner`
+- pre-upgrade storage snapshot: `messenger`, `withdrawalFee`,
+  `minWithdrawalAmount`, `depositFee`, `feeRecipient`, `owner`
 
 The target implementation must already have bytecode on-chain.
 
@@ -635,6 +635,12 @@ Additions to `IMoat`:
 `L2DogeOsMessenger` removals: the `FEE_VAULT()` getter and the fee vault
 constructor argument.
 
+`IMoat` removals:
+
+- `function basculeVerifier() external view returns (address);`
+- `function setBascule(address) external;`
+- `event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);`
+
 Removed custom errors:
 
 - `ErrorUnprovenL1Message()`
@@ -653,7 +659,7 @@ The Moat contract layout is preserved and safe for proxy upgrade:
 | `0x00`        | `_owner` from `OwnableBase` packed with `_initialized` / `_initializing` from `Initializable`        |
 | `0x01`        | `_status` from `ReentrancyGuardUpgradeable`                                                          |
 | `0x02`-`0x32` | `__gap` from `ReentrancyGuardUpgradeable`                                                            |
-| `0x33`-`0x38` | `messenger`, `basculeVerifier`, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee` |
+| `0x33`-`0x38` | `messenger`, deprecated verifier slot, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee` |
 | `0x39` (57)   | **new in v0.3.0:** `feeExemptCallers` mapping — appended after the previously-last variable          |
 
 `P2PKH_PREFIX`, `P2SH_PREFIX`, and `SATOSHI_TO_WEI` live in bytecode as
@@ -716,7 +722,7 @@ It:
 | withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping) — enforced by the messenger, which rejects anything that is not exactly `0x0100`/`0x0101`. New messages are therefore deterministically reconstructable from the Dogecoin address type. (Treatment of pre-upgrade empty-message history is left open pending hardfork/protocol-version mechanics.) | Breaking; must ship before upgrade |
 | Frontend / SDK     | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers. Surface the flooring: amounts below 1e10-wei precision are truncated into the fee.                                                                                                                                                                                              | Additive                           |
 | Fee collection ops | Fee vault withdrawals now land at the configured Dogecoin address (`FEE_VAULT_DOGE_RECIPIENT_ADDR`), not an L1 EVM wallet. Update treasury monitoring accordingly.                                                                                                                                                                                                            | Breaking; coordinate with step 7   |
-| Bascule verifier   | No change. `handleL1Message` is untouched by this upgrade.                                                                                                                                                                                                                                                                                                                    | None                               |
+| L1 deposit handling | `handleL1Message` no longer calls a verifier hook; deposit messages are gated by the configured messenger and existing fee/target-call checks.                                                                                                                                                                                                                                                                                              | Breaking for verifier integrations |
 
 Deploy the envelope-aware relayer before the proxy upgrade. After the proxy is
 upgraded, even `withdrawToL1` emits a `version=1, flags=0` envelope, and the

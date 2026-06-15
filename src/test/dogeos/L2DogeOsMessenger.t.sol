@@ -9,8 +9,6 @@ import {Test} from "forge-std/Test.sol";
 import {WithdrawalEnvelope} from "../../dogeos/WithdrawalEnvelope.sol";
 import {L2DogeOsMessenger} from "../../dogeos/L2DogeOsMessenger.sol";
 import {Moat} from "../../dogeos/Moat.sol";
-import {BasculeMockVerifier} from "../../dogeos/BasculeMockVerifier.sol";
-import {IBasculeVerifier} from "../../dogeos/IBasculeVerifier.sol";
 
 // Scroll Contracts
 import {L2MessageQueue} from "../../L2/predeploys/L2MessageQueue.sol";
@@ -35,7 +33,6 @@ contract L2DogeOsMessengerTest is Test {
     // DogeOS Contracts Instances
     L2DogeOsMessenger internal _l2Messenger;
     Moat internal _moat;
-    BasculeMockVerifier internal _basculeVerifier;
 
     // Scroll Contracts Instances
     L2MessageQueue internal _l2MessageQueue;
@@ -46,9 +43,6 @@ contract L2DogeOsMessengerTest is Test {
 
         // Deploy L2 contracts
         _l2MessageQueue = new L2MessageQueue(address(this)); // Needs owner
-
-        // Deploy DogeOS contracts
-        _basculeVerifier = new BasculeMockVerifier();
 
         // Moat needs owner at deployment (with mainnet prefixes)
         address moatOwner = address(this);
@@ -69,10 +63,7 @@ contract L2DogeOsMessengerTest is Test {
         _l2MessageQueue.initialize(address(_l2Messenger));
 
         // Configure Moat (using owner = address(this))
-        // DO NOT set basculeVerifier in this test suite. Moat.handleL1Message will skip verification.
-        // Verification logic involving Moat should be tested in Moat.t.sol.
         _moat.setFeeRecipient(address(0xfee));
-        _moat.setBascule(address(_basculeVerifier));
         // Set other Moat params as needed
     }
 
@@ -274,29 +265,17 @@ contract L2DogeOsMessengerTest is Test {
         assertFalse(WithdrawalEnvelope.isValid(hex"0102"));
     }
 
-    // Test relayMessage reverts when Bascule verification fails (via Moat)
-    function testRelayToMoatBasculeFailure(uint8 failCase) external {
-        vm.assume(failCase <= 1);
+    // Test relayMessage succeeds for a zero-value deposit relay; Moat no longer uses a verifier hook.
+    function testRelayToMoatSuccess_ZeroValueDeposit() external {
         address l1Sender = address(0xabc);
         address finalTarget = address(0xdef);
         address targetMoat = address(_moat);
-        uint256 value;
-        bytes32 depositID;
+        uint256 value = 0;
+        bytes32 depositID = bytes32(uint256(0x1111));
         uint256 nonce = 999; // Use unique nonce
-
-        if (failCase == 0) {
-            // Fail because of bad deposit ID
-            value = 1 ether;
-            depositID = _basculeVerifier.REJECT_DEPOSIT_ID(); // Access via the instance
-        } else {
-            // Fail because of zero value
-            value = 0;
-            depositID = bytes32(uint256(0x1111)); // Any non-reject ID
-        }
-
         bytes memory message = abi.encodeWithSignature("handleL1Message(address,bytes32)", finalTarget, depositID);
 
-        // Calculate the expected hash for the FailedRelayedMessage event
+        // Calculate the expected hash for the RelayedMessage event
         bytes32 xDomainCalldataHash = keccak256(
             abi.encodeWithSignature(
                 "relayMessage(address,address,uint256,uint256,bytes)",
@@ -311,15 +290,12 @@ contract L2DogeOsMessengerTest is Test {
         // Prank as the aliased L1 messenger counterpart
         vm.startPrank(AddressAliasHelper.applyL1ToL2Alias(address(_l1Messenger)));
 
-        // Expect FailedRelayedMessage event because the underlying call to Moat (and then Bascule) reverted
-        // vm.expectRevert(BasculeMockVerifier.ErrorMockRejection.selector); <-- Incorrect: L2ScrollMessenger catches reverts
-        vm.expectEmit(false, true, false, false); // Check only messageHash topic (ignore signature)
-        emit IScrollMessenger.FailedRelayedMessage(xDomainCalldataHash);
+        vm.expectEmit(true, true, false, false);
+        emit IScrollMessenger.RelayedMessage(xDomainCalldataHash);
 
-        if (value > 0) {
-            vm.deal(address(_l2Messenger), value); // Ensure messenger has funds if needed
-        }
         _l2Messenger.relayMessage({_from: l1Sender, _to: targetMoat, _value: value, _nonce: nonce, _message: message});
+
+        assertTrue(_l2Messenger.isL1MessageExecuted(xDomainCalldataHash), "Message not executed");
 
         vm.stopPrank();
     }
@@ -330,7 +306,7 @@ contract L2DogeOsMessengerTest is Test {
 
         address l1Sender = address(0xabc);
         address targetMoat = address(_moat);
-        uint256 value = 1 ether; // Non-zero value to pass Bascule
+        uint256 value = 1 ether;
         uint256 nonce = 789;
         bytes32 validDepositID = bytes32(uint256(0x2222)); // Valid ID
 

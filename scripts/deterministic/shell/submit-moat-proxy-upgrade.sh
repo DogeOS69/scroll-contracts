@@ -105,7 +105,6 @@ snapshot() {
 echo ""
 echo "pre-upgrade storage snapshot"
 snapshot "messenger:"           'messenger()(address)'
-snapshot "basculeVerifier:"     'basculeVerifier()(address)'
 snapshot "withdrawalFee:"       'withdrawalFee()(uint256)'
 snapshot "minWithdrawalAmount:" 'minWithdrawalAmount()(uint256)'
 snapshot "depositFee:"          'depositFee()(uint256)'
