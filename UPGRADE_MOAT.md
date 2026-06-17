@@ -627,6 +627,7 @@ Additions to `IMoat`:
 - `function SATOSHI_TO_WEI() external view returns (uint256);`
 - `function feeExemptCallers(address) external view returns (bool);`
 - `function setFeeExempt(address, bool) external;`
+- `function handleL1Message(address) external payable;`
 - `function withdrawToP2PKH(address) external payable;`
 - `function withdrawToP2SH(address) external payable;`
 - `function withdrawToDogeAddress(string) external payable;`
@@ -637,6 +638,7 @@ constructor argument.
 
 `IMoat` removals:
 
+- `function handleL1Message(address, bytes32) external payable;`
 - `function basculeVerifier() external view returns (address);`
 - `function setBascule(address) external;`
 - `event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);`
@@ -722,7 +724,7 @@ It:
 | withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping) — enforced by the messenger, which rejects anything that is not exactly `0x0100`/`0x0101`. New messages are therefore deterministically reconstructable from the Dogecoin address type. (Treatment of pre-upgrade empty-message history is left open pending hardfork/protocol-version mechanics.) | Breaking; must ship before upgrade |
 | Frontend / SDK     | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers. Surface the flooring: amounts below 1e10-wei precision are truncated into the fee.                                                                                                                                                                                              | Additive                           |
 | Fee collection ops | Fee vault withdrawals now land at the configured Dogecoin address (`FEE_VAULT_DOGE_RECIPIENT_ADDR`), not an L1 EVM wallet. Update treasury monitoring accordingly.                                                                                                                                                                                                            | Breaking; coordinate with step 7   |
-| L1 deposit handling | `handleL1Message` no longer calls a verifier hook; deposit messages are gated by the configured messenger and existing fee/target-call checks.                                                                                                                                                                                                                                                                                              | Breaking for verifier integrations |
+| L1 deposit handling | `handleL1Message` now accepts only the L2 target address and no longer calls a verifier hook; deposit messages are gated by the configured messenger and existing fee/target-call checks.                                                                                                                                                                                                                                                     | Breaking for verifier integrations |
 
 Deploy the envelope-aware relayer before the proxy upgrade. After the proxy is
 upgraded, even `withdrawToL1` emits a `version=1, flags=0` envelope, and the

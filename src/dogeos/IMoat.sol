@@ -69,7 +69,7 @@ interface IMoat {
     function SATOSHI_TO_WEI() external view returns (uint256);
 
     // Core Logic
-    function handleL1Message(address _target, bytes32 _depositID) external payable;
+    function handleL1Message(address _target) external payable;
 
     function withdrawToL1(address _target) external payable;
 

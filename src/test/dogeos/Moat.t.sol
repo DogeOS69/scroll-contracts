@@ -19,7 +19,7 @@ import {ScrollMessengerBase} from "../../libraries/ScrollMessengerBase.sol"; // 
 contract SimpleTarget {
     event Executed(bytes data, uint256 value);
 
-    // Use fallback to accept raw depositID calldata from Moat
+    // Use fallback to accept value forwarded by Moat.
     fallback() external payable {
         emit Executed(msg.data, msg.value);
     }
@@ -520,23 +520,16 @@ contract MoatTest is Test {
 
     function testHandleL1Message_Revert_NotMessenger() external {
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue = bytes32(uint256(0x1111));
         uint256 value = 1 ether;
 
         // Call from non-messenger address (_user)
         vm.prank(_user);
         vm.expectRevert(abi.encodeWithSelector(Moat.ErrorOnlyMessenger.selector, _user, address(_mockMessenger)));
-        // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}( /* _target */
-            address(target),
-            /* _depositID */
-            depositIDValue
-        );
+        _moat.handleL1Message{value: value}(address(target));
     }
 
     function testHandleL1Message_Success() external {
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue = bytes32(uint256(0x1111)); // Use a valid ID
         uint256 value = 1 ether; // Use non-zero value
 
         // Call from the mock messenger address
@@ -551,18 +544,12 @@ contract MoatTest is Test {
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), value); // Expect empty bytes
 
-        // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}( /* _target */
-            address(target),
-            /* _depositID */
-            depositIDValue
-        );
+        _moat.handleL1Message{value: value}(address(target));
         vm.stopPrank();
     }
 
-    function testHandleL1Message_Success_UnverifiedDepositId() external {
+    function testHandleL1Message_Success_WithoutDepositId() external {
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue = bytes32(uint256(0xffff));
         uint256 value = 1 ether; // Non-zero value
 
         // Call from the mock messenger address
@@ -577,18 +564,12 @@ contract MoatTest is Test {
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), value); // Expect empty bytes
 
-        // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}( /* _target */
-            address(target),
-            /* _depositID */
-            depositIDValue
-        );
+        _moat.handleL1Message{value: value}(address(target));
         vm.stopPrank();
     }
 
     function testHandleL1Message_Revert_TargetRevert() external {
         RevertingReceiver target = new RevertingReceiver(); // Use the reverting helper
-        bytes32 depositIDValue = bytes32(uint256(0x1111)); // Use a valid ID
         uint256 value = 1 ether; // Use non-zero value
 
         // Call from the mock messenger address
@@ -602,12 +583,7 @@ contract MoatTest is Test {
         // Expect Moat's ErrorTargetRevert
         vm.expectRevert(Moat.ErrorTargetRevert.selector);
 
-        // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}( /* _target */
-            address(target),
-            /* _depositID */
-            depositIDValue
-        );
+        _moat.handleL1Message{value: value}(address(target));
         vm.stopPrank();
     }
 
@@ -623,7 +599,6 @@ contract MoatTest is Test {
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue = bytes32(uint256(0x1111));
 
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
         uint256 expectedAmountToTarget = depositAmount - depositFee;
@@ -639,7 +614,7 @@ contract MoatTest is Test {
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), expectedAmountToTarget);
 
-        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        _moat.handleL1Message{value: depositAmount}(address(target));
         vm.stopPrank();
 
         // Verify fee collection
@@ -656,7 +631,6 @@ contract MoatTest is Test {
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue = bytes32(uint256(0x1111));
 
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
@@ -670,7 +644,7 @@ contract MoatTest is Test {
 
         // No SimpleTarget.Executed event expected
 
-        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        _moat.handleL1Message{value: depositAmount}(address(target));
         vm.stopPrank();
 
         // Verify all funds went to fee recipient
@@ -686,7 +660,6 @@ contract MoatTest is Test {
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue = bytes32(uint256(0x1111));
 
         // Call from the mock messenger
         vm.startPrank(address(_mockMessenger));
@@ -699,7 +672,7 @@ contract MoatTest is Test {
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), depositAmount);
 
-        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        _moat.handleL1Message{value: depositAmount}(address(target));
         vm.stopPrank();
     }
 
@@ -718,7 +691,6 @@ contract MoatTest is Test {
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue = bytes32(uint256(0x1111));
 
         // Call from the mock messenger
         vm.startPrank(address(_mockMessenger));
@@ -726,7 +698,7 @@ contract MoatTest is Test {
 
         // Expect revert due to fee transfer failure
         vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
-        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        _moat.handleL1Message{value: depositAmount}(address(target));
         vm.stopPrank();
     }
 
@@ -743,7 +715,6 @@ contract MoatTest is Test {
         vm.stopPrank();
 
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue = bytes32(uint256(0x1111));
 
         // Call from the mock messenger
         vm.startPrank(address(_mockMessenger));
@@ -751,7 +722,7 @@ contract MoatTest is Test {
 
         // Expect revert due to fee transfer failure (full amount to fee)
         vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
-        _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
+        _moat.handleL1Message{value: depositAmount}(address(target));
         vm.stopPrank();
     }
 
