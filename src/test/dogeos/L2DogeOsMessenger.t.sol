@@ -123,7 +123,8 @@ contract L2DogeOsMessengerTest is Test {
         address targetMoat = address(_moat);
         uint256 value = 1 ether;
         uint256 nonce = 456;
-        bytes memory message = abi.encodeWithSignature("handleL1Message(address)", finalTarget);
+        bytes32 depositID = bytes32(uint256(0x12345));
+        bytes memory message = abi.encodeWithSignature("handleL1Message(address,bytes32)", finalTarget, depositID);
 
         // Calculate the expected hash for the RelayedMessage event
         bytes32 xDomainCalldataHash = keccak256(
@@ -270,8 +271,9 @@ contract L2DogeOsMessengerTest is Test {
         address finalTarget = address(0xdef);
         address targetMoat = address(_moat);
         uint256 value = 0;
+        bytes32 depositID = bytes32(uint256(0x1111));
         uint256 nonce = 999; // Use unique nonce
-        bytes memory message = abi.encodeWithSignature("handleL1Message(address)", finalTarget);
+        bytes memory message = abi.encodeWithSignature("handleL1Message(address,bytes32)", finalTarget, depositID);
 
         // Calculate the expected hash for the RelayedMessage event
         bytes32 xDomainCalldataHash = keccak256(
@@ -306,9 +308,14 @@ contract L2DogeOsMessengerTest is Test {
         address targetMoat = address(_moat);
         uint256 value = 1 ether;
         uint256 nonce = 789;
+        bytes32 validDepositID = bytes32(uint256(0x2222)); // Valid ID
 
         // The message intends to call handleL1Message on Moat, which will then call the revertingTarget
-        bytes memory message = abi.encodeWithSignature("handleL1Message(address)", address(revertingTarget));
+        bytes memory message = abi.encodeWithSignature(
+            "handleL1Message(address,bytes32)",
+            address(revertingTarget),
+            validDepositID
+        );
 
         // Prank as the aliased L1 messenger counterpart
         vm.startPrank(AddressAliasHelper.applyL1ToL2Alias(address(_l1Messenger)));

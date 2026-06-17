@@ -188,11 +188,12 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
     /**
      * @notice Handles execution of a messenger-gated L1->L2 message.
-     * @dev Must be called by the designated L2 messenger. Relays the call
-     * (and value) to the target address.
-     * @param _target The target recipient address on L2.
+     * @dev Must be called by the designated L2 messenger. The bytes32 deposit
+     * identifier argument is kept for ABI compatibility and ignored.
+     * Relays the call (and value) to the target address.
+     * @param _target The target receipient address on L2.
      */
-    function handleL1Message(address _target) external payable nonReentrant {
+    function handleL1Message(address _target, bytes32) external payable nonReentrant {
         // Check 1: Caller must be the messenger this Moat is configured for.
         address _messenger = messenger;
         if (_messenger == address(0)) {
