@@ -10,12 +10,8 @@ fi
 VOLUME_PATH="$REPO_ROOT/volume"
 if [ ! -e "$VOLUME_PATH" ]; then
     echo "missing volume path: $VOLUME_PATH"
-    echo "hint: ln -sfn ../dogeos-aws-devnet $VOLUME_PATH"
+    echo "hint: create $VOLUME_PATH with config.toml and config-contracts.toml"
     exit 1
-fi
-
-if [ ! -L "$VOLUME_PATH" ]; then
-    echo "warning: $VOLUME_PATH is not a symlink"
 fi
 
 # Submits ProxyAdmin.upgrade(moatProxy, newImpl) from the ProxyAdmin owner.
