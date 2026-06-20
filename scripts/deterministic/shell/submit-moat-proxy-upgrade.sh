@@ -116,15 +116,14 @@ if [ "${BROADCAST:-0}" = "1" ]; then
         echo "OWNER_PRIVATE_KEY is not set for broadcast"
         exit 1
     fi
+    require_command forge
 
     echo ""
-    echo "broadcasting ProxyAdmin.upgrade on L2"
-    cast send "$L2_PROXY_ADMIN_ADDR" \
-        'upgrade(address,address)' \
-        "$L2_MOAT_PROXY_ADDR" "$L2_MOAT_IMPLEMENTATION_ADDR" \
+    echo "broadcasting ProxyAdmin.upgrade on L2 via forge script"
+    forge script scripts/deterministic/SubmitProxyUpgrades.s.sol:SubmitMoatProxyUpgrade \
         --rpc-url "$L2_RPC_ENDPOINT" \
-        --private-key "$OWNER_PRIVATE_KEY" \
-        --legacy
+        --legacy \
+        --broadcast
 
     echo "impl after:  $(cast implementation "$L2_MOAT_PROXY_ADDR" --rpc-url "$L2_RPC_ENDPOINT")"
 else
