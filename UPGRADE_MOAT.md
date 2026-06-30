@@ -799,14 +799,20 @@ configures owner-managed Galileo L1 data fee parameters on
 
 It:
 
-- reads `EXTERNAL_RPC_URI_L2`, `COMMIT_SCALAR`, `BLOB_SCALAR`, and
-  `PENALTY_FACTOR` from `volume/config.toml`;
-- reads `L1_GAS_PRICE_ORACLE_ADDR` from `volume/config-contracts.toml`;
-- fails if `COMMIT_SCALAR`, `BLOB_SCALAR`, or `PENALTY_FACTOR` is missing or
-  zero;
-- checks that `L1_GAS_PRICE_ORACLE_ADDR` has deployed code;
+- reads only `EXTERNAL_RPC_URI_L2` from `volume/config.toml` in shell, because
+  `forge script` needs an RPC URL before the Solidity script can run;
+- leaves typed TOML parsing to `SubmitL1GasPriceOracleConfig`, which reads
+  `COMMIT_SCALAR`, `BLOB_SCALAR`, and `PENALTY_FACTOR` from
+  `volume/config.toml`, and `L1_GAS_PRICE_ORACLE_ADDR` from
+  `volume/config-contracts.toml`;
+- fails from the Solidity script if `COMMIT_SCALAR`, `BLOB_SCALAR`, or
+  `PENALTY_FACTOR` is missing or zero;
+- checks from the Solidity script that `L1_GAS_PRICE_ORACLE_ADDR` has deployed
+  code;
 - prints `L1GasPriceOracle owner`;
 - prints current and target `commitScalar`, `blobScalar`, and `penaltyFactor`;
+- runs `SubmitL1GasPriceOracleConfig.dryRun()` by default, without requiring
+  `OWNER_PRIVATE_KEY`;
 - calls `SubmitL1GasPriceOracleConfig` via `forge script --broadcast` only
   when `BROADCAST=1`;
 - skips any owner call whose current on-chain value already equals the target
