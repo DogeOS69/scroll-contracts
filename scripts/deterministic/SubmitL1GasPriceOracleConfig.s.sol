@@ -19,6 +19,12 @@ contract SubmitL1GasPriceOracleConfig is Script {
         uint256 penaltyFactor;
     }
 
+    function dryRun() external view {
+        Inputs memory inputs = _readInputs();
+        L1GasPriceOracle oracle = L1GasPriceOracle(inputs.oracle);
+        _preflightViewOnly(inputs, oracle);
+    }
+
     function run() external {
         Inputs memory inputs = _readInputs();
         uint256 ownerPrivateKey = vm.envUint("OWNER_PRIVATE_KEY");
@@ -28,7 +34,11 @@ contract SubmitL1GasPriceOracleConfig is Script {
         _preflight(inputs, oracle, signer);
 
         vm.startBroadcast(ownerPrivateKey);
+        _apply(inputs, oracle);
+        vm.stopBroadcast();
+    }
 
+    function _apply(Inputs memory inputs, L1GasPriceOracle oracle) private {
         console.log("");
         console.log("step 1/3: L1GasPriceOracle.setCommitScalar(COMMIT_SCALAR)");
         if (oracle.commitScalar() == inputs.commitScalar) {
@@ -52,8 +62,6 @@ contract SubmitL1GasPriceOracleConfig is Script {
         } else {
             oracle.setPenaltyFactor(inputs.penaltyFactor);
         }
-
-        vm.stopBroadcast();
     }
 
     function _readInputs() private view returns (Inputs memory inputs) {
@@ -61,6 +69,8 @@ contract SubmitL1GasPriceOracleConfig is Script {
         string memory contractsCfg = vm.readFile(CONFIG_CONTRACTS_PATH);
 
         require(vm.keyExistsToml(cfg, ".contracts.COMMIT_SCALAR"), "COMMIT_SCALAR is missing from config.toml");
+        require(vm.keyExistsToml(cfg, ".contracts.BLOB_SCALAR"), "BLOB_SCALAR is missing from config.toml");
+        require(vm.keyExistsToml(cfg, ".contracts.PENALTY_FACTOR"), "PENALTY_FACTOR is missing from config.toml");
 
         inputs.oracle = contractsCfg.readAddress(".L1_GAS_PRICE_ORACLE_ADDR");
         inputs.commitScalar = cfg.readUint(".contracts.COMMIT_SCALAR");
@@ -71,6 +81,16 @@ contract SubmitL1GasPriceOracleConfig is Script {
         require(inputs.commitScalar != 0, "COMMIT_SCALAR is zero");
         require(inputs.blobScalar != 0, "BLOB_SCALAR is zero");
         require(inputs.penaltyFactor != 0, "PENALTY_FACTOR is zero");
+    }
+
+    function _preflightViewOnly(Inputs memory inputs, L1GasPriceOracle oracle) private view {
+        require(inputs.oracle.code.length != 0, "L1_GAS_PRICE_ORACLE_ADDR has no code");
+
+        console.log("");
+        console.log("forge script L1GasPriceOracle config dry run");
+        console.log("oracle:          ", inputs.oracle);
+        console.log("oracle owner:    ", oracle.owner());
+        _printState(inputs, oracle);
     }
 
     function _preflight(
@@ -88,6 +108,10 @@ contract SubmitL1GasPriceOracleConfig is Script {
         console.log("signer:          ", signer);
         console.log("oracle:          ", inputs.oracle);
         console.log("oracle owner:    ", owner);
+        _printState(inputs, oracle);
+    }
+
+    function _printState(Inputs memory inputs, L1GasPriceOracle oracle) private view {
         console.log("commitScalar:    ", oracle.commitScalar());
         console.log("target commit:   ", inputs.commitScalar);
         console.log("blobScalar:      ", oracle.blobScalar());
