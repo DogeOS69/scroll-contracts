@@ -94,6 +94,7 @@ abstract contract Configuration is Script {
     string internal GRAFANA_URI;
 
     // gas price oracle
+    uint256 internal COMMIT_SCALAR;
     uint256 internal BLOB_SCALAR;
     uint256 internal SCALAR;
     uint256 internal PENALTY_FACTOR;
@@ -185,6 +186,7 @@ abstract contract Configuration is Script {
         WITHDRAWAL_FEE = cfg.readUint(".contracts.WITHDRAWAL_FEE");
         MIN_WITHDRAWAL_AMOUNT = cfg.readUint(".contracts.MIN_WITHDRAWAL_AMOUNT");
 
+        COMMIT_SCALAR = cfg.readUint(".contracts.COMMIT_SCALAR");
         BLOB_SCALAR = cfg.readUint(".contracts.BLOB_SCALAR");
         SCALAR = cfg.readUint(".contracts.SCALAR");
         PENALTY_FACTOR = cfg.readUint(".contracts.PENALTY_FACTOR");

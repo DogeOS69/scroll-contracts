@@ -109,10 +109,14 @@ DEPOSIT_FEE = "1000000000000000000"   # 1.0 DOGE default deposit fee
 WITHDRAWAL_FEE = "100000000000000000" # 0.1 DOGE default withdrawal fee
 MIN_WITHDRAWAL_AMOUNT = "1000000000000000000" # 1.0 DOGE minimum withdrawal amount
 
-#L1GasPriceOracle
-BLOB_SCALAR = 18
+# L1GasPriceOracle.
+# Galileo uses COMMIT_SCALAR, BLOB_SCALAR, and PENALTY_FACTOR.
+# SCALAR is the deprecated pre-Curie/pre-Galileo scalar and is kept only for
+# compatibility with legacy formula branches.
+COMMIT_SCALAR = 38_720_000_000
+BLOB_SCALAR = 8_000_000_000
 SCALAR = 938846
-PENALTY_FACTOR = 2_273_979_251
+PENALTY_FACTOR = 10_000
 
 [contracts.overrides]
 
