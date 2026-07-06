@@ -821,6 +821,50 @@ It:
 It does not set `l1BaseFee` or `l1BlobBaseFee`. Those are dynamic values set by
 the whitelisted `fee_oracle` signer.
 
+#### `submit-l2-whitelist-sender.sh`
+
+[`scripts/deterministic/shell/submit-l2-whitelist-sender.sh`](scripts/deterministic/shell/submit-l2-whitelist-sender.sh)
+adds an account to the L2 `Whitelist` contract used by `L1GasPriceOracle`.
+This is the permission needed for an account to call
+`L1GasPriceOracle.setL1BaseFeeAndBlobBaseFee(uint256,uint256)`.
+
+It:
+
+- reads `EXTERNAL_RPC_URI_L2` from `volume/config.toml` unless `RPC_URL` is set;
+- reads `L2_WHITELIST_ADDR` from `volume/config-contracts.toml` unless
+  `WHITELIST_ADDR` is set;
+- requires the target account as either the first argument or
+  `WHITELIST_ACCOUNT`;
+- checks that `L2_WHITELIST_ADDR` has deployed code;
+- prints the chain ID, whitelist owner, target account, and current
+  `isSenderAllowed(target)` state;
+- runs preflight only by default, without requiring `OWNER_PRIVATE_KEY`;
+- with `BROADCAST=1`, requires `OWNER_PRIVATE_KEY`, derives the signer from it,
+  and refuses to broadcast unless the signer equals `Whitelist.owner()`;
+- calls `Whitelist.updateWhitelistStatus([target], true)` only when the account
+  is not already whitelisted;
+- verifies `isSenderAllowed(target) == true` after the transaction.
+
+Dry run:
+
+```bash
+scripts/deterministic/shell/submit-l2-whitelist-sender.sh \
+  0x7d2b8622966577e0Bc81Ed1f868A1ca7527db13F
+```
+
+Broadcast:
+
+```bash
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-l2-whitelist-sender.sh \
+  0x7d2b8622966577e0Bc81Ed1f868A1ca7527db13F
+```
+
+Do not use `deploy.sh` to add a new fee-oracle sender on an already-deployed
+network. `deploy.sh` broadcasts with `DEPLOYER_PRIVATE_KEY`, while the whitelist
+may already be owned by `OWNER_ADDR`. Use this helper with the current
+`Whitelist.owner()` key instead.
+
 #### `deploy-moat-impl.sh`
 
 [`scripts/deterministic/shell/deploy-moat-impl.sh`](scripts/deterministic/shell/deploy-moat-impl.sh)
@@ -914,7 +958,7 @@ Caveats:
 - Messenger: [`src/dogeos/L2DogeOsMessenger.sol`](src/dogeos/L2DogeOsMessenger.sol)
 - Deploy script: [`scripts/deterministic/DeployScroll.s.sol`](scripts/deterministic/DeployScroll.s.sol) (`deployL2MoatImpl`, `deployL2FeeVaultMoatAdapter`, `deployL2DogeOsMessengerImpl`, `_dogePrefixesFromL1ChainId`)
 - Transaction scripts: [`scripts/deterministic/SubmitL1GasPriceOracleConfig.s.sol`](scripts/deterministic/SubmitL1GasPriceOracleConfig.s.sol), [`scripts/deterministic/SubmitProxyUpgrades.s.sol`](scripts/deterministic/SubmitProxyUpgrades.s.sol), [`scripts/deterministic/SubmitFeeVaultRewire.s.sol`](scripts/deterministic/SubmitFeeVaultRewire.s.sol)
-- Shell scripts: [`scripts/deterministic/shell/`](scripts/deterministic/shell/) — `submit-l1-gas-price-oracle-config.sh`, `deploy-moat-impl.sh`, `submit-moat-proxy-upgrade.sh`, `deploy-fee-vault-moat-adapter.sh`, `submit-fee-vault-rewire.sh`, `deploy-dogeos-messenger-impl.sh`, `submit-dogeos-messenger-proxy-upgrade.sh`
+- Shell scripts: [`scripts/deterministic/shell/`](scripts/deterministic/shell/) — `submit-l1-gas-price-oracle-config.sh`, `submit-l2-whitelist-sender.sh`, `deploy-moat-impl.sh`, `submit-moat-proxy-upgrade.sh`, `deploy-fee-vault-moat-adapter.sh`, `submit-fee-vault-rewire.sh`, `deploy-dogeos-messenger-impl.sh`, `submit-dogeos-messenger-proxy-upgrade.sh`
 - Tests: [`src/test/dogeos/Moat.t.sol`](src/test/dogeos/Moat.t.sol), [`src/test/dogeos/FeeVaultMoatAdapter.t.sol`](src/test/dogeos/FeeVaultMoatAdapter.t.sol), [`src/test/dogeos/L2DogeOsMessenger.t.sol`](src/test/dogeos/L2DogeOsMessenger.t.sol)
 - Merge commit: `3e29ab0` (`feat/p2sh-withdrawals` to `dogeos-v0.3.0-develop`)
 - Source commit: `4cfcad9 feat(moat): add P2SH withdrawal support with message envelope encoding`
