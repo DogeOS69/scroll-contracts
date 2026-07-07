@@ -5,6 +5,7 @@ import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
 import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
+import {DogeP2PKHVerifier} from "../../src/dogeos/DogeP2PKHVerifier.sol";
 import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
 
 import {DETERMINISTIC_DEPLOYMENT_PROXY_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT, GENESIS_ALLOC_JSON_PATH, GENESIS_JSON_PATH, GENESIS_JSON_TEMPLATE_PATH} from "./Constants.sol";
@@ -42,6 +43,7 @@ contract GenerateGenesis is DeployScroll {
         setL2Whitelist();
         setL2Weth();
         setL2FeeVault();
+        setL2DogeP2PKHVerifier();
 
         // other predeploys
         setDeterministicDeploymentProxy();
@@ -160,6 +162,27 @@ contract GenerateGenesis is DeployScroll {
         // reset so its not included state dump
         vm.etch(address(_wdoge), "");
         vm.resetNonce(address(_wdoge));
+    }
+
+    function setL2DogeP2PKHVerifier() internal {
+        address predeployAddr = tryGetOverride("L2_DOGE_P2PKH_VERIFIER");
+
+        if (predeployAddr == address(0)) {
+            // Hard failure (unlike the optional Scroll predeploys above): a genesis
+            // without code at the canonical DogeOSPredeploy address is a silent
+            // fund-accounting hazard - raw CALLs to the empty address succeed with
+            // empty returndata, and the CREATE2 fallback deploys at a different
+            // address that the native-transfer precompile's caller gate would reject.
+            revert("L2_DOGE_P2PKH_VERIFIER override missing from config.toml [contracts.overrides]");
+        }
+
+        // set code (stateless contract: no storage to set)
+        DogeP2PKHVerifier _verifier = new DogeP2PKHVerifier();
+        vm.etch(predeployAddr, address(_verifier).code);
+
+        // reset so its not included state dump
+        vm.etch(address(_verifier), "");
+        vm.resetNonce(address(_verifier));
     }
 
     function setL2FeeVault() internal {
