@@ -76,6 +76,7 @@ require_command python3
 
 # uint256 values (wei) exceed signed 64-bit shell arithmetic — use python3.
 big_add() { python3 -c "import sys; print(int(sys.argv[1]) + int(sys.argv[2]))" "$1" "$2"; }
+big_ge() { python3 -c "import sys; sys.exit(0 if int(sys.argv[1]) >= int(sys.argv[2]) else 1)" "$1" "$2"; }
 
 L2_RPC_ENDPOINT=$(extract EXTERNAL_RPC_URI_L2 "$CONFIG")
 L2_TX_FEE_VAULT_ADDR=$(extract L2_TX_FEE_VAULT_ADDR "$CONFIG_CONTRACTS")
@@ -164,14 +165,42 @@ if [ "$OWNER_PRIVATE_KEY" = "" ]; then
     echo "OWNER_PRIVATE_KEY is not set for broadcast"
     exit 1
 fi
-require_command forge
+
+send() {
+    cast send "$@" --rpc-url "$L2_RPC_ENDPOINT" --private-key "$OWNER_PRIVATE_KEY" --legacy
+}
 
 echo ""
-echo "broadcasting fee vault rewire on L2 via forge script"
-forge script scripts/deterministic/SubmitFeeVaultRewire.s.sol:SubmitFeeVaultRewire \
-    --rpc-url "$L2_RPC_ENDPOINT" \
-    --legacy \
-    --broadcast
+echo "step 1/4: Moat.setFeeExempt(adapter, true)"
+if [ "$IS_EXEMPT" = "true" ]; then
+    echo "already exempt — skipping"
+else
+    send "$L2_MOAT_PROXY_ADDR" 'setFeeExempt(address,bool)' "$L2_FEE_VAULT_MOAT_ADAPTER_ADDR" true
+fi
+
+echo ""
+echo "step 2/4: L2TxFeeVault.updateRecipient($FEE_VAULT_DOGE_RECIPIENT_ADDR)"
+if [ "$(lower "$RECIPIENT_BEFORE")" = "$(lower "$FEE_VAULT_DOGE_RECIPIENT_ADDR")" ]; then
+    echo "already set — skipping"
+else
+    send "$L2_TX_FEE_VAULT_ADDR" 'updateRecipient(address)' "$FEE_VAULT_DOGE_RECIPIENT_ADDR"
+fi
+
+echo ""
+echo "step 3/4: L2TxFeeVault.updateMinWithdrawAmount($REQUIRED_MIN)"
+if big_ge "$MIN_BEFORE" "$REQUIRED_MIN"; then
+    echo "already >= required — skipping"
+else
+    send "$L2_TX_FEE_VAULT_ADDR" 'updateMinWithdrawAmount(uint256)' "$REQUIRED_MIN"
+fi
+
+echo ""
+echo "step 4/4: L2TxFeeVault.updateMessenger(adapter)"
+if [ "$(lower "$MESSENGER_BEFORE")" = "$(lower "$L2_FEE_VAULT_MOAT_ADAPTER_ADDR")" ]; then
+    echo "already set — skipping"
+else
+    send "$L2_TX_FEE_VAULT_ADDR" 'updateMessenger(address)' "$L2_FEE_VAULT_MOAT_ADAPTER_ADDR"
+fi
 
 echo ""
 echo "post-rewire state"

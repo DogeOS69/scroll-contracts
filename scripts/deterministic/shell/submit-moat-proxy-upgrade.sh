@@ -122,6 +122,7 @@ if [ "${BROADCAST:-0}" = "1" ]; then
         --broadcast
 
     echo "impl after:  $(cast implementation "$L2_MOAT_PROXY_ADDR" --rpc-url "$L2_RPC_ENDPOINT")"
+    echo "note: the former basculeVerifier storage slot is deprecated and reserved only for layout compatibility"
 else
     echo ""
     echo "preflight only — set BROADCAST=1 to execute upgrade"

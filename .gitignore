@@ -11,6 +11,16 @@ artifacts
 artifacts-hardhat
 broadcast
 
+# solc compiler binary (downloaded at build time)
+soljson-*.js
+
+# Python bytecode (scripts/dogeos tooling)
+__pycache__/
+*.pyc
+
+# npm lockfile (this repo uses yarn)
+package-lock.json
+
 # logs
 *.log
 

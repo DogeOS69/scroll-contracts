@@ -188,8 +188,8 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
     /**
      * @notice Handles execution of a messenger-gated L1->L2 message.
-     * @dev Must be called by the designated L2 messenger. The bytes32 deposit
-     * identifier argument is kept for ABI compatibility and ignored.
+     * @dev Must be called by the designated L2 messenger. The deprecated bytes32
+     * _depositID argument is kept for ABI compatibility and ignored.
      * Relays the call (and value) to the target address.
      * @param _target The target receipient address on L2.
      */
