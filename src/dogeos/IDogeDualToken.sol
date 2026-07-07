@@ -109,6 +109,21 @@ interface IDogeDualToken is INativeDoge {
     ///      contextHash(32) || header(1) || r(32) || s(32) || x(32) || y(32).
     ///      Reverts only on a malformed envelope (length 0 or not a multiple of 278) or
     ///      on environment failure (missing native-transfer or RIPEMD-160 precompile).
+    ///
+    ///      A skipped op is not cancelled: emitting {P2PKHOpSkipped} leaves the signed
+    ///      authorization live and replayable by anyone holding it until its nonce is
+    ///      consumed or `validBefore` passes. There is no on-chain revocation primitive;
+    ///      a signer who wants to cancel must spend the nonce, for example by signing and
+    ///      executing a zero-amount self-transfer with the same nonce. An op that fails
+    ///      now, such as for insufficient signer balance, with a distant `validBefore`
+    ///      becomes executable as soon as the balance is topped up, with no further
+    ///      signer action; wallets should default to tight `validBefore` windows.
+    ///
+    ///      If `relayerFee > 0` and `relayerFeeRecipient == address(0)`, the fee
+    ///      recipient is `msg.sender`. Such ops are skipped with reason 4 (reserved
+    ///      target) when submitted by a reserved-address caller, including the low band
+    ///      or 0x5300... namespace. Signers who need unconditional fee routing should
+    ///      set an explicit non-reserved `relayerFeeRecipient`.
     /// @return successCount The number of ops that executed.
     function transferBatchWithP2PKHAuthorizations(bytes calldata packedOps) external returns (uint256 successCount);
 }

@@ -260,8 +260,8 @@ contract DogeDualToken is IDogeDualToken {
 
             (address recipient, address feeTo, bytes32 intentHash, uint8 reason) = _validateAuthorization(a, s);
             if (reason != REASON_OK) {
-                // NOT a cancellation: the authorization stays replayable until its
-                // nonce is consumed or validBefore passes (see IDogeDualToken docs)
+                // NOT a cancellation: see IDogeDualToken docs for replay, nonce-spend
+                // cancellation, and reserved relayer fee-recipient implications.
                 emit P2PKHOpSkipped(i, a.fromKeyHash, a.nonce, reason);
                 continue;
             }
