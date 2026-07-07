@@ -24,7 +24,6 @@ interface IMoat {
     event DepositFeeUpdated(uint256 oldFee, uint256 newFee);
     event MinWithdrawalUpdated(uint256 oldMin, uint256 newMin);
     event FeeRecipientUpdated(address indexed oldRecip, address indexed newRecip);
-    event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
     event FeeExemptionUpdated(address indexed account, bool exempt);
@@ -36,8 +35,6 @@ interface IMoat {
 
     // Getters for public state variables
     function messenger() external view returns (address);
-
-    function basculeVerifier() external view returns (address);
 
     function withdrawalFee() external view returns (uint256);
 
@@ -61,8 +58,6 @@ interface IMoat {
     function setMinWithdrawal(uint256 _newMin) external;
 
     function setFeeRecipient(address _newRecip) external;
-
-    function setBascule(address _newVerifier) external;
 
     function setFeeExempt(address _account, bool _exempt) external;
 

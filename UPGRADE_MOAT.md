@@ -38,22 +38,27 @@ run and what to verify.
 
 ### 1.1 Operational summary
 
-The live-chain upgrade has six chain-changing actions, **in this order**:
+The live-chain upgrade has seven possible chain-changing actions, **in this
+order**:
 
-| #   | Action                                                   | Signer                   | Script                                                                                                   |
-| --- | -------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
-| 1   | Deploy the new `Moat` implementation                     | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh`                                            |
-| 2   | Point the `Moat` proxy to the new implementation         | `ProxyAdmin owner`       | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-moat-proxy-upgrade.sh`             |
-| 3   | Deploy the `FeeVaultMoatAdapter`                         | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh`                               |
-| 4   | Rewire the fee vault through the adapter (4 owner calls) | `Moat + fee vault owner` | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-fee-vault-rewire.sh`               |
-| 5   | Deploy the new `L2DogeOsMessenger` implementation        | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh`                                |
-| 6   | Point the messenger proxy to the new implementation      | `ProxyAdmin owner`       | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh` |
+| #   | Action                                                     | Signer                   | Script                                                                                                   |
+| --- | ---------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 1   | Configure Galileo `L1GasPriceOracle` static fee parameters | `L1GasPriceOracle owner` | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh`     |
+| 2   | Deploy the new `Moat` implementation                       | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh`                                            |
+| 3   | Point the `Moat` proxy to the new implementation           | `ProxyAdmin owner`       | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-moat-proxy-upgrade.sh`             |
+| 4   | Deploy the `FeeVaultMoatAdapter`                           | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh`                               |
+| 5   | Rewire the fee vault through the adapter (4 owner calls)   | `Moat + fee vault owner` | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-fee-vault-rewire.sh`               |
+| 6   | Deploy the new `L2DogeOsMessenger` implementation          | `DEPLOYER`               | `BROADCAST=1 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh`                                |
+| 7   | Point the messenger proxy to the new implementation        | `ProxyAdmin owner`       | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh` |
 
 The ordering is load-bearing and fail-closed:
 
-- Step 2 before step 4: the rewire calls `Moat.setFeeExempt`, which only exists
+- Step 1 is idempotent and independent of the Moat implementation swap. It
+  must be run or explicitly verified so Galileo L1 data fees use
+  `commitScalar`, `blobScalar`, and `penaltyFactor` from config.
+- Step 3 before step 5: the rewire calls `Moat.setFeeExempt`, which only exists
   on the new implementation.
-- Step 4 before step 6: after the messenger upgrade, only the Moat can send
+- Step 5 before step 7: after the messenger upgrade, only the Moat can send
   L2->L1 messages — a vault still pointing directly at the messenger would have
   its withdrawals revert (fees accumulate, nothing is lost, but withdrawals
   stall until rewired). `submit-dogeos-messenger-proxy-upgrade.sh` refuses to
@@ -70,17 +75,38 @@ configuration. Network values and contract addresses are read from:
 - `volume/config.toml`
 - `volume/config-contracts.toml`
 
-**New config prerequisite:** `volume/config.toml` must define
-`FEE_VAULT_DOGE_RECIPIENT_ADDR` under `[contracts]` — the Dogecoin P2PKH
-hash160 (20 bytes, encoded as an EVM address) that receives fee vault
-withdrawals. Add it to the network configuration repository before starting.
-The rewire script refuses to run without it.
+**New config prerequisites:** `volume/config.toml` is copied from the target
+network configuration repository, so add these values to that repository before
+starting. Otherwise the local `volume/config.toml` copy will be overwritten the
+next time an operator prepares an upgrade workspace.
+
+Under `[contracts]`, define:
+
+```toml
+# Galileo L1GasPriceOracle static parameters. These are the architect-approved
+# Galileo v2 defaults, matching Scroll mainnet reference values at block 34228520.
+COMMIT_SCALAR = 38_720_000_000
+BLOB_SCALAR = 8_000_000_000
+PENALTY_FACTOR = 10_000
+
+# Deprecated pre-Curie/pre-Galileo scalar. Keep for legacy formula branches.
+SCALAR = 938_846
+
+# Dogecoin P2PKH hash160 (20 bytes, encoded as an EVM address) that receives
+# fee vault withdrawals.
+FEE_VAULT_DOGE_RECIPIENT_ADDR = "0x..."
+```
+
+`submit-l1-gas-price-oracle-config.sh` refuses to run without
+`COMMIT_SCALAR`, `BLOB_SCALAR`, and `PENALTY_FACTOR`. The rewire script refuses
+to run without `FEE_VAULT_DOGE_RECIPIENT_ADDR`.
 
 Private keys are the intended environment-variable inputs. For this upgrade,
 `DEPLOYER_PRIVATE_KEY` is used by the implementation deploy steps, and
-`OWNER_PRIVATE_KEY` is used by the ProxyAdmin upgrade and rewire steps (the
-Moat, fee vault, and ProxyAdmin are expected to share one owner; the scripts
-print the actual owners during preflight).
+`OWNER_PRIVATE_KEY` is used by the L1GasPriceOracle owner config step, the
+ProxyAdmin upgrade steps, and the rewire step (the Moat, fee vault, and
+ProxyAdmin are expected to share one owner; the scripts print the actual owners
+during preflight).
 
 This runbook prepares `volume` as a local working copy of the target network
 configuration. The deploy steps write `L2_MOAT_IMPLEMENTATION_ADDR`,
@@ -108,13 +134,33 @@ cp "$CONFIG_DIR/config.toml" volume/config.toml
 cp "$CONFIG_DIR/config-contracts.toml" volume/config-contracts.toml
 perl -pi -e 's/testnet\.dogeos\.com/devnet.doge.xyz/g' volume/config.toml
 
+# Confirm these [contracts] values exist in the target network config before
+# continuing. Add them to $CONFIG_DIR/config.toml, then recopy if they are
+# missing from volume/config.toml:
+#   COMMIT_SCALAR = 38_720_000_000
+#   BLOB_SCALAR = 8_000_000_000
+#   SCALAR = 938_846
+#   PENALTY_FACTOR = 10_000
+#   FEE_VAULT_DOGE_RECIPIENT_ADDR = "0x..."
+for key in COMMIT_SCALAR BLOB_SCALAR SCALAR PENALTY_FACTOR FEE_VAULT_DOGE_RECIPIENT_ADDR; do
+  if ! grep -q "^$key[[:space:]]*=" volume/config.toml; then
+    echo "ERROR: $key is missing from volume/config.toml" >&2
+    exit 1
+  fi
+done
+
 # Confirm that dogeos.com no longer appears in volume/config.toml before running deploy scripts.
 if grep -n 'dogeos\.com' volume/config.toml; then
   echo "ERROR: dogeos.com still appears in volume/config.toml" >&2
   exit 1
 fi
 
-# 1+2: Moat implementation + proxy upgrade
+# 1: Galileo L1GasPriceOracle static fee parameters
+scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
+
+# 2+3: Moat implementation + proxy upgrade
 scripts/deterministic/shell/deploy-moat-impl.sh
 BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh
 
@@ -122,16 +168,16 @@ scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
 OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
   scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
 
-# 3: FeeVaultMoatAdapter
+# 4: FeeVaultMoatAdapter
 scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh
 BROADCAST=1 scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh
 
-# 4: rewire fee vault (setFeeExempt -> updateRecipient -> updateMinWithdrawAmount -> updateMessenger)
+# 5: rewire fee vault (setFeeExempt -> updateRecipient -> updateMinWithdrawAmount -> updateMessenger)
 scripts/deterministic/shell/submit-fee-vault-rewire.sh
 OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
   scripts/deterministic/shell/submit-fee-vault-rewire.sh
 
-# 5+6: messenger implementation + proxy upgrade (refuses to run before step 4)
+# 6+7: messenger implementation + proxy upgrade (refuses to run before step 5)
 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh
 BROADCAST=1 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh
 
@@ -150,13 +196,18 @@ Before sending any transaction:
   `<repo-root>/volume`.
 - After copying `config.toml`, replace `testnet.dogeos.com` with
   `devnet.doge.xyz`.
+- Add `COMMIT_SCALAR`, `BLOB_SCALAR`, `PENALTY_FACTOR`, and the legacy
+  `SCALAR` value to `volume/config.toml` under `[contracts]` and to the
+  network configuration repository. `COMMIT_SCALAR` is the Galileo value used
+  by `L1GasPriceOracle.getL1Fee(bytes)`; `SCALAR` is deprecated and does not
+  affect Galileo sizing.
 - Add `FEE_VAULT_DOGE_RECIPIENT_ADDR` to `volume/config.toml` under
   `[contracts]` (the Dogecoin P2PKH hash160 for fee withdrawals) and to the
   network configuration repository.
 - Confirm the envelope-aware withdraw processor is already deployed, and that
   it floors / expects satoshi-aligned amounts consistently with the contract.
-- Confirm you control the `ProxyAdmin owner` key printed by the upgrade
-  scripts, and the Moat / fee vault owner key used by the rewire script.
+- Confirm you control the `L1GasPriceOracle owner`, `ProxyAdmin owner`, and the
+  Moat / fee vault owner keys printed by the upgrade scripts.
 - Run the dry-run commands first, then run the same flow with `BROADCAST=1`.
 - Follow the step order from 1.1 — the scripts enforce the critical ordering,
   but do not skip ahead.
@@ -198,7 +249,57 @@ only the symlink before creating the local `volume` directory. After copying
 `config.toml`, replace `testnet.dogeos.com` with `devnet.doge.xyz` so the
 upgrade scripts use the expected RPC host.
 
-#### Step 2 - Dry-run implementation deployment
+Before continuing, confirm the copied `volume/config.toml` contains these
+`[contracts]` keys. If not, add them to the source network configuration
+repository, then copy `config.toml` again:
+
+```toml
+COMMIT_SCALAR = 38_720_000_000
+BLOB_SCALAR = 8_000_000_000
+SCALAR = 938_846
+PENALTY_FACTOR = 10_000
+FEE_VAULT_DOGE_RECIPIENT_ADDR = "0x..."
+```
+
+`COMMIT_SCALAR` is the Galileo `commitScalar` slot. Do not rely on `SCALAR` for
+Galileo sizing; `SCALAR` is retained only for legacy formula branches. The
+Galileo defaults above are copied from the latest architecture guidance:
+Scroll mainnet block 34228520 had `commitScalar = 38720000000`,
+`blobScalar = 8000000000`, and `penaltyFactor = 10000`.
+
+#### Step 2 - Dry-run L1GasPriceOracle static fee parameter config
+
+```bash
+scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
+```
+
+Check the printed values before continuing:
+
+- `L1GasPriceOracle owner`
+- current `commitScalar`, `blobScalar`, `penaltyFactor`
+- target `COMMIT_SCALAR`, `BLOB_SCALAR`, `PENALTY_FACTOR` from
+  `volume/config.toml`
+
+This step intentionally does not set `l1BaseFee` or `l1BlobBaseFee`; those are
+dynamic values updated by the whitelisted `fee_oracle` signer.
+
+#### Step 3 - Broadcast L1GasPriceOracle static fee parameter config
+
+Use the private key for the `L1GasPriceOracle owner`.
+
+```bash
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
+```
+
+The script performs three owner calls, skipping values that are already in the
+desired state:
+
+1. `L1GasPriceOracle.setCommitScalar(COMMIT_SCALAR)`
+2. `L1GasPriceOracle.setBlobScalar(BLOB_SCALAR)`
+3. `L1GasPriceOracle.setPenaltyFactor(PENALTY_FACTOR)`
+
+#### Step 4 - Dry-run implementation deployment
 
 ```bash
 scripts/deterministic/shell/deploy-moat-impl.sh
@@ -220,7 +321,7 @@ Do not execute the proxy upgrade yet. A dry run can update
 deterministic address, but that implementation may not exist on-chain until the
 broadcast step succeeds.
 
-#### Step 3 - Broadcast implementation deployment
+#### Step 5 - Broadcast implementation deployment
 
 ```bash
 BROADCAST=1 scripts/deterministic/shell/deploy-moat-impl.sh
@@ -232,7 +333,7 @@ After this succeeds, confirm `volume/config-contracts.toml` contains the new:
 L2_MOAT_IMPLEMENTATION_ADDR = "..."
 ```
 
-#### Step 4 - Dry-run ProxyAdmin upgrade
+#### Step 6 - Dry-run ProxyAdmin upgrade
 
 ```bash
 scripts/deterministic/shell/submit-moat-proxy-upgrade.sh
@@ -243,12 +344,12 @@ Check the printed values before continuing:
 - `ProxyAdmin owner`
 - implementation before upgrade
 - target implementation
-- pre-upgrade storage snapshot: `messenger`, `basculeVerifier`,
-  `withdrawalFee`, `minWithdrawalAmount`, `depositFee`, `feeRecipient`, `owner`
+- pre-upgrade storage snapshot: `messenger`, `withdrawalFee`,
+  `minWithdrawalAmount`, `depositFee`, `feeRecipient`, `owner`
 
 The target implementation must already have bytecode on-chain.
 
-#### Step 5 - Broadcast ProxyAdmin upgrade
+#### Step 7 - Broadcast ProxyAdmin upgrade
 
 Use the private key for the ProxyAdmin owner. Do not hardcode the key into any
 script file.
@@ -266,7 +367,7 @@ ProxyAdmin.upgrade(L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR)
 
 No `initialize` call is needed.
 
-#### Step 6 - Deploy the FeeVaultMoatAdapter
+#### Step 8 - Deploy the FeeVaultMoatAdapter
 
 ```bash
 scripts/deterministic/shell/deploy-fee-vault-moat-adapter.sh
@@ -283,7 +384,7 @@ L2_FEE_VAULT_MOAT_ADAPTER_ADDR = "..."
 The deploy script warns (but does not fail) if `FEE_VAULT_DOGE_RECIPIENT_ADDR`
 is still missing from `volume/config.toml` — fix that before the next step.
 
-#### Step 7 - Rewire the fee vault through the adapter
+#### Step 9 - Rewire the fee vault through the adapter
 
 ```bash
 scripts/deterministic/shell/submit-fee-vault-rewire.sh
@@ -306,10 +407,10 @@ in the desired state (safe to rerun):
    withdrawals are standard Moat withdrawals.
 
 Preflight refuses to run if the Moat proxy does not yet expose
-`SATOSHI_TO_WEI()` (i.e. steps 2-3 of the summary have not landed) or if the
+`SATOSHI_TO_WEI()` (i.e. summary steps 2-3 have not landed) or if the
 adapter's immutables do not match the configured vault and Moat proxy.
 
-#### Step 8 - Deploy the L2DogeOsMessenger implementation
+#### Step 10 - Deploy the L2DogeOsMessenger implementation
 
 ```bash
 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh
@@ -325,7 +426,7 @@ After broadcast, confirm `volume/config-contracts.toml` contains the new:
 L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = "..."
 ```
 
-#### Step 9 - Upgrade the messenger proxy
+#### Step 11 - Upgrade the messenger proxy
 
 ```bash
 scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh
@@ -338,13 +439,26 @@ messages. The script refuses to broadcast while
 `L2TxFeeVault.messenger() != L2_FEE_VAULT_MOAT_ADAPTER_ADDR` (override with
 `FORCE=1` only if you intentionally accept stalled fee withdrawals).
 
-#### Step 10 - Verify the upgrade
+#### Step 12 - Verify the upgrade
 
 Set the RPC URL used for direct `cast` checks:
 
 ```bash
 export L2_RPC=<L2_RPC>
 ```
+
+Check the Galileo L1 data fee parameters:
+
+```bash
+cast call <L1_GAS_PRICE_ORACLE_ADDR> 'commitScalar()(uint256)'  --rpc-url "$L2_RPC"
+cast call <L1_GAS_PRICE_ORACLE_ADDR> 'blobScalar()(uint256)'    --rpc-url "$L2_RPC"
+cast call <L1_GAS_PRICE_ORACLE_ADDR> 'penaltyFactor()(uint256)' --rpc-url "$L2_RPC"
+```
+
+Expected values are the `COMMIT_SCALAR`, `BLOB_SCALAR`, and `PENALTY_FACTOR`
+values in `volume/config.toml`. Do not use `scalar()` for this check; `scalar`
+is the deprecated pre-Curie/pre-Galileo field and is not read by the Galileo
+formula.
 
 Check the implementation address:
 
@@ -382,7 +496,7 @@ cast call <L2_MOAT_PROXY_ADDR> 'minWithdrawalAmount()(uint256)' --rpc-url "$L2_R
 cast call <L2_MOAT_PROXY_ADDR> 'owner()(address)'               --rpc-url "$L2_RPC"
 ```
 
-Compare these values with the pre-upgrade snapshot printed in Step 4.
+Compare these values with the pre-upgrade snapshot printed in Step 6.
 
 Check that a new entry point exists:
 
@@ -635,6 +749,12 @@ Additions to `IMoat`:
 `L2DogeOsMessenger` removals: the `FEE_VAULT()` getter and the fee vault
 constructor argument.
 
+`IMoat` removals:
+
+- `function basculeVerifier() external view returns (address);`
+- `function setBascule(address) external;`
+- `event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);`
+
 Removed custom errors:
 
 - `ErrorUnprovenL1Message()`
@@ -648,13 +768,13 @@ The removed errors are no longer thrown by `Moat`; `Unauthorized()` belongs to
 
 The Moat contract layout is preserved and safe for proxy upgrade:
 
-| Slot          | Field                                                                                                |
-| ------------- | ---------------------------------------------------------------------------------------------------- |
-| `0x00`        | `_owner` from `OwnableBase` packed with `_initialized` / `_initializing` from `Initializable`        |
-| `0x01`        | `_status` from `ReentrancyGuardUpgradeable`                                                          |
-| `0x02`-`0x32` | `__gap` from `ReentrancyGuardUpgradeable`                                                            |
-| `0x33`-`0x38` | `messenger`, `basculeVerifier`, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee` |
-| `0x39` (57)   | **new in v0.3.0:** `feeExemptCallers` mapping — appended after the previously-last variable          |
+| Slot          | Field                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| `0x00`        | `_owner` from `OwnableBase` packed with `_initialized` / `_initializing` from `Initializable`               |
+| `0x01`        | `_status` from `ReentrancyGuardUpgradeable`                                                                 |
+| `0x02`-`0x32` | `__gap` from `ReentrancyGuardUpgradeable`                                                                   |
+| `0x33`-`0x38` | `messenger`, deprecated verifier slot, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee` |
+| `0x39` (57)   | **new in v0.3.0:** `feeExemptCallers` mapping — appended after the previously-last variable                 |
 
 `P2PKH_PREFIX`, `P2SH_PREFIX`, and `SATOSHI_TO_WEI` live in bytecode as
 immutables/constants and consume no storage slots. The only layout change is
@@ -670,6 +790,80 @@ upgrade is a normal ProxyAdmin implementation swap.
 No hard fork, geth change, or node coordination is required.
 
 ### 2.4 Script behavior
+
+#### `submit-l1-gas-price-oracle-config.sh`
+
+[`scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh`](scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh)
+configures owner-managed Galileo L1 data fee parameters on
+`L1GasPriceOracle`.
+
+It:
+
+- reads only `EXTERNAL_RPC_URI_L2` from `volume/config.toml` in shell, because
+  `forge script` needs an RPC URL before the Solidity script can run;
+- leaves typed TOML parsing to `SubmitL1GasPriceOracleConfig`, which reads
+  `COMMIT_SCALAR`, `BLOB_SCALAR`, and `PENALTY_FACTOR` from
+  `volume/config.toml`, and `L1_GAS_PRICE_ORACLE_ADDR` from
+  `volume/config-contracts.toml`;
+- fails from the Solidity script if `COMMIT_SCALAR`, `BLOB_SCALAR`, or
+  `PENALTY_FACTOR` is missing or zero;
+- checks from the Solidity script that `L1_GAS_PRICE_ORACLE_ADDR` has deployed
+  code;
+- prints `L1GasPriceOracle owner`;
+- prints current and target `commitScalar`, `blobScalar`, and `penaltyFactor`;
+- runs `SubmitL1GasPriceOracleConfig.dryRun()` by default, without requiring
+  `OWNER_PRIVATE_KEY`;
+- calls `SubmitL1GasPriceOracleConfig` via `forge script --broadcast` only
+  when `BROADCAST=1`;
+- skips any owner call whose current on-chain value already equals the target
+  config value.
+
+It does not set `l1BaseFee` or `l1BlobBaseFee`. Those are dynamic values set by
+the whitelisted `fee_oracle` signer.
+
+#### `submit-l2-whitelist-sender.sh`
+
+[`scripts/deterministic/shell/submit-l2-whitelist-sender.sh`](scripts/deterministic/shell/submit-l2-whitelist-sender.sh)
+adds an account to the L2 `Whitelist` contract used by `L1GasPriceOracle`.
+This is the permission needed for an account to call
+`L1GasPriceOracle.setL1BaseFeeAndBlobBaseFee(uint256,uint256)`.
+
+It:
+
+- reads `EXTERNAL_RPC_URI_L2` from `volume/config.toml` unless `RPC_URL` is set;
+- reads `L2_WHITELIST_ADDR` from `volume/config-contracts.toml` unless
+  `WHITELIST_ADDR` is set;
+- requires the target account as either the first argument or
+  `WHITELIST_ACCOUNT`;
+- checks that `L2_WHITELIST_ADDR` has deployed code;
+- prints the chain ID, whitelist owner, target account, and current
+  `isSenderAllowed(target)` state;
+- runs preflight only by default, without requiring `OWNER_PRIVATE_KEY`;
+- with `BROADCAST=1`, requires `OWNER_PRIVATE_KEY`, derives the signer from it,
+  and refuses to broadcast unless the signer equals `Whitelist.owner()`;
+- calls `Whitelist.updateWhitelistStatus([target], true)` only when the account
+  is not already whitelisted;
+- verifies `isSenderAllowed(target) == true` after the transaction.
+
+Dry run:
+
+```bash
+scripts/deterministic/shell/submit-l2-whitelist-sender.sh \
+  0x7d2b8622966577e0Bc81Ed1f868A1ca7527db13F
+```
+
+Broadcast:
+
+```bash
+OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
+  scripts/deterministic/shell/submit-l2-whitelist-sender.sh \
+  0x7d2b8622966577e0Bc81Ed1f868A1ca7527db13F
+```
+
+Do not use `deploy.sh` to add a new fee-oracle sender on an already-deployed
+network. `deploy.sh` broadcasts with `DEPLOYER_PRIVATE_KEY`, while the whitelist
+may already be owned by `OWNER_ADDR`. Use this helper with the current
+`Whitelist.owner()` key instead.
 
 #### `deploy-moat-impl.sh`
 
@@ -706,17 +900,18 @@ It:
 - prints the pre-upgrade storage snapshot;
 - prints `impl after` for confirmation;
 - runs preflight only by default;
-- sends `cast send upgrade()` only when `BROADCAST=1`;
+- calls `SubmitMoatProxyUpgrade` via `forge script --broadcast` only when
+  `BROADCAST=1`;
 - uses `--legacy` for the transaction.
 
 ### 2.5 External services
 
-| Service            | Required action                                                                                                                                                                                                                                                                                                                                                               | Severity                           |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| withdraw processor | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping) — enforced by the messenger, which rejects anything that is not exactly `0x0100`/`0x0101`. New messages are therefore deterministically reconstructable from the Dogecoin address type. (Treatment of pre-upgrade empty-message history is left open pending hardfork/protocol-version mechanics.) | Breaking; must ship before upgrade |
-| Frontend / SDK     | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers. Surface the flooring: amounts below 1e10-wei precision are truncated into the fee.                                                                                                                                                                                              | Additive                           |
-| Fee collection ops | Fee vault withdrawals now land at the configured Dogecoin address (`FEE_VAULT_DOGE_RECIPIENT_ADDR`), not an L1 EVM wallet. Update treasury monitoring accordingly.                                                                                                                                                                                                            | Breaking; coordinate with step 7   |
-| Bascule verifier   | No change. `handleL1Message` is untouched by this upgrade.                                                                                                                                                                                                                                                                                                                    | None                               |
+| Service             | Required action                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Severity                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| withdraw processor  | Parse the new 2-byte envelope from the `message` field of every L2-to-L1 send. `flags & 0x01` selects P2SH vs P2PKH when constructing the Dogecoin output script. Reject unexpected `version` values. After the messenger upgrade it can assume **every** L2->L1 message has `from = Moat`, a v1 envelope, and a satoshi-aligned value (the basis for UTXO -> L2 tx mapping) — enforced by the messenger, which rejects anything that is not exactly `0x0100`/`0x0101`. New messages are therefore deterministically reconstructable from the Dogecoin address type. (Treatment of pre-upgrade empty-message history is left open pending hardfork/protocol-version mechanics.) | Breaking; must ship before upgrade |
+| Frontend / SDK      | Expose the three typed entry points. Keep `withdrawToL1` as a P2PKH alias for legacy callers. Surface the flooring: amounts below 1e10-wei precision are truncated into the fee.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Additive                           |
+| Fee collection ops  | Fee vault withdrawals now land at the configured Dogecoin address (`FEE_VAULT_DOGE_RECIPIENT_ADDR`), not an L1 EVM wallet. Update treasury monitoring accordingly.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Breaking; coordinate with step 9   |
+| L1 deposit handling | `handleL1Message` no longer calls a verifier hook; deposit messages are gated by the configured messenger and existing fee/target-call checks.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Breaking for verifier integrations |
 
 Deploy the envelope-aware relayer before the proxy upgrade. After the proxy is
 upgraded, even `withdrawToL1` emits a `version=1, flags=0` envelope, and the
@@ -762,7 +957,8 @@ Caveats:
 - Fee vault adapter: [`src/dogeos/FeeVaultMoatAdapter.sol`](src/dogeos/FeeVaultMoatAdapter.sol)
 - Messenger: [`src/dogeos/L2DogeOsMessenger.sol`](src/dogeos/L2DogeOsMessenger.sol)
 - Deploy script: [`scripts/deterministic/DeployScroll.s.sol`](scripts/deterministic/DeployScroll.s.sol) (`deployL2MoatImpl`, `deployL2FeeVaultMoatAdapter`, `deployL2DogeOsMessengerImpl`, `_dogePrefixesFromL1ChainId`)
-- Shell scripts: [`scripts/deterministic/shell/`](scripts/deterministic/shell/) — `deploy-moat-impl.sh`, `submit-moat-proxy-upgrade.sh`, `deploy-fee-vault-moat-adapter.sh`, `submit-fee-vault-rewire.sh`, `deploy-dogeos-messenger-impl.sh`, `submit-dogeos-messenger-proxy-upgrade.sh`
+- Transaction scripts: [`scripts/deterministic/SubmitL1GasPriceOracleConfig.s.sol`](scripts/deterministic/SubmitL1GasPriceOracleConfig.s.sol), [`scripts/deterministic/SubmitProxyUpgrades.s.sol`](scripts/deterministic/SubmitProxyUpgrades.s.sol), [`scripts/deterministic/SubmitFeeVaultRewire.s.sol`](scripts/deterministic/SubmitFeeVaultRewire.s.sol)
+- Shell scripts: [`scripts/deterministic/shell/`](scripts/deterministic/shell/) — `submit-l1-gas-price-oracle-config.sh`, `submit-l2-whitelist-sender.sh`, `deploy-moat-impl.sh`, `submit-moat-proxy-upgrade.sh`, `deploy-fee-vault-moat-adapter.sh`, `submit-fee-vault-rewire.sh`, `deploy-dogeos-messenger-impl.sh`, `submit-dogeos-messenger-proxy-upgrade.sh`
 - Tests: [`src/test/dogeos/Moat.t.sol`](src/test/dogeos/Moat.t.sol), [`src/test/dogeos/FeeVaultMoatAdapter.t.sol`](src/test/dogeos/FeeVaultMoatAdapter.t.sol), [`src/test/dogeos/L2DogeOsMessenger.t.sol`](src/test/dogeos/L2DogeOsMessenger.t.sol)
 - Merge commit: `3e29ab0` (`feat/p2sh-withdrawals` to `dogeos-v0.3.0-develop`)
 - Source commit: `4cfcad9 feat(moat): add P2SH withdrawal support with message envelope encoding`

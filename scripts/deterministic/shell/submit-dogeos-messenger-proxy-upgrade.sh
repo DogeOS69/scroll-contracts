@@ -10,12 +10,8 @@ fi
 VOLUME_PATH="$REPO_ROOT/volume"
 if [ ! -e "$VOLUME_PATH" ]; then
     echo "missing volume path: $VOLUME_PATH"
-    echo "hint: ln -sfn ../dogeos-aws-devnet $VOLUME_PATH"
+    echo "hint: create $VOLUME_PATH with config.toml and config-contracts.toml"
     exit 1
-fi
-
-if [ ! -L "$VOLUME_PATH" ]; then
-    echo "warning: $VOLUME_PATH is not a symlink"
 fi
 
 # Submits ProxyAdmin.upgrade(messengerProxy, newImpl) from the ProxyAdmin owner.
@@ -138,15 +134,14 @@ if [ "${BROADCAST:-0}" = "1" ]; then
         echo "OWNER_PRIVATE_KEY is not set for broadcast"
         exit 1
     fi
+    require_command forge
 
     echo ""
-    echo "broadcasting ProxyAdmin.upgrade on L2"
-    cast send "$L2_PROXY_ADMIN_ADDR" \
-        'upgrade(address,address)' \
-        "$L2_DOGEOS_MESSENGER_PROXY_ADDR" "$L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR" \
+    echo "broadcasting ProxyAdmin.upgrade on L2 via forge script"
+    forge script scripts/deterministic/SubmitProxyUpgrades.s.sol:SubmitDogeOsMessengerProxyUpgrade \
         --rpc-url "$L2_RPC_ENDPOINT" \
-        --private-key "$OWNER_PRIVATE_KEY" \
-        --legacy
+        --legacy \
+        --broadcast
 
     echo "impl after:  $(cast implementation "$L2_DOGEOS_MESSENGER_PROXY_ADDR" --rpc-url "$L2_RPC_ENDPOINT")"
 else

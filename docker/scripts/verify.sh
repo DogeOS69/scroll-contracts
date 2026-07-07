@@ -170,7 +170,6 @@ get_source_code_name() {
       # L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR) echo L2ERC1155Gateway ;;
       L2_MOAT_IMPLEMENTATION_ADDR) echo Moat ;;
       L2_MOAT_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
-      L2_BASCULE_MOCK_VERIFIER_ADDR) echo BasculeMockVerifier ;;
       L2_SYSTEM_CONFIG_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       L2_SYSTEM_CONFIG_IMPLEMENTATION_ADDR) echo L2SystemConfig ;;
       

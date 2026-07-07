@@ -5,7 +5,6 @@ pragma solidity =0.8.24;
 import {OwnableBase} from "../libraries/common/OwnableBase.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {IL2ScrollMessenger} from "../L2/IL2ScrollMessenger.sol";
-import {IBasculeVerifier} from "./IBasculeVerifier.sol";
 import {DogeAddressLib} from "./DogeAddressLib.sol";
 import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
 
@@ -44,7 +43,6 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     event DepositFeeUpdated(uint256 oldFee, uint256 newFee);
     event MinWithdrawalUpdated(uint256 oldMin, uint256 newMin);
     event FeeRecipientUpdated(address indexed oldRecip, address indexed newRecip);
-    event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
     event FeeExemptionUpdated(address indexed account, bool exempt);
@@ -56,8 +54,8 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /// @notice The L2 messenger contract used for L2->L1 communication.
     address public messenger;
 
-    /// @notice The Bascule verifier contract for checking L1 message validity.
-    address public basculeVerifier;
+    /// @dev Deprecated storage slot kept to preserve proxy upgrade layout.
+    address private _deprecatedVerifierSlot;
 
     /// @notice The fee required for L2->L1 withdrawals.
     uint256 public withdrawalFee;
@@ -186,28 +184,16 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         emit FeeExemptionUpdated(_account, _exempt);
     }
 
-    /**
-     * @notice Update the Bascule verifier contract address.
-     * @dev Can only be called by the owner. Emits a {BasculeVerifierUpdated} event.
-     * @param _newVerifier The new Bascule verifier address.
-     */
-    function setBascule(address _newVerifier) external onlyOwner {
-        // We allow setting verifier to address(0) to disable verification if needed.
-        address oldVerifier = basculeVerifier;
-        basculeVerifier = _newVerifier;
-        emit BasculeVerifierUpdated(oldVerifier, _newVerifier);
-    }
-
     // --- Core Logic --- //
 
     /**
-     * @notice Handles execution of a verified L1->L2 message.
-     * @dev Must be called by the designated L2 messenger. Requires message verification via Bascule.
+     * @notice Handles execution of a messenger-gated L1->L2 message.
+     * @dev Must be called by the designated L2 messenger. The deprecated bytes32
+     * _depositID argument is kept for ABI compatibility and ignored.
      * Relays the call (and value) to the target address.
      * @param _target The target receipient address on L2.
-     * @param _depositID The L1 deposit ID (expected to be bytes32).
      */
-    function handleL1Message(address _target, bytes32 _depositID) external payable nonReentrant {
+    function handleL1Message(address _target, bytes32) external payable nonReentrant {
         // Check 1: Caller must be the messenger this Moat is configured for.
         address _messenger = messenger;
         if (_messenger == address(0)) {
@@ -215,14 +201,6 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         }
         if (msg.sender != _messenger) {
             revert ErrorOnlyMessenger(msg.sender, _messenger);
-        }
-
-        // Check 2: Message must be verified by the Bascule verifier (if configured).
-        address _verifier = basculeVerifier;
-        if (_verifier != address(0)) {
-            uint256 withdrawalAmount = msg.value;
-            // validateWithdrawal is expected to revert on failure
-            IBasculeVerifier(_verifier).validateWithdrawal(_target, _depositID, withdrawalAmount);
         }
 
         // Apply deposit fee logic (cache state variables for gas optimization)

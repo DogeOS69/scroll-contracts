@@ -10,8 +10,6 @@ import {DogeAddressLib} from "../../dogeos/DogeAddressLib.sol";
 
 // Interfaces & Mocks
 import {L2DogeOsMessenger} from "../../dogeos/L2DogeOsMessenger.sol";
-import {BasculeMockVerifier} from "../../dogeos/BasculeMockVerifier.sol";
-import {IBasculeVerifier} from "../../dogeos/IBasculeVerifier.sol";
 import {IL2ScrollMessenger} from "../../L2/IL2ScrollMessenger.sol"; // Interface for mock
 import {L2MessageQueue} from "../../L2/predeploys/L2MessageQueue.sol"; // Needed for L2DogeOsMessenger constructor
 import {RevertingReceiver} from "./L2DogeOsMessenger.t.sol"; // Reuse helper
@@ -149,7 +147,6 @@ contract MockScrollMessenger is ScrollMessengerBase {
 contract MoatTest is Test {
     // Contracts
     Moat internal _moat;
-    BasculeMockVerifier internal _basculeVerifier;
     MockScrollMessenger internal _mockMessenger; // Changed type
     DogeAddressLibWrapper internal _libWrapper; // For testing library revert cases
     // L2MessageQueue internal _l2MessageQueue; // No longer needed for mock constructor
@@ -170,7 +167,6 @@ contract MoatTest is Test {
 
     function setUp() public {
         // Deploy Mocks & Dependencies
-        _basculeVerifier = new BasculeMockVerifier();
         // _l2MessageQueue = new L2MessageQueue(_owner); // No longer needed
 
         // Deploy Moat (owned by _owner) with mainnet prefixes
@@ -190,7 +186,6 @@ contract MoatTest is Test {
         // Configure Moat (as owner)
         vm.startPrank(_owner);
         _moat.updateMessenger(address(_mockMessenger));
-        _moat.setBascule(address(_basculeVerifier));
         _moat.setFeeRecipient(_feeRecipient);
         _moat.setWithdrawalFee(_INITIAL_FEE);
         _moat.setMinWithdrawal(_INITIAL_MIN_WITHDRAWAL);
@@ -297,38 +292,6 @@ contract MoatTest is Test {
         vm.prank(_owner);
         vm.expectRevert(Moat.ErrorZeroAddress.selector);
         _moat.setFeeRecipient(newRecip);
-    }
-
-    function testSetBascule_Success() external {
-        address newVerifier = address(0xdcba);
-        address oldVerifier = _moat.basculeVerifier();
-
-        vm.prank(_owner);
-        vm.expectEmit(true, true, false, false); // oldVerifier, newVerifier are indexed
-        emit Moat.BasculeVerifierUpdated(oldVerifier, newVerifier);
-        _moat.setBascule(newVerifier);
-
-        assertEq(_moat.basculeVerifier(), newVerifier, "Bascule verifier should be updated");
-    }
-
-    function testSetBascule_Success_ZeroAddress() external {
-        // Allowed to disable verification by setting to address(0)
-        address newVerifier = address(0);
-        address oldVerifier = _moat.basculeVerifier();
-
-        vm.prank(_owner);
-        vm.expectEmit(true, true, false, false); // oldVerifier, newVerifier are indexed
-        emit Moat.BasculeVerifierUpdated(oldVerifier, newVerifier);
-        _moat.setBascule(newVerifier);
-
-        assertEq(_moat.basculeVerifier(), newVerifier, "Bascule verifier should be updated to address(0)");
-    }
-
-    function testSetBascule_Revert_NotOwner() external {
-        address newVerifier = address(0xdcba);
-        vm.prank(_user); // Non-owner
-        vm.expectRevert(bytes("caller is not the owner"));
-        _moat.setBascule(newVerifier);
     }
 
     // --- Tests: Deposit Fee Setters --- //
@@ -576,9 +539,6 @@ contract MoatTest is Test {
         bytes32 depositIDValue = bytes32(uint256(0x1111)); // Use a valid ID
         uint256 value = 1 ether; // Use non-zero value
 
-        // Ensure verifier is set
-        assertTrue(_moat.basculeVerifier() != address(0), "Test requires bascule verifier enabled");
-
         // Call from the mock messenger address
         vm.startPrank(address(_mockMessenger));
         vm.deal(address(_mockMessenger), value);
@@ -600,56 +560,10 @@ contract MoatTest is Test {
         vm.stopPrank();
     }
 
-    function testHandleL1Message_Revert_BasculeVerificationFails(uint8 failCase) external {
-        vm.assume(failCase <= 1);
+    function testHandleL1Message_Success_UnverifiedDepositId() external {
         SimpleTarget target = new SimpleTarget();
-        bytes32 depositIDValue;
-        uint256 value;
-
-        if (failCase == 0) {
-            // Fail because of bad deposit ID
-            depositIDValue = _basculeVerifier.REJECT_DEPOSIT_ID(); // Use constant from mock
-            value = 1 ether; // Non-zero value
-        } else {
-            // Fail because of zero value
-            depositIDValue = bytes32(uint256(0x1111)); // Any valid ID
-            value = 0;
-        }
-
-        // Ensure verifier is set
-        assertTrue(_moat.basculeVerifier() != address(0), "Test requires bascule verifier enabled");
-
-        // Call from the mock messenger address
-        vm.startPrank(address(_mockMessenger));
-        vm.deal(address(_mockMessenger), value);
-
-        // Expect the Moat event (even on revert, if it happens before Bascule check)
-        // vm.expectEmit(true, true, false, false); // Check sender, target, amount
-        // emit Moat.DepositReceived(address(_mockMessenger), address(target), value, 0);
-
-        // Expect revert from the mock verifier
-        vm.expectRevert(BasculeMockVerifier.ErrorMockRejection.selector);
-
-        // Call with bytes32 deposit ID
-        _moat.handleL1Message{value: value}( /* _target */
-            address(target),
-            /* _depositID */
-            depositIDValue
-        );
-        vm.stopPrank();
-    }
-
-    function testHandleL1Message_BasculeDisabled() external {
-        SimpleTarget target = new SimpleTarget();
-        // Use the normally rejecting deposit ID
-        bytes32 depositIDValue = _basculeVerifier.REJECT_DEPOSIT_ID(); // Use constant from mock
+        bytes32 depositIDValue = bytes32(uint256(0xffff));
         uint256 value = 1 ether; // Non-zero value
-
-        // Disable Bascule verifier
-        vm.prank(_owner);
-        _moat.setBascule(address(0));
-        vm.stopPrank();
-        assertTrue(_moat.basculeVerifier() == address(0), "Test requires bascule verifier disabled");
 
         // Call from the mock messenger address
         vm.startPrank(address(_mockMessenger));
@@ -659,7 +573,7 @@ contract MoatTest is Test {
         vm.expectEmit(true, true, false, false); // Check sender, target, amount
         emit Moat.DepositReceived(address(_mockMessenger), address(target), value, 0);
 
-        // Expect the target contract to emit its event via fallback (verification skipped)
+        // Expect the target contract to emit its event via fallback.
         vm.expectEmit(false, false, false, false);
         emit SimpleTarget.Executed(bytes(""), value); // Expect empty bytes
 
@@ -676,9 +590,6 @@ contract MoatTest is Test {
         RevertingReceiver target = new RevertingReceiver(); // Use the reverting helper
         bytes32 depositIDValue = bytes32(uint256(0x1111)); // Use a valid ID
         uint256 value = 1 ether; // Use non-zero value
-
-        // Ensure verifier is set
-        assertTrue(_moat.basculeVerifier() != address(0), "Test requires bascule verifier enabled");
 
         // Call from the mock messenger address
         vm.startPrank(address(_mockMessenger));
@@ -1565,26 +1476,4 @@ contract MoatTest is Test {
         _moat.withdrawToDogeAddress{value: totalValue}(testnetAddr);
     }
 
-    /* // Removing this test as the length check is gone
-    function testHandleL1Message_Revert_InvalidDataLength() external {
-        SimpleTarget target = new SimpleTarget();
-        // address l1Sender = address(0xaaaa); // Removed unused variable
-        bytes memory invalidData = abi.encodePacked(bytes32(uint256(0x1111)), bytes1(0x00)); // 33 bytes
-        uint256 value = 1 ether;
-
-        // Ensure verifier is set
-        assertTrue(_moat.basculeVerifier() != address(0), "Test requires bascule verifier enabled");
-
-        // Call from the mock messenger address
-        vm.startPrank(address(_mockMessenger));
-        vm.deal(address(_mockMessenger), value);
-
-        // Expect Moat's ErrorInvalidDataLength
-        vm.expectRevert(abi.encodeWithSelector(Moat.ErrorInvalidDataLength.selector, invalidData.length));
-
-        // Update call signature
-        _moat.handleL1Message{value: value}(address(target), invalidData); // This call is now invalid anyway
-        vm.stopPrank();
-    }
-    */
 }

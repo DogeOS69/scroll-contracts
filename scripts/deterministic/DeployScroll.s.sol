@@ -44,7 +44,6 @@ import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20
 import {ScrollStandardERC20FactorySetOwner} from "./contracts/ScrollStandardERC20FactorySetOwner.sol";
 import {ScrollChainMockFinalize} from "../../src/mocks/ScrollChainMockFinalize.sol";
 import {Moat} from "../../src/dogeos/Moat.sol";
-import {BasculeMockVerifier} from "../../src/dogeos/BasculeMockVerifier.sol";
 
 import "./Constants.sol";
 import "./Configuration.sol";
@@ -142,7 +141,6 @@ contract DeployScroll is DeterministicDeployment {
     address internal L2_WHITELIST_ADDR;
     address internal L2_MOAT_IMPLEMENTATION_ADDR;
     address internal L2_MOAT_PROXY_ADDR;
-    address internal L2_BASCULE_MOCK_VERIFIER_ADDR;
     address internal L2_SYSTEM_CONFIG_IMPLEMENTATION_ADDR;
     address internal L2_SYSTEM_CONFIG_PROXY_ADDR;
 
@@ -543,7 +541,6 @@ contract DeployScroll is DeterministicDeployment {
         deployL2CustomERC20Gateway();
         deployL2ERC721Gateway();
         deployL2ERC1155Gateway();
-        deployL2BasculeMockVerifier();
         deployL2Moat();
     }
 
@@ -1325,10 +1322,6 @@ contract DeployScroll is DeterministicDeployment {
         upgrade(L2_PROXY_ADMIN_ADDR, L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR);
     }
 
-    function deployL2BasculeMockVerifier() private {
-        L2_BASCULE_MOCK_VERIFIER_ADDR = deploy("L2_BASCULE_MOCK_VERIFIER", type(BasculeMockVerifier).creationCode);
-    }
-
     function deployL2SystemConfig() private {
         L2_SYSTEM_CONFIG_IMPLEMENTATION_ADDR = deploy(
             "L2_SYSTEM_CONFIG_IMPLEMENTATION",
@@ -1579,7 +1572,10 @@ contract DeployScroll is DeterministicDeployment {
         if (address(L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).whitelist()) != notnull(L2_WHITELIST_ADDR)) {
             L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).updateWhitelist(L2_WHITELIST_ADDR);
         }
+        L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setCommitScalar(COMMIT_SCALAR);
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setBlobScalar(BLOB_SCALAR);
+        // Deprecated before-Galileo scalar. Keep it configured for compatibility
+        // with non-Galileo local deployments, but Galileo sizing uses commitScalar.
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setScalar(SCALAR);
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setPenaltyFactor(PENALTY_FACTOR);
     }
@@ -1703,7 +1699,6 @@ contract DeployScroll is DeterministicDeployment {
             } else {
                 moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
             }
-            moat.setBascule(L2_BASCULE_MOCK_VERIFIER_ADDR);
         }
 
         // Exempt the fee vault adapter from the withdrawal fee so the protocol does

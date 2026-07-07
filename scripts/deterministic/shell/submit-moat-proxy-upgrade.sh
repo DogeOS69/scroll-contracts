@@ -10,12 +10,8 @@ fi
 VOLUME_PATH="$REPO_ROOT/volume"
 if [ ! -e "$VOLUME_PATH" ]; then
     echo "missing volume path: $VOLUME_PATH"
-    echo "hint: ln -sfn ../dogeos-aws-devnet $VOLUME_PATH"
+    echo "hint: create $VOLUME_PATH with config.toml and config-contracts.toml"
     exit 1
-fi
-
-if [ ! -L "$VOLUME_PATH" ]; then
-    echo "warning: $VOLUME_PATH is not a symlink"
 fi
 
 # Submits ProxyAdmin.upgrade(moatProxy, newImpl) from the ProxyAdmin owner.
@@ -105,7 +101,6 @@ snapshot() {
 echo ""
 echo "pre-upgrade storage snapshot"
 snapshot "messenger:"           'messenger()(address)'
-snapshot "basculeVerifier:"     'basculeVerifier()(address)'
 snapshot "withdrawalFee:"       'withdrawalFee()(uint256)'
 snapshot "minWithdrawalAmount:" 'minWithdrawalAmount()(uint256)'
 snapshot "depositFee:"          'depositFee()(uint256)'
@@ -117,17 +112,17 @@ if [ "${BROADCAST:-0}" = "1" ]; then
         echo "OWNER_PRIVATE_KEY is not set for broadcast"
         exit 1
     fi
+    require_command forge
 
     echo ""
-    echo "broadcasting ProxyAdmin.upgrade on L2"
-    cast send "$L2_PROXY_ADMIN_ADDR" \
-        'upgrade(address,address)' \
-        "$L2_MOAT_PROXY_ADDR" "$L2_MOAT_IMPLEMENTATION_ADDR" \
+    echo "broadcasting ProxyAdmin.upgrade on L2 via forge script"
+    forge script scripts/deterministic/SubmitProxyUpgrades.s.sol:SubmitMoatProxyUpgrade \
         --rpc-url "$L2_RPC_ENDPOINT" \
-        --private-key "$OWNER_PRIVATE_KEY" \
-        --legacy
+        --legacy \
+        --broadcast
 
     echo "impl after:  $(cast implementation "$L2_MOAT_PROXY_ADDR" --rpc-url "$L2_RPC_ENDPOINT")"
+    echo "note: the former basculeVerifier storage slot is deprecated and reserved only for layout compatibility"
 else
     echo ""
     echo "preflight only — set BROADCAST=1 to execute upgrade"
