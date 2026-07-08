@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 
 library DogeOSPredeploy {
     /// @notice Canonical address of the native DOGE ERC-20-duality predeploy.
-    /// @dev DogeOS extension predeploys start at 0x5300...0010 to leave the
-    ///      inherited low Scroll-system range open for future compatibility.
-    address internal constant L2_NATIVE_DOGE_TOKEN = 0x5300000000000000000000000000000000000010;
+    /// @dev Uses a DogeOS vanity slot in the 0x5300 predeploy namespace while
+    ///      leaving the inherited low Scroll-system range open for compatibility.
+    address internal constant L2_NATIVE_DOGE_TOKEN = 0x530000000000000000000000000000000000D06E;
 
     /// @notice Restricted native-balance transfer precompile.
     /// @dev Required behavior:
