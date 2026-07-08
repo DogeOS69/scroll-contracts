@@ -6,7 +6,7 @@ library DogeOSPredeploy {
     /// @notice Canonical address of the native DOGE ERC-20-duality predeploy.
     /// @dev Uses a DogeOS vanity slot in the 0x5300 predeploy namespace while
     ///      leaving the inherited low Scroll-system range open for compatibility.
-    address internal constant L2_NATIVE_DOGE_TOKEN = 0x530000000000000000000000000000000000D06E;
+    address internal constant L2_NATIVE_DOGE_TOKEN = 0x530000000000000000000000000000000000d09e;
 
     /// @notice Restricted native-balance transfer precompile.
     /// @dev Required behavior:

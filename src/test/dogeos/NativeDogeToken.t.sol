@@ -118,7 +118,7 @@ contract NativeDogeTokenTest is Test {
     }
 
     function test_predeployAddressIsProtocolConstant() external pure {
-        assertEq(DogeOSPredeploy.L2_NATIVE_DOGE_TOKEN, 0x530000000000000000000000000000000000D06E);
+        assertEq(DogeOSPredeploy.L2_NATIVE_DOGE_TOKEN, 0x530000000000000000000000000000000000d09e);
     }
 
     function test_totalSupply_returnsGenesisConfiguredSupply() external view {
@@ -571,7 +571,7 @@ contract NativeDogeTokenTest is Test {
             string(
                 abi.encodePacked(
                     "[contracts.overrides]\n",
-                    'L2_NATIVE_DOGE_TOKEN = "0x530000000000000000000000000000000000d06f"\n'
+                    'L2_NATIVE_DOGE_TOKEN = "0x530000000000000000000000000000000000d09f"\n'
                 )
             )
         );
@@ -668,7 +668,7 @@ contract NativeDogeTokenTest is Test {
             string(
                 abi.encodePacked(
                     "[contracts.overrides]\n",
-                    'L2_NATIVE_DOGE_TOKEN = "0x530000000000000000000000000000000000d06e"\n'
+                    'L2_NATIVE_DOGE_TOKEN = "0x530000000000000000000000000000000000d09e"\n'
                 )
             )
         );
