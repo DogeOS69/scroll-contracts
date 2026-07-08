@@ -5,7 +5,9 @@ import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
 import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
+import {NativeDogeToken} from "../../src/dogeos/NativeDogeToken.sol";
 import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
+import {DogeOSPredeploy} from "../../src/libraries/constants/DogeOSPredeploy.sol";
 
 import {DETERMINISTIC_DEPLOYMENT_PROXY_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT, GENESIS_ALLOC_JSON_PATH, GENESIS_JSON_PATH, GENESIS_JSON_TEMPLATE_PATH} from "./Constants.sol";
 import {DeployScroll} from "./DeployScroll.s.sol";
@@ -42,6 +44,7 @@ contract GenerateGenesis is DeployScroll {
         setL2Whitelist();
         setL2Weth();
         setL2FeeVault();
+        setL2NativeDogeToken();
 
         // other predeploys
         setDeterministicDeploymentProxy();
@@ -50,7 +53,7 @@ contract GenerateGenesis is DeployScroll {
         vm.resetNonce(msg.sender);
 
         // prefunded accounts
-        setL2ScrollMessenger();
+        setL2DogeOsMessenger();
         setL2Deployer();
 
         // write to file
@@ -204,14 +207,35 @@ contract GenerateGenesis is DeployScroll {
         vm.resetNonce(_vaultAddr);
     }
 
+    function setL2NativeDogeToken() internal {
+        address predeployAddr = tryGetOverride("L2_NATIVE_DOGE_TOKEN");
+
+        if (predeployAddr == address(0)) {
+            revert("L2_NATIVE_DOGE_TOKEN override missing from config.toml [contracts.overrides]");
+        }
+        if (predeployAddr != DogeOSPredeploy.L2_NATIVE_DOGE_TOKEN) {
+            revert("L2_NATIVE_DOGE_TOKEN override must match DogeOSPredeploy.L2_NATIVE_DOGE_TOKEN");
+        }
+
+        NativeDogeToken token = new NativeDogeToken(L2_MAX_NATIVE_DOGE_SUPPLY);
+
+        vm.etch(predeployAddr, address(token).code);
+
+        bytes32 totalSupplySlot = bytes32(uint256(0));
+        vm.store(predeployAddr, totalSupplySlot, vm.load(address(token), totalSupplySlot));
+
+        vm.etch(address(token), "");
+        vm.resetNonce(address(token));
+    }
+
     function setDeterministicDeploymentProxy() internal {
         bytes
             memory code = hex"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3";
         vm.etch(DETERMINISTIC_DEPLOYMENT_PROXY_ADDR, code);
     }
 
-    function setL2ScrollMessenger() internal {
-        vm.deal(L2_DOGEOS_MESSENGER_PROXY_ADDR, L2_SCROLL_MESSENGER_INITIAL_BALANCE);
+    function setL2DogeOsMessenger() internal {
+        vm.deal(L2_DOGEOS_MESSENGER_PROXY_ADDR, L2_DOGEOS_MESSENGER_INITIAL_BALANCE);
     }
 
     function setL2Deployer() internal {
