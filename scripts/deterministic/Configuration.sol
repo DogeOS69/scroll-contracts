@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity =0.8.24;
 
-import {Script} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {stdToml} from "forge-std/StdToml.sol";
 import {console} from "forge-std/console.sol";
 
 import {CONFIG_PATH, CONFIG_CONTRACTS_PATH, CONFIG_CONTRACTS_TEMPLATE_PATH} from "./Constants.sol";
+import {NativeDogeSupplyConfig} from "./NativeDogeSupplyConfig.sol";
 
 /// @notice Configuration allows inheriting contracts to read the TOML configuration file.
-abstract contract Configuration is Script {
+abstract contract Configuration is NativeDogeSupplyConfig {
     using stdToml for string;
 
     /*******************
@@ -166,7 +166,7 @@ abstract contract Configuration is Script {
 
         L2GETH_SIGNER_ADDRESS = cfg.readAddress(".sequencer.L2GETH_SIGNER_ADDRESS");
 
-        L2_MAX_NATIVE_DOGE_SUPPLY = cfg.readUint(".genesis.L2_MAX_ETH_SUPPLY");
+        L2_MAX_NATIVE_DOGE_SUPPLY = readL2MaxNativeDogeSupply(cfg);
         L2_MAX_ETH_SUPPLY = L2_MAX_NATIVE_DOGE_SUPPLY;
         L2_DEPLOYER_INITIAL_BALANCE = cfg.readUint(".genesis.L2_DEPLOYER_INITIAL_BALANCE");
         BASE_FEE_PER_GAS = cfg.readUint(".genesis.BASE_FEE_PER_GAS");

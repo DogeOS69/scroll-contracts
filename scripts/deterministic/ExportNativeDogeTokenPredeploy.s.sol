@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity =0.8.24;
 
-import {Script} from "forge-std/Script.sol";
-import {stdToml} from "forge-std/StdToml.sol";
-
 import {NativeDogeToken} from "../../src/dogeos/NativeDogeToken.sol";
 import {DogeOSPredeploy} from "../../src/libraries/constants/DogeOSPredeploy.sol";
 
 import {CONFIG_PATH, NATIVE_DOGE_TOKEN_PREDEPLOY_JSON_PATH} from "./Constants.sol";
+import {NativeDogeSupplyConfig} from "./NativeDogeSupplyConfig.sol";
 
 /// @notice Exports the hardfork payload for the NativeDogeToken predeploy.
 /// @dev The runtime bytecode is derived from the same constructor path used by
 ///      GenerateGenesis. Hardfork callers must install this runtime code at
 ///      L2_NATIVE_DOGE_TOKEN and initialize slot 0 to totalSupplySlotValue.
-contract ExportNativeDogeTokenPredeploy is Script {
-    using stdToml for string;
-
+contract ExportNativeDogeTokenPredeploy is NativeDogeSupplyConfig {
     function run() external {
         string memory cfg = vm.readFile(CONFIG_PATH);
-        _write(cfg.readUint(".genesis.L2_MAX_ETH_SUPPLY"));
+        _write(readL2MaxNativeDogeSupply(cfg));
     }
 
     function run(uint256 totalSupply_) external {

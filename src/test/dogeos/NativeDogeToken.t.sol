@@ -8,6 +8,7 @@ import {NativeDogeToken} from "../../dogeos/NativeDogeToken.sol";
 import {DogeOSPredeploy} from "../../libraries/constants/DogeOSPredeploy.sol";
 import {NativeTransferPrecompileMock} from "../mocks/NativeTransferPrecompileMock.sol";
 import {GenerateGenesis} from "../../../scripts/deterministic/GenerateGenesis.s.sol";
+import {NativeDogeSupplyConfig} from "../../../scripts/deterministic/NativeDogeSupplyConfig.sol";
 
 contract HookReceiver {
     uint256 public receiveCount;
@@ -79,6 +80,12 @@ contract GenerateGenesisHarness is GenerateGenesis {
 
     function l2DogeOsMessengerInitialBalance() external view returns (uint256) {
         return L2_DOGEOS_MESSENGER_INITIAL_BALANCE;
+    }
+}
+
+contract NativeDogeSupplyConfigHarness is NativeDogeSupplyConfig {
+    function exposedReadL2MaxNativeDogeSupply(string memory configToml) external view returns (uint256) {
+        return readL2MaxNativeDogeSupply(configToml);
     }
 }
 
@@ -567,6 +574,31 @@ contract NativeDogeTokenTest is Test {
 
         vm.expectRevert("L2_NATIVE_DOGE_TOKEN override must match DogeOSPredeploy.L2_NATIVE_DOGE_TOKEN");
         harness.exposedSetL2NativeDogeToken();
+    }
+
+    function test_readNativeDogeSupplyUsesNativeKey() external {
+        NativeDogeSupplyConfigHarness harness = new NativeDogeSupplyConfigHarness();
+
+        uint256 supply = harness.exposedReadL2MaxNativeDogeSupply('[genesis]\nL2_MAX_NATIVE_DOGE_SUPPLY = "12345"\n');
+
+        assertEq(supply, 12345);
+    }
+
+    function test_readNativeDogeSupplyAllowsLegacyEthAlias() external {
+        NativeDogeSupplyConfigHarness harness = new NativeDogeSupplyConfigHarness();
+
+        uint256 supply = harness.exposedReadL2MaxNativeDogeSupply('[genesis]\nL2_MAX_ETH_SUPPLY = "12345"\n');
+
+        assertEq(supply, 12345);
+    }
+
+    function test_readNativeDogeSupplyRejectsMismatchedLegacyEthAlias() external {
+        NativeDogeSupplyConfigHarness harness = new NativeDogeSupplyConfigHarness();
+
+        vm.expectRevert("L2_MAX_NATIVE_DOGE_SUPPLY must match L2_MAX_ETH_SUPPLY");
+        harness.exposedReadL2MaxNativeDogeSupply(
+            '[genesis]\nL2_MAX_NATIVE_DOGE_SUPPLY = "12345"\nL2_MAX_ETH_SUPPLY = "67890"\n'
+        );
     }
 
     function test_nativeDogeTokenDoesNotExposeP2PKHSelectors() external view {
