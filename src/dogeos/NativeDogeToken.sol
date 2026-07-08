@@ -2,7 +2,7 @@
 
 pragma solidity =0.8.24;
 
-import {INativeDoge} from "./INativeDoge.sol";
+import {INativeDogeToken} from "./INativeDogeToken.sol";
 import {DogeOSPredeploy} from "../libraries/constants/DogeOSPredeploy.sol";
 
 /// @title NativeDogeToken
@@ -13,7 +13,7 @@ import {DogeOSPredeploy} from "../libraries/constants/DogeOSPredeploy.sol";
 ///      - Allowances are storage.
 ///      - transfer/transferFrom call a restricted native-transfer precompile.
 ///      - Recipient code is not executed.
-contract NativeDogeToken is INativeDoge {
+contract NativeDogeToken is INativeDogeToken {
     error ErrorTotalSupplyUninitialized();
     error ErrorTransferToZeroAddress();
     error ErrorTransferFromZeroAddress();

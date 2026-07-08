@@ -2,7 +2,7 @@
 
 pragma solidity =0.8.24;
 
-/// @title INativeDoge
+/// @title INativeDogeToken
 /// @notice ERC-20-shaped interface for token duality on the native DOGE asset.
 /// @dev Production semantics:
 ///      - balanceOf(a) == a.balance at all times.
@@ -15,7 +15,7 @@ pragma solidity =0.8.24;
 ///      Moving another account's native balance cannot be implemented in pure
 ///      EVM. A production implementation must be a canonical predeploy backed by
 ///      protocol support, such as a restricted native-transfer precompile.
-interface INativeDoge {
+interface INativeDogeToken {
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
