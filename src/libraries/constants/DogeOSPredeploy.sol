@@ -15,6 +15,6 @@ library DogeOSPredeploy {
     ///      - debits native balance[from], credits native balance[to]
     ///      - reverts if balance[from] < amount
     ///      - executes no recipient code
-    ///      - returns exactly abi.encode(uint256(1)) on success
+    ///      - returns empty data on success; callers use low-level call status
     address internal constant NATIVE_TRANSFER_PRECOMPILE = 0x00000000000000000000000000000000000000fd;
 }
