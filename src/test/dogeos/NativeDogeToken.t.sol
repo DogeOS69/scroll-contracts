@@ -29,24 +29,11 @@ contract NativeTransferPrecompileCaller {
     }
 }
 
-contract EmptyReturnPrecompileMock {
-    // prettier-ignore
-    fallback(bytes calldata) external returns (bytes memory) {
-        return "";
-    }
-}
+contract RevertingNativeTransferPrecompileMock {
+    error ErrorMockRevert();
 
-contract ShortReturnPrecompileMock {
-    // prettier-ignore
-    fallback(bytes calldata) external returns (bytes memory) {
-        return hex"01";
-    }
-}
-
-contract BadWordPrecompileMock {
-    // prettier-ignore
-    fallback(bytes calldata) external returns (bytes memory) {
-        return abi.encode(uint256(2));
+    fallback() external {
+        revert ErrorMockRevert();
     }
 }
 
@@ -218,44 +205,26 @@ contract NativeDogeTokenTest is Test {
         assertEq(ALICE.balance, ALICE_INITIAL_BALANCE);
     }
 
-    function test_transferFailsLoudlyWhenPrecompileMissing() external {
-        vm.etch(DogeOSPredeploy.NATIVE_TRANSFER_PRECOMPILE, "");
-
+    function test_transferSucceedsOnEmptyPrecompileReturnData() external {
         vm.prank(ALICE);
-        vm.expectRevert(
-            abi.encodeWithSelector(NativeDogeToken.ErrorNativeTransferFailed.selector, ALICE, BOB, 1 ether)
-        );
-        _token.transfer(BOB, 1 ether);
+        bool ok = _token.transfer(BOB, 1 ether);
+
+        assertTrue(ok);
+        assertEq(ALICE.balance, ALICE_INITIAL_BALANCE - 1 ether);
+        assertEq(BOB.balance, BOB_INITIAL_BALANCE + 1 ether);
     }
 
-    function test_transferFailsOnEmptyPrecompileReturnData() external {
-        _etchBadPrecompile(address(new EmptyReturnPrecompileMock()));
+    function test_transferRevertsWhenPrecompileCallRevertsAndPreservesBalances() external {
+        _etchPrecompile(address(new RevertingNativeTransferPrecompileMock()));
 
         vm.prank(ALICE);
         vm.expectRevert(
             abi.encodeWithSelector(NativeDogeToken.ErrorNativeTransferFailed.selector, ALICE, BOB, 1 ether)
         );
         _token.transfer(BOB, 1 ether);
-    }
 
-    function test_transferFailsOnMalformedPrecompileReturnData() external {
-        _etchBadPrecompile(address(new ShortReturnPrecompileMock()));
-
-        vm.prank(ALICE);
-        vm.expectRevert(
-            abi.encodeWithSelector(NativeDogeToken.ErrorNativeTransferFailed.selector, ALICE, BOB, 1 ether)
-        );
-        _token.transfer(BOB, 1 ether);
-    }
-
-    function test_transferFailsOnNonSuccessPrecompileReturnWord() external {
-        _etchBadPrecompile(address(new BadWordPrecompileMock()));
-
-        vm.prank(ALICE);
-        vm.expectRevert(
-            abi.encodeWithSelector(NativeDogeToken.ErrorNativeTransferFailed.selector, ALICE, BOB, 1 ether)
-        );
-        _token.transfer(BOB, 1 ether);
+        assertEq(ALICE.balance, ALICE_INITIAL_BALANCE);
+        assertEq(BOB.balance, BOB_INITIAL_BALANCE);
     }
 
     function test_approveSetsAllowance() external {
@@ -372,6 +341,21 @@ contract NativeDogeTokenTest is Test {
         assertEq(_token.allowance(ALICE, SPENDER), 3 ether);
     }
 
+    function test_transferFromRevertsWhenPrecompileCallRevertsAndPreservesState() external {
+        _approveAliceToSpender(3 ether);
+        _etchPrecompile(address(new RevertingNativeTransferPrecompileMock()));
+
+        vm.prank(SPENDER);
+        vm.expectRevert(
+            abi.encodeWithSelector(NativeDogeToken.ErrorNativeTransferFailed.selector, ALICE, BOB, 1 ether)
+        );
+        _token.transferFrom(ALICE, BOB, 1 ether);
+
+        assertEq(_token.allowance(ALICE, SPENDER), 3 ether);
+        assertEq(ALICE.balance, ALICE_INITIAL_BALANCE);
+        assertEq(BOB.balance, BOB_INITIAL_BALANCE);
+    }
+
     function test_transferFromZeroFromReverts() external {
         vm.prank(SPENDER);
         vm.expectRevert(NativeDogeToken.ErrorTransferFromZeroAddress.selector);
@@ -439,7 +423,7 @@ contract NativeDogeTokenTest is Test {
         assertEq(BOB.balance, BOB_INITIAL_BALANCE);
     }
 
-    function test_precompileReturnsExactSuccessWord() external {
+    function test_precompileReturnsEmptySuccessData() external {
         uint256 amount = 2 ether;
 
         vm.prank(DogeOSPredeploy.L2_NATIVE_DOGE_TOKEN);
@@ -448,7 +432,7 @@ contract NativeDogeTokenTest is Test {
         );
 
         assertTrue(success);
-        assertEq(ret, abi.encode(uint256(1)));
+        assertEq(ret, bytes(""));
         assertEq(ALICE.balance, ALICE_INITIAL_BALANCE - amount);
         assertEq(BOB.balance, BOB_INITIAL_BALANCE + amount);
     }
@@ -458,7 +442,7 @@ contract NativeDogeTokenTest is Test {
         (bool success, bytes memory ret) = DogeOSPredeploy.NATIVE_TRANSFER_PRECOMPILE.call(abi.encode(ALICE, BOB, 0));
 
         assertTrue(success);
-        assertEq(ret, abi.encode(uint256(1)));
+        assertEq(ret, bytes(""));
         assertEq(ALICE.balance, ALICE_INITIAL_BALANCE);
         assertEq(BOB.balance, BOB_INITIAL_BALANCE);
     }
@@ -470,7 +454,7 @@ contract NativeDogeTokenTest is Test {
         );
 
         assertTrue(success);
-        assertEq(ret, abi.encode(uint256(1)));
+        assertEq(ret, bytes(""));
         assertEq(ALICE.balance, ALICE_INITIAL_BALANCE);
     }
 
@@ -483,7 +467,7 @@ contract NativeDogeTokenTest is Test {
         );
 
         assertTrue(success);
-        assertEq(ret, abi.encode(uint256(1)));
+        assertEq(ret, bytes(""));
         assertEq(ALICE.balance, ALICE_INITIAL_BALANCE - 2 ether);
         assertEq(address(receiver).balance, 2 ether);
         assertEq(receiver.receiveCount(), 0);
@@ -652,7 +636,7 @@ contract NativeDogeTokenTest is Test {
         vm.resetNonce(address(mock));
     }
 
-    function _etchBadPrecompile(address mock) internal {
+    function _etchPrecompile(address mock) internal {
         vm.etch(DogeOSPredeploy.NATIVE_TRANSFER_PRECOMPILE, mock.code);
         vm.etch(mock, "");
         vm.resetNonce(mock);

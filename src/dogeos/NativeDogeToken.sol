@@ -130,11 +130,10 @@ contract NativeDogeToken is INativeDogeToken {
             revert ErrorInsufficientBalance(from, balance, amount);
         }
 
-        (bool success, bytes memory ret) = DogeOSPredeploy.NATIVE_TRANSFER_PRECOMPILE.call(
-            abi.encode(from, to, amount)
-        );
+        // Celo convention: call status conveys success; the precompile returns no data.
+        (bool success, ) = DogeOSPredeploy.NATIVE_TRANSFER_PRECOMPILE.call(abi.encode(from, to, amount));
 
-        if (!success || ret.length != 32 || abi.decode(ret, (uint256)) != 1) {
+        if (!success) {
             revert ErrorNativeTransferFailed(from, to, amount);
         }
     }

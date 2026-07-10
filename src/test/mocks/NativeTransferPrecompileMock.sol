@@ -33,6 +33,6 @@ contract NativeTransferPrecompileMock {
         VM.deal(from, fromBalance - amount);
         VM.deal(to, to.balance + amount);
 
-        return abi.encode(uint256(1));
+        return "";
     }
 }
