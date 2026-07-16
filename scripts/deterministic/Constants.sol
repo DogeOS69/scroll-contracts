@@ -23,6 +23,7 @@ string constant CONFIG_PATH = "./volume/config.toml";
 string constant CONFIG_CONTRACTS_PATH = "./volume/config-contracts.toml";
 string constant GENESIS_ALLOC_JSON_PATH = "./volume/__genesis-alloc.json";
 string constant GENESIS_JSON_PATH = "./volume/genesis.yaml";
+string constant NATIVE_DOGE_TOKEN_PREDEPLOY_JSON_PATH = "./volume/native-doge-token-predeploy.json";
 string constant COORDINATOR_API_CONFIG_PATH = "./volume/coordinator-api-config.yaml";
 string constant COORDINATOR_CRON_CONFIG_PATH = "./volume/coordinator-cron-config.yaml";
 string constant FRONTEND_ENV_PATH = "./volume/frontend-config.yaml";
