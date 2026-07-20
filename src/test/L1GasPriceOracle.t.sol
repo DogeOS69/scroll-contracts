@@ -13,6 +13,8 @@ contract L1GasPriceOracleTest is DSTestPlus {
     uint256 private constant MAX_SCALAR = 1000 * PRECISION;
     uint256 private constant MAX_COMMIT_SCALAR = 10**9 * PRECISION;
     uint256 private constant MAX_BLOB_SCALAR = 10**9 * PRECISION;
+    uint256 private constant MAX_L1_BASE_FEE = 1e9 * 20000;
+    uint256 private constant MAX_L1_BLOB_BASE_FEE = 1e9 * 20000;
 
     L1GasPriceOracle private oracle;
     Whitelist private whitelist;
@@ -153,13 +155,17 @@ contract L1GasPriceOracleTest is DSTestPlus {
     }
 
     function testSetL1BaseFee(uint256 _baseFee) external {
-        _baseFee = bound(_baseFee, 0, 1e9 * 20000); // max 20k gwei
+        _baseFee = bound(_baseFee, 0, MAX_L1_BASE_FEE); // max 20k gwei
 
         // call by non-owner, should revert
         hevm.startPrank(address(1));
         hevm.expectRevert(L1GasPriceOracle.ErrCallerNotWhitelisted.selector);
         oracle.setL1BaseFee(_baseFee);
         hevm.stopPrank();
+
+        // l1 base fee is too large
+        hevm.expectRevert(L1GasPriceOracle.ErrExceedMaxL1BaseFee.selector);
+        oracle.setL1BaseFee(MAX_L1_BASE_FEE + 1);
 
         // call by owner, should succeed
         assertEq(oracle.l1BaseFee(), 0);
@@ -168,14 +174,22 @@ contract L1GasPriceOracleTest is DSTestPlus {
     }
 
     function testSetL1BaseFeeAndBlobBaseFee(uint256 _baseFee, uint256 _blobBaseFee) external {
-        _baseFee = bound(_baseFee, 0, 1e9 * 20000); // max 20k gwei
-        _blobBaseFee = bound(_blobBaseFee, 0, 1e9 * 20000); // max 20k gwei
+        _baseFee = bound(_baseFee, 0, MAX_L1_BASE_FEE); // max 20k gwei
+        _blobBaseFee = bound(_blobBaseFee, 0, MAX_L1_BLOB_BASE_FEE); // max 20k gwei
 
         // call by non-owner, should revert
         hevm.startPrank(address(1));
         hevm.expectRevert(L1GasPriceOracle.ErrCallerNotWhitelisted.selector);
         oracle.setL1BaseFeeAndBlobBaseFee(_baseFee, _blobBaseFee);
         hevm.stopPrank();
+
+        // l1 base fee is too large
+        hevm.expectRevert(L1GasPriceOracle.ErrExceedMaxL1BaseFee.selector);
+        oracle.setL1BaseFeeAndBlobBaseFee(MAX_L1_BASE_FEE + 1, _blobBaseFee);
+
+        // l1 blob base fee is too large
+        hevm.expectRevert(L1GasPriceOracle.ErrExceedMaxL1BlobBaseFee.selector);
+        oracle.setL1BaseFeeAndBlobBaseFee(_baseFee, MAX_L1_BLOB_BASE_FEE + 1);
 
         // call by owner, should succeed
         assertEq(oracle.l1BaseFee(), 0);

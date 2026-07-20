@@ -33,6 +33,12 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// @dev Thrown when the l1 fee scalar exceed `MAX_SCALAR`.
     error ErrExceedMaxScalar();
 
+    /// @dev Thrown when the l1 base fee exceeds `MAX_L1_BASE_FEE`.
+    error ErrExceedMaxL1BaseFee();
+
+    /// @dev Thrown when the l1 blob base fee exceeds `MAX_L1_BLOB_BASE_FEE`.
+    error ErrExceedMaxL1BlobBaseFee();
+
     /// @dev Thrown when the caller is not whitelisted.
     error ErrCallerNotWhitelisted();
 
@@ -78,6 +84,16 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// ```
     /// So, the value should not exceed 10^9 * 1e9 normally.
     uint256 private constant MAX_BLOB_SCALAR = 10**9 * PRECISION;
+
+    /// @dev The maximum l1 base fee accepted from the fee oracle.
+    ///      20,000 gwei is intentionally far above normal L1 conditions but prevents
+    ///      misconfigured oracle updates from poisoning the rollup fee calculation.
+    uint256 private constant MAX_L1_BASE_FEE = 20000 * 1e9;
+
+    /// @dev The maximum l1 blob base fee accepted from the fee oracle.
+    ///      20,000 gwei is intentionally far above normal blob fee conditions but prevents
+    ///      misconfigured oracle updates from poisoning the rollup fee calculation.
+    uint256 private constant MAX_L1_BLOB_BASE_FEE = 20000 * 1e9;
 
     /*************
      * Variables *
@@ -182,6 +198,8 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
 
     /// @inheritdoc IL1GasPriceOracle
     function setL1BaseFee(uint256 _l1BaseFee) external override onlyWhitelistedSender {
+        if (_l1BaseFee > MAX_L1_BASE_FEE) revert ErrExceedMaxL1BaseFee();
+
         l1BaseFee = _l1BaseFee;
 
         emit L1BaseFeeUpdated(_l1BaseFee);
@@ -193,6 +211,9 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
         override
         onlyWhitelistedSender
     {
+        if (_l1BaseFee > MAX_L1_BASE_FEE) revert ErrExceedMaxL1BaseFee();
+        if (_l1BlobBaseFee > MAX_L1_BLOB_BASE_FEE) revert ErrExceedMaxL1BlobBaseFee();
+
         l1BaseFee = _l1BaseFee;
         l1BlobBaseFee = _l1BlobBaseFee;
 
