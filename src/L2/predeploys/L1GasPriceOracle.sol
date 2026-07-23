@@ -33,6 +33,10 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// @dev Thrown when the l1 fee scalar exceed `MAX_SCALAR`.
     error ErrExceedMaxScalar();
 
+    /// @dev Thrown when the complete Galileo tuple would make a reference-size
+    ///      recovery transaction exceed the technical liveness ceiling.
+    error ErrExceedMaxGuardedL1Fee(uint256 fee);
+
     /// @dev Thrown when the caller is not whitelisted.
     error ErrCallerNotWhitelisted();
 
@@ -54,6 +58,21 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
 
     /// @dev The precision used in the scalar.
     uint256 private constant PRECISION = 1e9;
+
+    /// @notice Compressed byte size used to preserve an emergency recovery path.
+    /// @dev A minimal signed fee-recovery transaction must remain below this
+    ///      conservative size. The observed setter transaction was 131 bytes.
+    ///      512 is an initial estimate and should be reevaluated against actual
+    ///      recovery transactions and future protocol changes.
+    uint256 public constant FEE_GUARD_COMPRESSED_BYTES = 512;
+
+    /// @notice Maximum fee for the reference-size recovery transaction.
+    /// @dev The native token uses 18 decimals, so this is 10,000 DOGE. This loose
+    ///      technical ceiling intentionally allows fees above 100 DOGE while
+    ///      rejecting unit, decimal, and other astronomical-input failures.
+    ///      10,000 DOGE is an initial estimate and should be reevaluated together
+    ///      with `FEE_GUARD_COMPRESSED_BYTES` before future upgrades.
+    uint256 public constant MAX_GUARDED_L1_FEE = 10_000 * 1e18;
 
     /// @dev The maximum possible l1 fee overhead.
     ///      Computed based on current l1 block gas limit.
@@ -182,6 +201,10 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
 
     /// @inheritdoc IL1GasPriceOracle
     function setL1BaseFee(uint256 _l1BaseFee) external override onlyWhitelistedSender {
+        if (isGalileo) {
+            _validateGalileoFeeConfig(_l1BaseFee, l1BlobBaseFee, commitScalar, blobScalar, penaltyFactor);
+        }
+
         l1BaseFee = _l1BaseFee;
 
         emit L1BaseFeeUpdated(_l1BaseFee);
@@ -193,6 +216,10 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
         override
         onlyWhitelistedSender
     {
+        if (isGalileo) {
+            _validateGalileoFeeConfig(_l1BaseFee, _l1BlobBaseFee, commitScalar, blobScalar, penaltyFactor);
+        }
+
         l1BaseFee = _l1BaseFee;
         l1BlobBaseFee = _l1BlobBaseFee;
 
@@ -226,6 +253,9 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// @param _scalar New scalar
     function setCommitScalar(uint256 _scalar) external onlyOwner {
         if (_scalar > MAX_COMMIT_SCALAR) revert ErrExceedMaxCommitScalar();
+        if (isGalileo) {
+            _validateGalileoFeeConfig(l1BaseFee, l1BlobBaseFee, _scalar, blobScalar, penaltyFactor);
+        }
 
         commitScalar = _scalar;
         emit CommitScalarUpdated(_scalar);
@@ -235,6 +265,9 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// @param _scalar New scalar
     function setBlobScalar(uint256 _scalar) external onlyOwner {
         if (_scalar > MAX_BLOB_SCALAR) revert ErrExceedMaxBlobScalar();
+        if (isGalileo) {
+            _validateGalileoFeeConfig(l1BaseFee, l1BlobBaseFee, commitScalar, _scalar, penaltyFactor);
+        }
 
         blobScalar = _scalar;
         emit BlobScalarUpdated(_scalar);
@@ -244,6 +277,9 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// @param _factor New factor
     function setPenaltyFactor(uint256 _factor) external onlyOwner {
         if (_factor == 0) revert ErrInvalidPenaltyFactor();
+        if (isGalileo) {
+            _validateGalileoFeeConfig(l1BaseFee, l1BlobBaseFee, commitScalar, blobScalar, _factor);
+        }
         penaltyFactor = _factor;
         emit PenaltyFactorUpdated(_factor);
     }
@@ -285,6 +321,7 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// The reason that we keep this function is for easy unit testing.
     function enableGalileo() external onlyOwner {
         if (isGalileo) revert ErrAlreadyInGalileoFork();
+        _validateGalileoFeeConfig(l1BaseFee, l1BlobBaseFee, commitScalar, blobScalar, penaltyFactor);
         isGalileo = true;
     }
 
@@ -348,13 +385,47 @@ contract L1GasPriceOracle is OwnableBase, IL1GasPriceOracle {
     /// @param _data Signed fully RLP-encoded transaction to get the L1 fee for, compressed using zstd.
     /// @return L1 fee that should be paid for the tx
     function _getL1FeeGalileo(bytes memory _data) private view returns (uint256) {
-        // The Galileo formula divides by penaltyFactor (Feynman multiplied by it, so
-        // an unset factor was harmless). Revert explicitly instead of Panic(0x12) if
-        // the factor was never initialized (e.g. genesis state before configuration).
-        uint256 _penaltyFactor = penaltyFactor;
+        return _calculateGalileoFee(l1BaseFee, l1BlobBaseFee, commitScalar, blobScalar, penaltyFactor, _data.length);
+    }
+
+    /// @dev Preserves a numerical recovery path after every successful Galileo
+    ///      fee update. Individual dynamic fields are deliberately not capped:
+    ///      only the fee produced by the complete tuple determines liveness.
+    ///      This guard does not judge whether the fee is commercially reasonable.
+    function _validateGalileoFeeConfig(
+        uint256 _l1BaseFee,
+        uint256 _l1BlobBaseFee,
+        uint256 _commitScalar,
+        uint256 _blobScalar,
+        uint256 _penaltyFactor
+    ) private pure {
+        uint256 guardedFee = _calculateGalileoFee(
+            _l1BaseFee,
+            _l1BlobBaseFee,
+            _commitScalar,
+            _blobScalar,
+            _penaltyFactor,
+            FEE_GUARD_COMPRESSED_BYTES
+        );
+        if (guardedFee > MAX_GUARDED_L1_FEE) revert ErrExceedMaxGuardedL1Fee(guardedFee);
+    }
+
+    /// @dev Shared Galileo formula used by both fee charging and the technical
+    ///      recovery guard so the two paths cannot drift.
+    function _calculateGalileoFee(
+        uint256 _l1BaseFee,
+        uint256 _l1BlobBaseFee,
+        uint256 _commitScalar,
+        uint256 _blobScalar,
+        uint256 _penaltyFactor,
+        uint256 _compressedBytes
+    ) private pure returns (uint256) {
+        // Galileo divides by penaltyFactor. Revert explicitly instead of
+        // Panic(0x12) when a legacy or malformed state left it unset.
         if (_penaltyFactor == 0) revert ErrInvalidPenaltyFactor();
-        uint256 baseTerm = (commitScalar * l1BaseFee + blobScalar * l1BlobBaseFee) * _data.length;
-        uint256 penaltyTerm = (baseTerm * _data.length) / _penaltyFactor;
+
+        uint256 baseTerm = (_commitScalar * _l1BaseFee + _blobScalar * _l1BlobBaseFee) * _compressedBytes;
+        uint256 penaltyTerm = (baseTerm * _compressedBytes) / _penaltyFactor;
         return (baseTerm + penaltyTerm) / PRECISION;
     }
 }

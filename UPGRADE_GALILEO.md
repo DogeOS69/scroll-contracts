@@ -48,6 +48,63 @@ Slots preserved (owner, `l1BaseFee`, `overhead`, `scalar`, `l1BlobBaseFee`,
 **⚠️ Storage compatibility rule**: the upgrade must not touch slots
 `0x00`–`0x0b`. Only slot `0x0c` (`isGalileo`) is newly set.
 
+### 1.4 Post-Galileo technical fee guard
+
+The current contract source adds an on-chain numerical-safety boundary around
+the Galileo fee tuple. This is deliberately **not** an economic pricing policy:
+the fee-oracle service remains responsible for determining whether a candidate
+is commercially reasonable. The contract protects transaction liveness from
+unit, decimal, overflow, and other astronomical-input failures.
+
+The guard has two independently reviewable parameters:
+
+| Constant                     | Value               | Meaning                                                               |
+| ---------------------------- | ------------------- | --------------------------------------------------------------------- |
+| `FEE_GUARD_COMPRESSED_BYTES` | `512`               | Conservative reference size for a minimal signed recovery transaction |
+| `MAX_GUARDED_L1_FEE`         | `10_000 * 1e18` wei | 10,000 DOGE technical ceiling for that reference transaction          |
+
+Both values are initial engineering estimates, not permanent protocol truths.
+They should be reevaluated together using measured compressed sizes of the
+actual signed recovery transactions, execution-client limits, native-token
+denomination, and operational headroom before a production activation or a
+future fee-formula upgrade.
+
+There is deliberately no independent cap on `l1BaseFee` or `l1BlobBaseFee`.
+Those fields and the scalar fields only become meaningful through their
+combined result. A candidate with an individual value above `uint64` is valid
+when the complete tuple remains below the technical ceiling; a candidate with
+smaller-looking individual values is rejected when their complete result is
+unsafe. The execution client reads and calculates the raw fee fields as
+`U256`; its final rollup-fee representation or clamp is a separate client
+concern and must not be reused as an oracle-field policy.
+
+Before changing storage, each active-Galileo fee setter reconstructs the
+complete candidate tuple and applies the exact Galileo formula at 512 bytes:
+
+```text
+baseTerm =
+  (commitScalar * l1BaseFee + blobScalar * l1BlobBaseFee) * 512
+
+penaltyTerm = baseTerm * 512 / penaltyFactor
+
+guardedFee = (baseTerm + penaltyTerm) / 1e9
+```
+
+The write reverts if `guardedFee > MAX_GUARDED_L1_FEE`. Validation covers
+`setL1BaseFee`, `setL1BaseFeeAndBlobBaseFee`, `setCommitScalar`,
+`setBlobScalar`, `setPenaltyFactor`, and the owner-callable `enableGalileo`
+helper. An individually large dynamic value can therefore be stored while its
+corresponding scalar is zero, but any later update that would make that value
+produce an unsafe fee is rejected before storage changes.
+
+The shared `_calculateGalileoFee` helper is used by both `getL1Fee` and the
+guard to prevent formula drift. The constants consume no storage slots, and
+the guard adds no mutable storage, so the layout above remains unchanged.
+
+The initial 10,000 DOGE ceiling is intentionally permissive: a tested 512-byte
+tuple with a fee of approximately 121.64 DOGE is accepted. Stricter market and
+profitability limits belong in fee-oracle policy and operational monitoring.
+
 ---
 
 ## 2. Upgrade paths
@@ -75,10 +132,41 @@ Upgrade every node to L2 geth **≥ [`scroll-v5.10.0`](https://github.com/scroll
   the upgrade is driven purely by `galileoTime` / `galileoV2Time` in the chain
   config.
 
-No manual `forge inspect` export, no embedding of bytecode, no custom
-`ApplyGalileoHardFork` implementation needed. The Solidity source in this repo
-must stay in sync with what `scroll-v5.10.0` embeds, which this branch already
-ensures.
+No manual `forge inspect` export, no embedding of bytecode, and no custom
+`ApplyGalileoHardFork` implementation was needed for the original GalileoV2
+release. Its historical embedded bytecode must remain unchanged. The current
+Solidity source intentionally includes the newer guard described below and
+therefore requires a separate future transition on an already-running chain.
+
+#### B.1.1 Deploying the post-Galileo fee guard
+
+The technical fee guard in section 1.4 is newer than the original GalileoV2
+runtime bytecode. On a network that has already crossed `galileoV2Time`, the
+guard **cannot** be activated by changing this Solidity repository, changing
+genesis allocation, or changing the bytecode constant used at the historical
+GalileoV2 transition.
+
+In particular, never replace the bytecode installed at an already-canonical
+historical transition: a node syncing from genesis would compute a different
+historical code hash and state root.
+
+Deploy the guarded runtime through a new, future, coordinated client hardfork:
+
+1. preserve the original GalileoV2 bytecode and historical transition exactly;
+2. compile and pin the guarded `L1GasPriceOracle` runtime bytecode;
+3. add a new hardfork identifier and future activation timestamp;
+4. atomically replace only the code at `0x5300…0002`, preserving slots
+   `0x00`–`0x0c`;
+5. make the transition idempotent using a new code-version marker or an exact
+   code-hash check;
+6. ship the same binary and chain configuration to every sequencer, follower,
+   RPC, and verifier before activation;
+7. verify the new code hash and all preserved fee fields after activation.
+
+The execution client must allow legitimate total rollup fees above `uint64`.
+The current post-Tsuki revm path calculates the raw values in `U256` and clamps
+the final L1 cost to `U96_MAX`; this client-side representation remains
+separate from the contract's 10,000 DOGE reference-transaction liveness guard.
 
 Before `galileoTime`, confirm `penaltyFactor() != 0` on the oracle (slot
 `0x0a`): the Galileo formula divides by it, and `getL1Fee` reverts with
