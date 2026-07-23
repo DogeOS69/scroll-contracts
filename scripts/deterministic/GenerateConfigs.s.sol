@@ -13,6 +13,9 @@ contract GenerateCoordinatorConfig is DeployScroll {
     function run() public {
         DeterministicDeployment.initialize(ScriptMode.VerifyConfig);
         predictAllContracts();
+
+        readCoordinatorJwtSecret();
+
         generateCoordinatorConfig(COORDINATOR_API_CONFIG_PATH);
         generateCoordinatorConfig(COORDINATOR_CRON_CONFIG_PATH);
     }

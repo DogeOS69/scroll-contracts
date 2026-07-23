@@ -67,16 +67,16 @@ The ordering is load-bearing and fail-closed:
   its withdrawals revert (fees accumulate, nothing is lost, but withdrawals
   stall until rewired). `submit-dogeos-messenger-proxy-upgrade.sh` refuses to
   broadcast while the vault is unrewired.
-- The fee migration is not atomic. Its maintenance transition writes fixed
-  `l1BaseFee=1` and `l1BlobBaseFee=1` first, followed by `commitScalar`,
-  `blobScalar`, and `penaltyFactor`. Each transaction receives an independent
-  RPC readback before the next one is sent.
+- The fee migration is not atomic. It first writes the fixed maintenance pair
+  `l1BaseFee=1` and `l1BlobBaseFee=1`, then writes `commitScalar`, `blobScalar`,
+  and `penaltyFactor`. Each transaction receives an independent RPC readback
+  before the next one is sent.
 - Public transaction ingress and all fee-oracle writers must be stopped before
   step 8. Do not restart them until the final tuple and an internal canary have
   been verified.
-- The new fee-oracle signer is added only after its current candidate has been
-  tested against the final static tuple. Remove the temporary owner whitelist
-  entry only after the new signer has produced consecutive successful updates.
+- The static setters are `onlyOwner`, but the dynamic `(1,1)` setter requires a
+  whitelisted sender. Temporarily whitelist the oracle owner, then remove that
+  permission only after the new fee-oracle signer is healthy.
 
 The other steps are configuration selection, dry runs, preflight checks, and
 post-upgrade verification. They are included to avoid upgrading the wrong
@@ -114,13 +114,12 @@ FEE_VAULT_DOGE_RECIPIENT_ADDR = "0x..."
 `COMMIT_SCALAR`, `BLOB_SCALAR`, and `PENALTY_FACTOR`. The rewire script refuses
 to run without `FEE_VAULT_DOGE_RECIPIENT_ADDR`.
 
-The one-time migration dynamic fee values are intentionally hardcoded to `1/1`
-and are **not** stored in TOML. A separate production candidate is derived from
-a new fee-oracle running in signer-free `dry_run` mode. Its maximum age,
-per-field caps, compressed-size guard, and absolute fee cap remain
-operator-approved policy inputs. The candidate is never written by the
-migration script; it is the release gate for allowing the new signer to replace
-`1/1` with real production values.
+The one-time migration pair is hardcoded to `1/1`; it does not require a
+running fee-oracle, a `/status` endpoint, a production candidate, or
+operator-supplied fee limits. The deployed GalileoV2 predeploy does not contain
+the proposed complete-tuple guard. The `(1,1)` write is an operational
+transition that keeps the following static-parameter transactions affordable;
+it is not a guard and does not replace predeploy bytecode.
 
 Private keys are the intended environment-variable inputs. For this upgrade,
 `DEPLOYER_PRIVATE_KEY` is used by the implementation deploy steps, and
@@ -208,15 +207,7 @@ OWNER_ADDR=$(cast wallet address --private-key "$OWNER_PRIVATE_KEY")
 scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
 BROADCAST=1 scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
 
-# 8: derive the candidate and observation time from the new fee-oracle running
-# in dry_run mode. The remaining values are approved safety-policy limits.
-export FEE_ORACLE_STATUS_URL=http://DRY_RUN_FEE_ORACLE:8080/status
-export MAX_PRODUCTION_FEE_AGE_SECONDS=REPLACE_WITH_APPROVED_MAX_AGE
-export MAX_PRODUCTION_L1_BASE_FEE=REPLACE_WITH_APPROVED_HARD_CAP
-export MAX_PRODUCTION_L1_BLOB_BASE_FEE=REPLACE_WITH_APPROVED_HARD_CAP
-export FEE_GUARD_COMPRESSED_BYTES=REPLACE_WITH_CONSERVATIVE_SIGNED_TX_SIZE
-export MAX_L1_DATA_FEE_WEI=REPLACE_WITH_APPROVED_ABSOLUTE_FEE_CAP
-
+# 8: apply the fixed 1/1 maintenance pair and configured static values.
 scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
 
 CONFIRM_FEE_MIGRATION=1 \
@@ -228,16 +219,15 @@ BROADCAST=1 \
 
 # Submit and verify an internal canary before proceeding.
 
-# 9: whitelist the new signer only after its current candidate has passed the
-# same final-tuple fee calculations. Then start the new fee-oracle service and
-# require consecutive successful on-chain updates.
+# 9: whitelist the new signer while its service is stopped. Then start the new
+# fee-oracle service and require consecutive successful on-chain updates.
 NEW_FEE_ORACLE_SIGNER=0x...
 scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$NEW_FEE_ORACLE_SIGNER"
 BROADCAST=1 \
   scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$NEW_FEE_ORACLE_SIGNER"
 
-# 10: after the new signer is healthy, remove the owner's temporary dynamic
-# write permission, then restore public transaction ingress.
+# 10: after the new signer is healthy and the production-fee canary passes,
+# remove the owner's temporary dynamic-write permission.
 WHITELIST_STATUS=false \
   scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
 WHITELIST_STATUS=false CONFIRM_WHITELIST_REMOVAL=1 BROADCAST=1 \
@@ -271,12 +261,9 @@ Before sending any transaction:
   capable of writing dynamic fees. Check both latest and pending nonces for the
   old fee-oracle signer; stopping a pod does not remove an already-broadcast
   transaction.
-- Run the new fee-oracle in signer-free dry-run mode and obtain a fresh
-  production candidate. Validate it against independent price inputs and
-  calculate both the fixed `1/1` migration path and the final production tuple.
-- Prepare a funded rollback signer and rollback calldata. The production tuple,
-  not the temporary `1/1` migration tuple, determines what a later rollback
-  transaction will cost.
+- Prepare a funded rollback signer and rollback calldata. The deployed oracle
+  has no complete-tuple guard, so the fixed `1/1` maintenance pair,
+  operational checks, and per-step RPC readback are the safety boundary.
 - Run the dry-run commands first, then run the same flow with `BROADCAST=1`.
 - Follow the step order from 1.1 — the scripts enforce the critical ordering,
   but do not skip ahead.
@@ -594,8 +581,15 @@ maintenance window with no uncontrolled L2 writes:
 4. retain one private operator RPC path for owner transactions and readback;
 5. prepare funded rollback credentials and calldata without broadcasting them.
 
-Temporarily whitelist the current `L1GasPriceOracle` owner. First derive and
-verify the address locally:
+The fee-oracle service remains stopped throughout this update. No fee-oracle
+URL, status file, production candidate, observation timestamp, or
+operator-supplied fee limit is required. The dynamic migration pair is fixed in
+the script at `1` and `1`; the three target static values come from
+`volume/config.toml`.
+
+The static setters are restricted by `onlyOwner`, while
+`setL1BaseFeeAndBlobBaseFee(1,1)` requires a whitelisted sender. Temporarily
+whitelist the current `L1GasPriceOracle` owner:
 
 ```bash
 export OWNER_PRIVATE_KEY=0x...
@@ -606,54 +600,12 @@ BROADCAST=1 \
   scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
 ```
 
-If `Whitelist.owner()` and `L1GasPriceOracle.owner()` are different, use the
-whitelist owner key for the whitelist transaction, then restore
-`OWNER_PRIVATE_KEY` to the oracle owner key before running the fee migration.
-
-Obtain a fresh dynamic candidate from the new fee-oracle in observe-only mode,
-or from its exact production calculation path with writes disabled. Independently
-verify its market inputs. Before proceeding, calculate fees for the complete
-target tuple and every transition state, including signed admin, canary, and
-rollback transactions.
-
-Run the new fee-oracle with `contract_write_mode = "dry_run"`; this mode does
-not need the unknown new signer or any wallet material. Its `/status` endpoint
-contains the exact DOGE-denominated decimal strings, candidate calldata, and
-`computed_at_ms` produced by the same calculation path used in live mode.
-
-Point the migration script at that endpoint and export the approved policy
-limits as decimal integers without `_` separators:
-
-```bash
-export FEE_ORACLE_STATUS_URL=http://DRY_RUN_FEE_ORACLE:8080/status
-export MAX_PRODUCTION_FEE_AGE_SECONDS=REPLACE_WITH_APPROVED_MAX_AGE
-export MAX_PRODUCTION_L1_BASE_FEE=REPLACE_WITH_APPROVED_HARD_CAP
-export MAX_PRODUCTION_L1_BLOB_BASE_FEE=REPLACE_WITH_APPROVED_HARD_CAP
-export FEE_GUARD_COMPRESSED_BYTES=REPLACE_WITH_CONSERVATIVE_SIGNED_TX_SIZE
-export MAX_L1_DATA_FEE_WEI=REPLACE_WITH_APPROVED_ABSOLUTE_FEE_CAP
-```
-
-The migration script accepts only a `/status` response with
-`contract_write_mode=dry_run`, `live_writes_enabled=false`,
-`database_status=ok`, and latest candidate status `ready_to_write` or `capped`.
-It derives the two `PRODUCTION_*_FEE` values and the observation timestamp,
-re-encodes the setter calldata locally, and requires it to exactly match the
-candidate calldata from the service.
-
-`FEE_ORACLE_STATUS_FILE=/path/to/status.json` may be used instead of a URL for
-an audited snapshot. Manual `PRODUCTION_L1_BASE_FEE`,
-`PRODUCTION_L1_BLOB_BASE_FEE`, and `PRODUCTION_FEE_OBSERVED_AT` remain an
-emergency fallback when neither source is set. The production hard caps must be
-independent operator-approved limits, not values copied from an unreviewed
-candidate. The on-chain migration pair itself is not taken from this candidate;
-it is hardcoded to the nonzero constants `1` and `1`.
-
-`FEE_GUARD_COMPRESSED_BYTES` must be at least the largest measured compressed
-size among the signed migration, canary, and rollback transactions. The script
-reconstructs the Galileo formula for the current tuple, every `1/1` migration
-transition, and the dry-run production candidate combined with the final static
-tuple. Every result must be at most `MAX_L1_DATA_FEE_WEI`. This guard
-supplements, but does not replace, the exact reth-encoder preflight.
+On the current devnet, `Whitelist.owner()` and `L1GasPriceOracle.owner()` are
+both `0x40eC582859B4135c3CAF2dAC6F2983876915fB0A`, so one
+`OWNER_PRIVATE_KEY` controls both operations. The currently deployed
+GalileoV2 predeploy is the runtime embedded by reth at the hard fork and does
+not contain the proposed complete-tuple guard. The fixed `(1,1)` write is a
+maintenance transition, not an on-chain guard.
 
 Run the read-only preflight:
 
@@ -661,10 +613,10 @@ Run the read-only preflight:
 scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
 ```
 
-It verifies the configured chain ID, oracle and whitelist bytecode, exact
-oracle-to-whitelist binding, Galileo activation, candidate freshness, nonzero
-values, hard caps, target static values, and whether the oracle owner is
-whitelisted. Stop if any printed current or target value is unexpected.
+It verifies the configured chain ID, oracle bytecode, Galileo activation, and
+the fixed dynamic/static targets. It prints the current dynamic and static
+values without changing them and does not require `OWNER_PRIVATE_KEY`. Stop if
+any printed current or target value is unexpected.
 
 #### Step 12 - Execute the gated fee migration
 
@@ -689,11 +641,10 @@ The shell script invokes four separate Foundry entrypoints in this exact order:
 4. `setPenaltyFactor(PENALTY_FACTOR)`.
 
 After each broadcast returns, a new read-only RPC invocation verifies the
-required on-chain storage. A failed receipt, stale candidate, unexpected
-dynamic overwrite, wrong previous scalar, or readback mismatch stops the shell
-before the next transaction. The mutating entrypoints are idempotent, so a
-stopped migration can be resumed after diagnosing the failure and supplying a
-new fresh candidate when required.
+required static on-chain storage. A failed receipt, wrong previous scalar, or
+readback mismatch stops the shell before the next transaction. The mutating
+entrypoints are idempotent, so a stopped update can be resumed after diagnosing
+the failure.
 
 The Solidity script's default `run()` entrypoint deliberately reverts. Do not
 replace the four-step shell orchestration with a direct unqualified
@@ -708,16 +659,12 @@ scripts/deterministic/shell/query-l1-gas-price-oracle-config.sh \
   "$L2_RPC" <L1_GAS_PRICE_ORACLE_ADDR>
 ```
 
-At this point the dynamic pair is intentionally `1/1`, so this canary confirms
-transaction execution and the maintenance tuple, not production fee economics.
-The production-fee canary is mandatory after the new signer performs its first
-successful dynamic update in Step 13.
+At this point the dynamic pair is intentionally `1/1`. The canary confirms
+transaction execution with the completed maintenance tuple. A production-fee
+canary is mandatory after the new signer performs its first successful dynamic
+update in Step 13.
 
-#### Step 13 - Start the new fee-oracle and remove temporary access
-
-Before granting write permission, obtain the new fee-oracle's current candidate
-again and simulate it with the final static tuple. The fixed `1/1` maintenance
-pair does not prove that the production candidate is safe.
+#### Step 13 - Start the new fee-oracle and verify signer handoff
 
 Whitelist the new signer while its writer remains stopped:
 
@@ -734,8 +681,10 @@ OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
 Start the new service and require at least two consecutive
 `setL1BaseFeeAndBlobBaseFee` receipts with `status=1`. For each update, verify
 the transaction sender, calldata, stored values, confirmation depth, nonce
-progression, and resulting canary fee. Pod readiness alone is not a chain-write
-health signal.
+progression, and resulting canary fee. Every update is subject to the oracle's
+whitelist permission and the service's own validation; there is no new
+complete-tuple guard in the deployed predeploy. Pod readiness alone is not a
+chain-write health signal.
 
 Only after those checks pass, remove the owner's temporary dynamic-write
 permission:
@@ -992,8 +941,8 @@ No hard fork, geth change, or node coordination is required.
 #### `submit-l1-gas-price-oracle-config.sh`
 
 [`scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh`](scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh)
-performs the non-atomic fee migration as four independently gated transactions
-on `L1GasPriceOracle`.
+performs the fixed-pair/static migration as four independently gated
+transactions on `L1GasPriceOracle`.
 
 It:
 
@@ -1001,28 +950,20 @@ It:
   `forge script` needs an RPC URL before the Solidity script can run;
 - leaves typed TOML parsing to `SubmitL1GasPriceOracleConfig`, which reads
   `COMMIT_SCALAR`, `BLOB_SCALAR`, and `PENALTY_FACTOR` from
-  `volume/config.toml`, plus `L1_GAS_PRICE_ORACLE_ADDR` and
-  `L2_WHITELIST_ADDR` from
+  `volume/config.toml`, plus `L1_GAS_PRICE_ORACLE_ADDR` from
   `volume/config-contracts.toml`;
-- preferably derives fresh `PRODUCTION_L1_BASE_FEE`,
-  `PRODUCTION_L1_BLOB_BASE_FEE`, actual observation timestamp, and expected
-  calldata from a signer-free dry-run fee-oracle `/status` URL or JSON file;
-- rejects a status source that has live writes enabled, is not healthy and
-  writeable, omits exact decimal candidate fields, or whose calldata does not
-  encode those fields;
-- accepts manual production candidate fields only as an explicit fallback,
-  while maximum age, per-field caps, guarded compressed size, and absolute fee
-  cap remain independent operator policy inputs;
-- checks chain ID, oracle and whitelist code, the oracle's exact whitelist,
-  Galileo activation, freshness, caps, owner identity, and owner whitelist
-  permission;
-- prints the current and complete target dynamic/static tuple;
+- checks chain ID, oracle code, Galileo activation, and the owner identity for
+  mutating entrypoints;
+- requires no fee-oracle process, status endpoint, production candidate, or
+  operator-supplied fee-policy environment variables;
+- prints the current dynamic/static values plus the fixed `1/1` and static
+  targets;
 - runs `SubmitL1GasPriceOracleConfig.dryRun()` by default, without requiring
   `OWNER_PRIVATE_KEY`;
 - refuses broadcast unless all four maintenance acknowledgement variables equal
   `1`;
-- broadcasts the dynamic pair first, then commit scalar, blob scalar, and
-  penalty factor through four separate script entrypoints;
+- broadcasts the fixed `1/1` dynamic pair first, then commit scalar, blob
+  scalar, and penalty factor through four separate script entrypoints;
 - launches a separate read-only RPC verification after each broadcast and
   stops before the next transaction on any mismatch;
 - enforces commit-before-blob and blob-before-penalty state dependencies;

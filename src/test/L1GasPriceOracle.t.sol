@@ -14,12 +14,6 @@ contract L1GasPriceOracleTest is DSTestPlus {
     uint256 private constant MAX_COMMIT_SCALAR = 10**9 * PRECISION;
     uint256 private constant MAX_BLOB_SCALAR = 10**9 * PRECISION;
 
-    uint256 private constant PRODUCTION_L1_BASE_FEE = 28_876_074_349_204;
-    uint256 private constant PRODUCTION_L1_BLOB_BASE_FEE = 1_493_712_122_980;
-    uint256 private constant PRODUCTION_COMMIT_SCALAR = 38_720_000_000;
-    uint256 private constant PRODUCTION_BLOB_SCALAR = 8_000_000_000;
-    uint256 private constant PRODUCTION_PENALTY_FACTOR = 10_000;
-
     L1GasPriceOracle private oracle;
     Whitelist private whitelist;
 
@@ -307,14 +301,11 @@ contract L1GasPriceOracleTest is DSTestPlus {
         _blobScalar = bound(_blobScalar, 0, MAX_BLOB_SCALAR);
         _penaltyFactor = bound(_penaltyFactor, 1, 1e9 * 100);
 
+        oracle.enableGalileo();
         oracle.setCommitScalar(_commitScalar);
         oracle.setBlobScalar(_blobScalar);
         oracle.setL1BaseFeeAndBlobBaseFee(_baseFee, _blobBaseFee);
         oracle.setPenaltyFactor(_penaltyFactor);
-        // The hard fork activates Galileo after the tuple has been prepared.
-        // Store the flag directly so this formula fuzz test can cover the full
-        // historical uint256 input range independently of the new guard.
-        hevm.store(address(oracle), bytes32(uint256(12)), bytes32(uint256(1)));
 
         uint256 _baseTerm = (_commitScalar * _baseFee + _blobScalar * _blobBaseFee) * _data.length;
         uint256 _penaltyTerm = (_baseTerm * _data.length) / _penaltyFactor;
@@ -330,7 +321,6 @@ contract L1GasPriceOracleTest is DSTestPlus {
         hevm.stopPrank();
 
         // call by owner, should succeed
-        oracle.setPenaltyFactor(PRODUCTION_PENALTY_FACTOR);
         assertBoolEq(oracle.isGalileo(), false);
         oracle.enableGalileo();
         assertBoolEq(oracle.isGalileo(), true);
@@ -344,163 +334,11 @@ contract L1GasPriceOracleTest is DSTestPlus {
         // Genesis-like state: isGalileo active but penaltyFactor never configured.
         // The Galileo formula divides by penaltyFactor; this must be a clear revert,
         // not Panic(0x12).
-        hevm.store(address(oracle), bytes32(uint256(12)), bytes32(uint256(1)));
+        oracle.enableGalileo();
         assertEq(oracle.penaltyFactor(), 0);
 
         hevm.expectRevert(L1GasPriceOracle.ErrInvalidPenaltyFactor.selector);
         oracle.getL1Fee(hex"deadbeef");
-    }
-
-    function testGalileoFeeGuardConstants() external {
-        assertEq(oracle.FEE_GUARD_COMPRESSED_BYTES(), 512);
-        assertEq(oracle.MAX_GUARDED_L1_FEE(), 10_000 ether);
-    }
-
-    function testGalileoFeeGuardAllowsFeesAboveOneHundredDoge() external {
-        oracle.setCommitScalar(PRODUCTION_COMMIT_SCALAR);
-        oracle.setBlobScalar(PRODUCTION_BLOB_SCALAR);
-        oracle.setPenaltyFactor(PRODUCTION_PENALTY_FACTOR);
-        oracle.enableGalileo();
-
-        // Scaling both healthy dynamic fields by 200 produces a guarded fee of
-        // about 121.64 DOGE for 512 compressed bytes. The contract guard is a
-        // loose technical ceiling and must not act as economic policy.
-        uint256 l1BaseFee = PRODUCTION_L1_BASE_FEE * 200;
-        uint256 l1BlobBaseFee = PRODUCTION_L1_BLOB_BASE_FEE * 200;
-        oracle.setL1BaseFeeAndBlobBaseFee(l1BaseFee, l1BlobBaseFee);
-
-        bytes memory referenceTransaction = new bytes(oracle.FEE_GUARD_COMPRESSED_BYTES());
-        uint256 guardedFee = oracle.getL1Fee(referenceTransaction);
-        assertGt(guardedFee, 100 ether);
-        assertLt(guardedFee, oracle.MAX_GUARDED_L1_FEE());
-        assertEq(guardedFee, 121_639_823_168_431_293_097);
-    }
-
-    function testDynamicFieldsMayExceedUint64WhenCompleteTupleIsSafe() external {
-        oracle.setCommitScalar(1);
-        oracle.setBlobScalar(1);
-        oracle.setPenaltyFactor(PRODUCTION_PENALTY_FACTOR);
-        oracle.enableGalileo();
-
-        uint256 valueAboveUint64 = uint256(type(uint64).max) + 1;
-        oracle.setL1BaseFeeAndBlobBaseFee(valueAboveUint64, valueAboveUint64);
-
-        assertEq(oracle.l1BaseFee(), valueAboveUint64);
-        assertEq(oracle.l1BlobBaseFee(), valueAboveUint64);
-
-        bytes memory referenceTransaction = new bytes(oracle.FEE_GUARD_COMPRESSED_BYTES());
-        assertLt(oracle.getL1Fee(referenceTransaction), oracle.MAX_GUARDED_L1_FEE());
-    }
-
-    function testDynamicSetterRevertsWhenCompleteTupleExceedsTechnicalCeiling() external {
-        oracle.setCommitScalar(MAX_COMMIT_SCALAR);
-        oracle.setPenaltyFactor(1);
-        oracle.enableGalileo();
-
-        uint256 l1BaseFee = uint256(type(uint64).max) + 1;
-        uint256 guardedFee = _calculateGalileoFee(l1BaseFee, 0, MAX_COMMIT_SCALAR, 0, 1, 512);
-        hevm.expectRevert(abi.encodeWithSelector(L1GasPriceOracle.ErrExceedMaxGuardedL1Fee.selector, guardedFee));
-        oracle.setL1BaseFeeAndBlobBaseFee(l1BaseFee, 0);
-        assertEq(oracle.l1BaseFee(), 0);
-        assertEq(oracle.l1BlobBaseFee(), 0);
-    }
-
-    function testSingleDynamicSetterRevertsWhenCompleteTupleExceedsTechnicalCeiling() external {
-        oracle.setCommitScalar(MAX_COMMIT_SCALAR);
-        oracle.setPenaltyFactor(1);
-        oracle.enableGalileo();
-
-        uint256 l1BaseFee = uint256(type(uint64).max) + 1;
-        uint256 guardedFee = _calculateGalileoFee(l1BaseFee, 0, MAX_COMMIT_SCALAR, 0, 1, 512);
-        hevm.expectRevert(abi.encodeWithSelector(L1GasPriceOracle.ErrExceedMaxGuardedL1Fee.selector, guardedFee));
-        oracle.setL1BaseFee(l1BaseFee);
-        assertEq(oracle.l1BaseFee(), 0);
-    }
-
-    function testStaticSetterRevertsWhenCompleteTupleExceedsTechnicalCeiling() external {
-        oracle.setPenaltyFactor(1);
-        oracle.enableGalileo();
-
-        // With both scalars at zero an individually large dynamic value is
-        // harmless and may be stored. Raising commitScalar must validate the
-        // resulting full tuple before changing storage.
-        uint256 l1BaseFee = uint256(type(uint64).max) + 1;
-        oracle.setL1BaseFee(l1BaseFee);
-        uint256 guardedFee = _calculateGalileoFee(l1BaseFee, 0, MAX_COMMIT_SCALAR, 0, 1, 512);
-        hevm.expectRevert(abi.encodeWithSelector(L1GasPriceOracle.ErrExceedMaxGuardedL1Fee.selector, guardedFee));
-        oracle.setCommitScalar(MAX_COMMIT_SCALAR);
-        assertEq(oracle.commitScalar(), 0);
-    }
-
-    function testBlobScalarSetterRevertsWhenCompleteTupleExceedsTechnicalCeiling() external {
-        oracle.setPenaltyFactor(1);
-        oracle.enableGalileo();
-
-        uint256 l1BlobBaseFee = uint256(type(uint64).max) + 1;
-        oracle.setL1BaseFeeAndBlobBaseFee(0, l1BlobBaseFee);
-        uint256 guardedFee = _calculateGalileoFee(0, l1BlobBaseFee, 0, MAX_BLOB_SCALAR, 1, 512);
-        hevm.expectRevert(abi.encodeWithSelector(L1GasPriceOracle.ErrExceedMaxGuardedL1Fee.selector, guardedFee));
-        oracle.setBlobScalar(MAX_BLOB_SCALAR);
-        assertEq(oracle.blobScalar(), 0);
-    }
-
-    function testPenaltySetterRevertsWhenCompleteTupleExceedsTechnicalCeiling() external {
-        oracle.setCommitScalar(PRODUCTION_COMMIT_SCALAR);
-        oracle.setBlobScalar(PRODUCTION_BLOB_SCALAR);
-        oracle.setL1BaseFeeAndBlobBaseFee(PRODUCTION_L1_BASE_FEE * 100, PRODUCTION_L1_BLOB_BASE_FEE * 100);
-        oracle.setPenaltyFactor(PRODUCTION_PENALTY_FACTOR);
-        oracle.enableGalileo();
-
-        uint256 guardedFee = _calculateGalileoFee(
-            PRODUCTION_L1_BASE_FEE * 100,
-            PRODUCTION_L1_BLOB_BASE_FEE * 100,
-            PRODUCTION_COMMIT_SCALAR,
-            PRODUCTION_BLOB_SCALAR,
-            1,
-            512
-        );
-        hevm.expectRevert(abi.encodeWithSelector(L1GasPriceOracle.ErrExceedMaxGuardedL1Fee.selector, guardedFee));
-        oracle.setPenaltyFactor(1);
-        assertEq(oracle.penaltyFactor(), PRODUCTION_PENALTY_FACTOR);
-    }
-
-    function testEnableGalileoRevertsWhenCompleteTupleExceedsTechnicalCeiling() external {
-        oracle.setCommitScalar(MAX_COMMIT_SCALAR);
-        uint256 l1BaseFee = uint256(type(uint64).max) + 1;
-        oracle.setL1BaseFee(l1BaseFee);
-        oracle.setPenaltyFactor(1);
-
-        uint256 guardedFee = _calculateGalileoFee(l1BaseFee, 0, MAX_COMMIT_SCALAR, 0, 1, 512);
-        hevm.expectRevert(abi.encodeWithSelector(L1GasPriceOracle.ErrExceedMaxGuardedL1Fee.selector, guardedFee));
-        oracle.enableGalileo();
-        assertFalse(oracle.isGalileo());
-    }
-
-    function testFixedOneOneMigrationTuplePassesTechnicalGuard() external {
-        oracle.setPenaltyFactor(PRODUCTION_PENALTY_FACTOR);
-        oracle.enableGalileo();
-
-        oracle.setL1BaseFeeAndBlobBaseFee(1, 1);
-        oracle.setCommitScalar(PRODUCTION_COMMIT_SCALAR);
-        oracle.setBlobScalar(PRODUCTION_BLOB_SCALAR);
-
-        assertEq(oracle.l1BaseFee(), 1);
-        assertEq(oracle.l1BlobBaseFee(), 1);
-        assertEq(oracle.commitScalar(), PRODUCTION_COMMIT_SCALAR);
-        assertEq(oracle.blobScalar(), PRODUCTION_BLOB_SCALAR);
-    }
-
-    function _calculateGalileoFee(
-        uint256 _l1BaseFee,
-        uint256 _l1BlobBaseFee,
-        uint256 _commitScalar,
-        uint256 _blobScalar,
-        uint256 _penaltyFactor,
-        uint256 _compressedBytes
-    ) private pure returns (uint256) {
-        uint256 baseTerm = (_commitScalar * _l1BaseFee + _blobScalar * _l1BlobBaseFee) * _compressedBytes;
-        uint256 penaltyTerm = (baseTerm * _compressedBytes) / _penaltyFactor;
-        return (baseTerm + penaltyTerm) / PRECISION;
     }
 
     function testSetStorageDuringUpgrade() external {
