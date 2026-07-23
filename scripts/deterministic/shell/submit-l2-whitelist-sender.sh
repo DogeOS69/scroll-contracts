@@ -14,12 +14,15 @@ if [ ! -e "$VOLUME_PATH" ]; then
     exit 1
 fi
 
-# Adds an account to the L2 Whitelist used by L1GasPriceOracle.
+# Configures an account in the L2 Whitelist used by L1GasPriceOracle.
 #
 # Inputs:
 #   WHITELIST_ACCOUNT=0x... account to allow. Can also be passed as $1.
+#   WHITELIST_STATUS=true  desired status; set false to remove a temporary
+#                          migration sender. Defaults to true.
 #   BROADCAST=1             actually send the tx (otherwise preflight only).
 #   OWNER_PRIVATE_KEY=0x... whitelist owner key, required only when BROADCAST=1.
+#   CONFIRM_WHITELIST_REMOVAL=1 required with BROADCAST=1 when status is false.
 #
 # Optional overrides:
 #   RPC_URL=...             defaults to EXTERNAL_RPC_URI_L2 from volume/config.toml.
@@ -30,6 +33,7 @@ CONFIG="$VOLUME_PATH/config.toml"
 CONFIG_CONTRACTS="$VOLUME_PATH/config-contracts.toml"
 OWNER_PRIVATE_KEY="${OWNER_PRIVATE_KEY:-}"
 WHITELIST_ACCOUNT="${1:-${WHITELIST_ACCOUNT:-}}"
+WHITELIST_STATUS="${WHITELIST_STATUS:-true}"
 
 extract_string() { sed -n "s/^$1 *= *\"\\([^\"]*\\)\".*/\\1/p" "$2"; }
 
@@ -75,6 +79,14 @@ require_non_empty "EXTERNAL_RPC_URI_L2 in $CONFIG or RPC_URL" "$RPC_URL"
 require_non_empty "L2_WHITELIST_ADDR in $CONFIG_CONTRACTS or WHITELIST_ADDR" "$WHITELIST_ADDR"
 require_non_empty "WHITELIST_ACCOUNT or first argument" "$WHITELIST_ACCOUNT"
 
+case "$WHITELIST_STATUS" in
+    true|false) ;;
+    *)
+        echo "WHITELIST_STATUS must be true or false"
+        exit 1
+        ;;
+esac
+
 cd "$REPO_ROOT"
 
 echo ""
@@ -82,6 +94,7 @@ echo "using REPO_ROOT = $REPO_ROOT"
 echo "using RPC_URL = $RPC_URL"
 echo "using WHITELIST_ADDR = $WHITELIST_ADDR"
 echo "using WHITELIST_ACCOUNT = $WHITELIST_ACCOUNT"
+echo "using WHITELIST_STATUS = $WHITELIST_STATUS"
 
 echo ""
 echo "running preflight checks"
@@ -95,20 +108,25 @@ echo "chain id:            $CHAIN_ID"
 echo "whitelist owner:     $OWNER"
 echo "is currently allowed: $IS_ALLOWED"
 
-if [ "$IS_ALLOWED" = "true" ]; then
+if [ "$IS_ALLOWED" = "$WHITELIST_STATUS" ]; then
     echo ""
-    echo "account is already whitelisted"
+    echo "account already has the requested whitelist status"
     exit 0
 fi
 
 if [ "${BROADCAST:-0}" != "1" ]; then
     echo ""
-    echo "preflight only - set BROADCAST=1 to add the account"
+    echo "preflight only - set BROADCAST=1 to apply the requested status"
     exit 0
 fi
 
 if [ "$OWNER_PRIVATE_KEY" = "" ]; then
     echo "OWNER_PRIVATE_KEY is not set for broadcast"
+    exit 1
+fi
+
+if [ "$WHITELIST_STATUS" = "false" ] && [ "${CONFIRM_WHITELIST_REMOVAL:-0}" != "1" ]; then
+    echo "CONFIRM_WHITELIST_REMOVAL must be set to 1 to remove an account"
     exit 1
 fi
 
@@ -125,7 +143,7 @@ echo "broadcasting whitelist update"
 cast send "$WHITELIST_ADDR" \
     "updateWhitelistStatus(address[],bool)" \
     "[$WHITELIST_ACCOUNT]" \
-    true \
+    "$WHITELIST_STATUS" \
     --rpc-url "$RPC_URL" \
     --private-key "$OWNER_PRIVATE_KEY"
 
@@ -134,7 +152,7 @@ echo "post-update state"
 POST_ALLOWED=$(cast call "$WHITELIST_ADDR" "isSenderAllowed(address)(bool)" "$WHITELIST_ACCOUNT" --rpc-url "$RPC_URL") || exit 1
 echo "is currently allowed: $POST_ALLOWED"
 
-if [ "$POST_ALLOWED" != "true" ]; then
-    echo "post-update check failed: account is not whitelisted"
+if [ "$POST_ALLOWED" != "$WHITELIST_STATUS" ]; then
+    echo "post-update check failed: account does not have requested status"
     exit 1
 fi
