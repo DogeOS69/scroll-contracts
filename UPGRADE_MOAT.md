@@ -82,6 +82,47 @@ The other steps are configuration selection, dry runs, preflight checks, and
 post-upgrade verification. They are included to avoid upgrading the wrong
 network, proxy, or implementation.
 
+#### Galileo activation boundary
+
+The bridge phase and the fee phase have different hard-fork prerequisites. Do
+not treat this consolidated runbook as one phase that can be completed before
+Galileo:
+
+| Runbook actions                                                                                                                                    | Earliest permitted time                                                                                  | Reason                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Summary actions 1-6 (detailed Steps 2-10): deploy/upgrade `Moat`, deploy the adapter, rewire the fee vault, and deploy/upgrade `L2DogeOsMessenger` | Before or after Galileo, provided every execution client supports the forks active at the time           | These are ordinary EVM deployments, proxy upgrades, and owner setters. They do not replace predeploy bytecode or select the client fee formula. The envelope-aware withdrawal processor must still be deployed before the messenger proxy upgrade.         |
+| Summary action 7: temporarily whitelist the oracle owner                                                                                           | **After both Galileo and GalileoV2 are confirmed active**, immediately before the isolated fee migration | The whitelist call is technically valid before the fork, but this runbook deliberately keeps the temporary permission inside the post-fork maintenance window. Do not create a long-lived pre-fork permission window.                                      |
+| Summary action 8 (detailed Steps 11-12): write fixed `1/1`, `commitScalar`, `blobScalar`, and `penaltyFactor`                                      | **Only after both Galileo and GalileoV2 are confirmed active**                                           | These slots are already live under Feynman; values written early are not dormant. Before Galileo, geth and reth would interpret them with the Feynman formula. At Galileo, a client that supports the fork switches formulas while an old client does not. |
+| Summary actions 9-10 (detailed Step 13): whitelist/start the new fee-oracle signer and remove the temporary owner permission                       | **Only after the post-fork static migration has completed and its canary has passed**                    | The new writer must publish production dynamic values against the Galileo tuple. The owner permission is removed only after consecutive successful updates and a production-fee canary.                                                                    |
+
+For this runbook, "Galileo is active" means all of the following, not merely
+that the scheduled wall-clock time has passed:
+
+1. the latest canonical L2 block timestamp is at or after both
+   `galileoTime` and `galileoV2Time`;
+2. the GalileoV2 transition block has been accepted by every block-executing
+   sequencer, RPC, bootnode/full node, and verifier;
+3. `L1GasPriceOracle.isGalileo()` returns `true`, and the oracle runtime code
+   matches the expected GalileoV2 predeploy bytecode;
+4. every block-executing client implements the Galileo fee formula and the
+   GalileoV2 predeploy state transition, plus Tsuki when `tsukiTime` is active;
+5. those clients agree on the canonical post-transition head and state root.
+
+`scrolltech/l2geth:scroll-v5.9.6` is not sufficient for the post-fork fee
+phase: it implements fee rules through Feynman, but not Galileo, GalileoV2, or
+Tsuki. It must not remain as a block-executing or block-validating client at the
+activation boundary. A process being named a "bootnode" is not an exception if
+it imports and executes blocks.
+
+Do not pre-stage the fee tuple by removing or bypassing the `isGalileo()`
+preflight. Before activation, `l1BaseFee`, `l1BlobBaseFee`, `commitScalar`,
+`blobScalar`, and `penaltyFactor` immediately affect Feynman transaction fees.
+Both old geth and fork-aware reth may agree before the activation timestamp yet
+jointly charge an unintended fee; after the timestamp, they will select
+different formulas. When GalileoV2 activates, a supporting client also replaces
+the oracle predeploy runtime and sets `isGalileo`, so an unsupported client can
+diverge at the transition block even when that block has no user transaction.
+
 Current deterministic scripts do not support an environment-variable-only
 configuration. Network values and contract addresses are read from:
 
@@ -200,8 +241,14 @@ scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh
 OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
   scripts/deterministic/shell/submit-dogeos-messenger-proxy-upgrade.sh
 
-# 7: after stopping fee-oracle writers and public transaction ingress,
-# temporarily allow the oracle owner to write the fixed 1/1 migration pair.
+# Galileo/GalileoV2 boundary: do not begin actions 7-10 until both forks are
+# active on the canonical chain, the oracle reports isGalileo() == true, and
+# every block-executing client supports all active fee forks. In particular,
+# scrolltech/l2geth:scroll-v5.9.6 must not be executing or validating blocks.
+
+# 7: after crossing that fork boundary and stopping fee-oracle writers and
+# public transaction ingress, temporarily allow the oracle owner to write the
+# fixed 1/1 migration pair.
 export OWNER_PRIVATE_KEY=0x...
 OWNER_ADDR=$(cast wallet address --private-key "$OWNER_PRIVATE_KEY")
 scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
@@ -257,6 +304,11 @@ Before sending any transaction:
   Moat / fee vault owner keys printed by the upgrade scripts.
 - Complete and verify every implementation deployment and bridge proxy upgrade
   before starting the fee migration.
+- Before summary action 7 / detailed Step 11, cross the Galileo activation
+  boundary defined in Section 1.1: both Galileo and GalileoV2 must be active,
+  the oracle must report `isGalileo() == true`, and every block-executing client
+  must support all active fee forks. Do not continue while
+  `scrolltech/l2geth:scroll-v5.9.6` is executing or validating blocks.
 - Before the fee migration, stop public transaction ingress and every process
   capable of writing dynamic fees. Check both latest and pending nonces for the
   old fee-oracle signer; stopping a pod does not remove an already-broadcast
@@ -571,8 +623,17 @@ correctly:
 
 #### Step 11 - Prepare the isolated fee migration
 
-Do not begin this step until the bridge upgrade has passed Step 10. Establish a
-maintenance window with no uncontrolled L2 writes:
+Do not begin this step until the bridge upgrade has passed Step 10 **and** the
+Galileo activation boundary in Section 1.1 has been crossed. In particular,
+both `galileoTime` and `galileoV2Time` must be active on the canonical chain,
+the GalileoV2 oracle runtime and `isGalileo` flag must be present, and every
+block-executing client must support all active fee forks. `galileoTime` alone is
+not sufficient when GalileoV2 is scheduled later. Do not whitelist the oracle
+owner early and do not bypass the script's `isGalileo()` preflight to pre-stage
+the tuple.
+
+After satisfying that fork boundary, establish a maintenance window with no
+uncontrolled L2 writes:
 
 1. stop public transaction ingress, not merely public read-only RPC;
 2. stop every old and new fee-oracle writer;
@@ -929,12 +990,21 @@ the appended mapping, so no storage migration is required.
 
 No `initialize` re-run is required because the proxy is already initialized.
 
-### 2.3 Upgrade model
+### 2.3 Upgrade model and fork prerequisite
 
 Moat is a `TransparentUpgradeableProxy` owned by `L2_PROXY_ADMIN_ADDR`. The
 upgrade is a normal ProxyAdmin implementation swap.
 
-No hard fork, geth change, or node coordination is required.
+The bridge phase itself introduces no new hard fork, geth change, or node
+coordination requirement. This statement applies to the `Moat` and
+`L2DogeOsMessenger` proxy upgrades, the adapter deployment, and the fee-vault
+rewire; it does **not** apply to the fee phase of this consolidated runbook.
+
+The fee phase has a pre-existing protocol prerequisite: Galileo and GalileoV2
+must already be active, the hard-fork-installed `L1GasPriceOracle` runtime must
+report `isGalileo() == true`, and every block-executing client must implement
+the same active fee forks. If the network has not crossed that boundary, finish
+only the bridge phase and defer summary actions 7-10 / detailed Steps 11-13.
 
 ### 2.4 Script behavior
 
