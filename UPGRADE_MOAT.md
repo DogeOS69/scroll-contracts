@@ -53,7 +53,7 @@ bridge phase before changing any fee parameter:
 | 7   | Temporarily whitelist the oracle owner               | `Whitelist owner`        | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-l2-whitelist-sender.sh <owner>`    |
 | 8   | Apply fixed `1/1`, then static values, with readback | `L1GasPriceOracle owner` | `OWNER_PRIVATE_KEY=... BROADCAST=1 ... scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh` |
 | 9   | Whitelist and start the new fee-oracle signer        | `Whitelist owner`        | `OWNER_PRIVATE_KEY=... BROADCAST=1 scripts/deterministic/shell/submit-l2-whitelist-sender.sh <signer>`   |
-| 10  | Remove the temporary owner whitelist entry           | `Whitelist owner`        | `WHITELIST_STATUS=false ... scripts/deterministic/shell/submit-l2-whitelist-sender.sh <owner>`           |
+| 10  | Remove the temporary owner whitelist entry           | `Whitelist owner`        | `... scripts/deterministic/shell/submit-l2-whitelist-sender.sh remove <owner>`                           |
 
 The ordering is load-bearing and fail-closed:
 
@@ -257,10 +257,6 @@ BROADCAST=1 scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_AD
 # 8: apply the fixed 1/1 maintenance pair and configured static values.
 scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
 
-CONFIRM_FEE_MIGRATION=1 \
-FEE_ORACLE_WRITES_STOPPED=1 \
-PUBLIC_TX_INGRESS_STOPPED=1 \
-FEE_ORACLE_PENDING_TXS_CLEARED=1 \
 BROADCAST=1 \
   scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
 
@@ -275,10 +271,9 @@ BROADCAST=1 \
 
 # 10: after the new signer is healthy and the production-fee canary passes,
 # remove the owner's temporary dynamic-write permission.
-WHITELIST_STATUS=false \
-  scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
-WHITELIST_STATUS=false CONFIRM_WHITELIST_REMOVAL=1 BROADCAST=1 \
-  scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
+scripts/deterministic/shell/submit-l2-whitelist-sender.sh remove "$OWNER_ADDR"
+BROADCAST=1 \
+  scripts/deterministic/shell/submit-l2-whitelist-sender.sh remove "$OWNER_ADDR"
 ```
 
 ### 1.3 Operator checklist
@@ -512,8 +507,8 @@ OWNER_PRIVATE_KEY=0x... BROADCAST=1 \
 
 After this transaction the Moat is the only address that can send L2->L1
 messages. The script refuses to broadcast while
-`L2TxFeeVault.messenger() != L2_FEE_VAULT_MOAT_ADAPTER_ADDR` (override with
-`FORCE=1` only if you intentionally accept stalled fee withdrawals).
+`L2TxFeeVault.messenger() != L2_FEE_VAULT_MOAT_ADAPTER_ADDR`; this ordering
+guard cannot be bypassed.
 
 #### Step 10 - Verify the bridge upgrade
 
@@ -679,17 +674,13 @@ the fixed dynamic/static targets. It prints the current dynamic and static
 values without changing them and does not require `OWNER_PRIVATE_KEY`. Stop if
 any printed current or target value is unexpected.
 
-#### Step 12 - Execute the gated fee migration
+#### Step 12 - Execute the fee migration
 
-The acknowledgements below assert that the corresponding operational actions
-were completed outside this repository; they do not stop Kubernetes workloads
-or public ingress themselves:
+After completing the maintenance-window checks above, use `BROADCAST=1` to
+execute the migration. `BROADCAST` is the only boolean execution switch; the
+script does not stop Kubernetes workloads or public ingress itself:
 
 ```bash
-CONFIRM_FEE_MIGRATION=1 \
-FEE_ORACLE_WRITES_STOPPED=1 \
-PUBLIC_TX_INGRESS_STOPPED=1 \
-FEE_ORACLE_PENDING_TXS_CLEARED=1 \
 BROADCAST=1 \
   scripts/deterministic/shell/submit-l1-gas-price-oracle-config.sh
 ```
@@ -751,14 +742,11 @@ Only after those checks pass, remove the owner's temporary dynamic-write
 permission:
 
 ```bash
-WHITELIST_STATUS=false \
-  scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
+scripts/deterministic/shell/submit-l2-whitelist-sender.sh remove "$OWNER_ADDR"
 
-WHITELIST_STATUS=false \
-CONFIRM_WHITELIST_REMOVAL=1 \
 OWNER_PRIVATE_KEY=0x... \
 BROADCAST=1 \
-  scripts/deterministic/shell/submit-l2-whitelist-sender.sh "$OWNER_ADDR"
+  scripts/deterministic/shell/submit-l2-whitelist-sender.sh remove "$OWNER_ADDR"
 ```
 
 Verify `isSenderAllowed(owner) == false` and
@@ -1030,8 +1018,7 @@ It:
   targets;
 - runs `SubmitL1GasPriceOracleConfig.dryRun()` by default, without requiring
   `OWNER_PRIVATE_KEY`;
-- refuses broadcast unless all four maintenance acknowledgement variables equal
-  `1`;
+- uses `BROADCAST=1` as its only boolean execution switch;
 - broadcasts the fixed `1/1` dynamic pair first, then commit scalar, blob
   scalar, and penalty factor through four separate script entrypoints;
 - launches a separate read-only RPC verification after each broadcast and
@@ -1062,11 +1049,10 @@ It:
 - runs preflight only by default, without requiring `OWNER_PRIVATE_KEY`;
 - with `BROADCAST=1`, requires `OWNER_PRIVATE_KEY`, derives the signer from it,
   and refuses to broadcast unless the signer equals `Whitelist.owner()`;
-- accepts `WHITELIST_STATUS=true|false`, defaulting to `true`;
+- allows the target account by default and accepts `remove <account>` for
+  removal;
 - calls `Whitelist.updateWhitelistStatus([target], desiredStatus)` only when
   the current status differs;
-- requires `CONFIRM_WHITELIST_REMOVAL=1` before a broadcast that removes an
-  account;
 - verifies `isSenderAllowed(target) == desiredStatus` after the transaction.
 
 Dry run:

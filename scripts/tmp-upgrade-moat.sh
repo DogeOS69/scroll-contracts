@@ -43,11 +43,6 @@ require_env() {
     [[ -n "${!name:-}" ]] || die "$name is required"
 }
 
-require_one() {
-    local name=$1
-    [[ "${!name:-0}" == "1" ]] || die "$name must be set to 1"
-}
-
 resolve_deployer_private_key() {
     [[ -z "${DEPLOYER_PRIVATE_KEY:-}" ]] || return
 
@@ -164,7 +159,6 @@ prepare_config() {
         validate_config
 
     if [[ -e "$VOLUME_DIR" || -L "$VOLUME_DIR" ]]; then
-        require_one CONFIRM_REPLACE_VOLUME
         local backup_root backup_path
         backup_root=$(mktemp -d "${TMPDIR:-/tmp}/scroll-contracts-moat-volume.XXXXXX")
         backup_path="$backup_root/volume"
@@ -181,7 +175,6 @@ prepare_config() {
 
 require_bridge_broadcast_inputs() {
     [[ "${BROADCAST:-0}" == "1" ]] || die "bridge sends transactions; set BROADCAST=1"
-    require_one CONFIRM_BRIDGE_UPGRADE
     require_env OWNER_PRIVATE_KEY
     resolve_deployer_private_key
 }
@@ -370,11 +363,6 @@ run_fee_migration() {
     validate_config
     verify_bridge
     require_command cast
-    require_one CONFIRM_FEE_MIGRATION
-    require_one FEE_ORACLE_WRITES_STOPPED
-    require_one PUBLIC_TX_INGRESS_STOPPED
-    require_one FEE_ORACLE_PENDING_TXS_CLEARED
-    require_one CONFIRM_BRIDGE_E2E_VERIFIED
     [[ "${BROADCAST:-0}" == "1" ]] || die "fee-migrate sends transactions; set BROADCAST=1"
 
     local oracle_key whitelist_key rpc oracle owner_addr oracle_signer
@@ -392,10 +380,6 @@ run_fee_migration() {
 
     note "Apply fixed 1/1, then three static fee parameters, with independent readbacks"
     BROADCAST=1 OWNER_PRIVATE_KEY="$oracle_key" \
-        CONFIRM_FEE_MIGRATION=1 \
-        FEE_ORACLE_WRITES_STOPPED=1 \
-        PUBLIC_TX_INGRESS_STOPPED=1 \
-        FEE_ORACLE_PENDING_TXS_CLEARED=1 \
         "$SHELL_DIR/submit-l1-gas-price-oracle-config.sh"
 
     note "Final fee-oracle state"
@@ -433,9 +417,6 @@ cleanup_owner_access() {
     require_command cast
     require_env NEW_FEE_ORACLE_SIGNER
     validate_address NEW_FEE_ORACLE_SIGNER "$NEW_FEE_ORACLE_SIGNER"
-    require_one CONFIRM_NEW_SIGNER_HEALTHY
-    require_one CONFIRM_PRODUCTION_CANARY_OK
-    require_one CONFIRM_WHITELIST_REMOVAL
     [[ "${BROADCAST:-0}" == "1" ]] || die "cleanup removes owner permission; set BROADCAST=1"
     local owner_addr rpc oracle whitelist signer_allowed whitelist_key
     rpc=$(extract_string EXTERNAL_RPC_URI_L2 "$CONFIG")
@@ -449,9 +430,8 @@ cleanup_owner_access() {
     assert_equal "new signer allowed" "$signer_allowed" "true"
 
     note "Remove the oracle owner's temporary dynamic-write permission"
-    WHITELIST_STATUS=false CONFIRM_WHITELIST_REMOVAL=1 BROADCAST=1 \
-        OWNER_PRIVATE_KEY="$whitelist_key" \
-        "$SHELL_DIR/submit-l2-whitelist-sender.sh" "$owner_addr"
+    BROADCAST=1 OWNER_PRIVATE_KEY="$whitelist_key" \
+        "$SHELL_DIR/submit-l2-whitelist-sender.sh" remove "$owner_addr"
 
     assert_equal "owner allowed" \
         "$(first_word "$(cast call "$whitelist" 'isSenderAllowed(address)(bool)' "$owner_addr" --rpc-url "$rpc")")" \
@@ -472,7 +452,6 @@ Usage: $(basename "$0") COMMAND [arguments]
 
 Commands:
   prepare DIR       Back up an existing volume and copy the network config.
-                    Existing volume requires CONFIRM_REPLACE_VOLUME=1.
   bridge-preflight  Validate config and simulate the three deployments only.
   bridge            Run bridge steps 1-6 and core on-chain readback.
   verify-bridge     Run the core bridge readback without sending transactions.
@@ -483,15 +462,12 @@ Commands:
   help              Show this help.
 
 Bridge broadcast requirements:
-  BROADCAST=1 CONFIRM_BRIDGE_UPGRADE=1
-  OWNER_PRIVATE_KEY
+  BROADCAST=1 OWNER_PRIVATE_KEY
   When DEPLOYER_ADDR equals OWNER_ADDR, the wrapper validates and reuses this
   key for deterministic deployments. Otherwise set DEPLOYER_PRIVATE_KEY too.
 
 Fee migration requirements:
-  BROADCAST=1 CONFIRM_BRIDGE_E2E_VERIFIED=1 CONFIRM_FEE_MIGRATION=1
-  FEE_ORACLE_WRITES_STOPPED=1 PUBLIC_TX_INGRESS_STOPPED=1
-  FEE_ORACLE_PENDING_TXS_CLEARED=1
+  BROADCAST=1
   ORACLE_OWNER_PRIVATE_KEY may be used when the oracle owner differs; it falls
   back to OWNER_PRIVATE_KEY. WHITELIST_OWNER_PRIVATE_KEY is used to temporarily
   allow the owner, enable the new signer, and clean up; it also falls back to
@@ -499,8 +475,6 @@ Fee migration requirements:
 
 Cleanup broadcast requirements:
   BROADCAST=1 NEW_FEE_ORACLE_SIGNER=0x...
-  CONFIRM_NEW_SIGNER_HEALTHY=1 CONFIRM_PRODUCTION_CANARY_OK=1
-  CONFIRM_WHITELIST_REMOVAL=1
 
 This wrapper never stops/starts infrastructure, submits canaries, verifies the
 Dogecoin L1 withdrawal processor, or restores public ingress. Those are manual

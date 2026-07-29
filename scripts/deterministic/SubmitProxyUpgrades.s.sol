@@ -111,9 +111,6 @@ contract SubmitDogeOsMessengerProxyUpgrade is ProxyUpgradeScriptBase {
         require(adapter.code.length != 0, "L2_FEE_VAULT_MOAT_ADAPTER_ADDR has no code");
 
         address messenger = L2TxFeeVault(payable(feeVault)).messenger();
-        if (messenger != adapter) {
-            require(vm.envOr("FORCE", uint256(0)) == uint256(1), "fee vault is not rewired through adapter");
-            console.log("FORCE=1 set - fee vault rewire guard bypassed");
-        }
+        require(messenger == adapter, "fee vault is not rewired through adapter");
     }
 }

@@ -28,13 +28,9 @@ fi
 # be rerun after an interruption. The external fee-oracle signer replaces the
 # temporary 1/1 dynamic pair after handoff.
 #
-# Broadcast additionally requires:
+# Broadcast requires:
 #   BROADCAST=1
 #   OWNER_PRIVATE_KEY=0x...         current L1GasPriceOracle owner
-#   CONFIRM_FEE_MIGRATION=1
-#   FEE_ORACLE_WRITES_STOPPED=1
-#   PUBLIC_TX_INGRESS_STOPPED=1
-#   FEE_ORACLE_PENDING_TXS_CLEARED=1
 # The dynamic setter requires the owner to be temporarily whitelisted. The
 # wrapper manages that permission; this script does not manage Kubernetes.
 
@@ -65,15 +61,6 @@ require_non_empty() {
 require_file() {
     if [ ! -f "$1" ]; then
         echo "missing file: $1"
-        exit 1
-    fi
-}
-
-require_ack() {
-    name="$1"
-    value="$2"
-    if [ "$value" != "1" ]; then
-        echo "$name must be set to 1 for broadcast"
         exit 1
     fi
 }
@@ -115,7 +102,7 @@ run_readonly "dryRun()"
 if [ "${BROADCAST:-0}" != "1" ]; then
     echo ""
     echo "dry run only - no transaction was sent"
-    echo "set BROADCAST=1 and all maintenance acknowledgements to execute"
+    echo "set BROADCAST=1 to execute"
     exit 0
 fi
 
@@ -123,11 +110,6 @@ if [ "$OWNER_PRIVATE_KEY" = "" ]; then
     echo "OWNER_PRIVATE_KEY is not set for broadcast"
     exit 1
 fi
-
-require_ack CONFIRM_FEE_MIGRATION "${CONFIRM_FEE_MIGRATION:-}"
-require_ack FEE_ORACLE_WRITES_STOPPED "${FEE_ORACLE_WRITES_STOPPED:-}"
-require_ack PUBLIC_TX_INGRESS_STOPPED "${PUBLIC_TX_INGRESS_STOPPED:-}"
-require_ack FEE_ORACLE_PENDING_TXS_CLEARED "${FEE_ORACLE_PENDING_TXS_CLEARED:-}"
 
 echo ""
 echo "step 1/4: broadcasting fixed 1/1 migration dynamic fee pair"
