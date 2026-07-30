@@ -162,12 +162,13 @@ the proposed complete-tuple guard. The `(1,1)` write is an operational
 transition that keeps the following static-parameter transactions affordable;
 it is not a guard and does not replace predeploy bytecode.
 
-Private keys are the intended environment-variable inputs. For this upgrade,
-`DEPLOYER_PRIVATE_KEY` is used by the implementation deploy steps, and
-`OWNER_PRIVATE_KEY` is used by the L1GasPriceOracle owner config step, the
-ProxyAdmin upgrade steps, and the rewire step (the Moat, fee vault, and
-ProxyAdmin are expected to share one owner; the scripts print the actual owners
-during preflight).
+For this upgrade, `DEPLOYER_PRIVATE_KEY` is used by the implementation deploy
+steps. The wrapper reads it from the environment first and falls back to the
+`[accounts]` value in `volume/config.toml`, matching the deterministic
+deployment configuration. `OWNER_PRIVATE_KEY` remains an environment-variable
+input used by the L1GasPriceOracle owner config step, the ProxyAdmin upgrade
+steps, and the rewire step (the Moat, fee vault, and ProxyAdmin are expected to
+share one owner; the scripts print the actual owners during preflight).
 
 This runbook prepares `volume` as a local working copy of the target network
 configuration. The deploy steps write `L2_MOAT_IMPLEMENTATION_ADDR`,

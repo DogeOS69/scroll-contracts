@@ -44,26 +44,31 @@ require_env() {
 }
 
 resolve_deployer_private_key() {
-    [[ -z "${DEPLOYER_PRIVATE_KEY:-}" ]] || return
-
-    require_env OWNER_PRIVATE_KEY
-
-    local deployer_addr owner_addr signer
+    local config_deployer_private_key deployer_addr owner_addr signer
     deployer_addr=$(extract_string DEPLOYER_ADDR "$CONFIG")
     owner_addr=$(extract_string OWNER_ADDR "$CONFIG")
     validate_address DEPLOYER_ADDR "$deployer_addr"
     validate_address OWNER_ADDR "$owner_addr"
 
-    if [[ "$(lower "$deployer_addr")" != "$(lower "$owner_addr")" ]]; then
-        die "DEPLOYER_ADDR and OWNER_ADDR differ; set DEPLOYER_PRIVATE_KEY separately"
+    if [[ -z "${DEPLOYER_PRIVATE_KEY:-}" ]]; then
+        config_deployer_private_key=$(extract_string DEPLOYER_PRIVATE_KEY "$CONFIG")
+        if [[ -n "$config_deployer_private_key" ]]; then
+            export DEPLOYER_PRIVATE_KEY="$config_deployer_private_key"
+            printf '  [ok] loaded DEPLOYER_PRIVATE_KEY from %s\n' "$CONFIG"
+        else
+            require_env OWNER_PRIVATE_KEY
+            if [[ "$(lower "$deployer_addr")" != "$(lower "$owner_addr")" ]]; then
+                die "DEPLOYER_PRIVATE_KEY is missing from the environment and $CONFIG"
+            fi
+
+            export DEPLOYER_PRIVATE_KEY="$OWNER_PRIVATE_KEY"
+            printf '  [ok] reusing OWNER_PRIVATE_KEY for deterministic deployments\n'
+        fi
     fi
 
-    signer=$(cast wallet address --private-key "$OWNER_PRIVATE_KEY") ||
-        die "failed to derive an address from OWNER_PRIVATE_KEY"
-    assert_address_equal "owner/deployer signer" "$signer" "$deployer_addr"
-
-    export DEPLOYER_PRIVATE_KEY="$OWNER_PRIVATE_KEY"
-    printf '  [ok] reusing OWNER_PRIVATE_KEY for deterministic deployments\n'
+    signer=$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY") ||
+        die "failed to derive an address from DEPLOYER_PRIVATE_KEY"
+    assert_address_equal "deployer signer" "$signer" "$deployer_addr"
 }
 
 extract_string() {
@@ -463,8 +468,9 @@ Commands:
 
 Bridge broadcast requirements:
   BROADCAST=1 OWNER_PRIVATE_KEY
-  When DEPLOYER_ADDR equals OWNER_ADDR, the wrapper validates and reuses this
-  key for deterministic deployments. Otherwise set DEPLOYER_PRIVATE_KEY too.
+  DEPLOYER_PRIVATE_KEY is read from the environment first, then from
+  volume/config.toml. If it is absent and DEPLOYER_ADDR equals OWNER_ADDR, the
+  wrapper validates and reuses OWNER_PRIVATE_KEY for deterministic deployments.
 
 Fee migration requirements:
   BROADCAST=1
