@@ -118,6 +118,7 @@ get_source_code_name() {
       # L2_WETH_ADDR) echo WrappedEther ;;
       L2_WDOGE_ADDR) echo WrappedDoge ;;
       L2_TX_FEE_VAULT_ADDR) echo L2TxFeeVault ;;
+      L2_FEE_VAULT_MOAT_ADAPTER_ADDR) echo FeeVaultMoatAdapter ;;
       L2_PROXY_ADMIN_ADDR) echo ProxyAdminSetOwner ;;
       L2_DOGEOS_MESSENGER_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
       L2_ETH_GATEWAY_PROXY_ADDR) echo TransparentUpgradeableProxy ;;
