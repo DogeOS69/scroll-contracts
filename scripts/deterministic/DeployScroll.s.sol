@@ -1348,6 +1348,9 @@ contract DeployScroll is DeterministicDeployment {
      **********************/
 
     function initializeScrollChain() private {
+        L1_COMMIT_SENDER_ADDR = notnull(cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR"));
+        L1_FINALIZE_SENDER_ADDR = notnull(cfg.readAddress(".accounts.L1_FINALIZE_SENDER_ADDR"));
+
         if (getInitializeCount(L1_SCROLL_CHAIN_PROXY_ADDR) == 0) {
             ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).initialize(
                 notnull(L1_MESSAGE_QUEUE_V2_PROXY_ADDR),
@@ -1496,6 +1499,8 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function initializeL1Whitelist() private {
+        L1_GAS_ORACLE_SENDER_ADDR = notnull(cfg.readAddress(".accounts.L1_GAS_ORACLE_SENDER_ADDR"));
+
         address[] memory accounts = new address[](1);
         accounts[0] = L1_GAS_ORACLE_SENDER_ADDR;
 
@@ -1675,6 +1680,8 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function initializeL2Whitelist() private {
+        L2_GAS_ORACLE_SENDER_ADDR = notnull(cfg.readAddress(".accounts.L2_GAS_ORACLE_SENDER_ADDR"));
+
         address[] memory accounts = new address[](1);
         accounts[0] = L2_GAS_ORACLE_SENDER_ADDR;
 

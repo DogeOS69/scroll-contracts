@@ -14,24 +14,33 @@ if [ ! -e "$VOLUME_PATH" ]; then
     exit 1
 fi
 
-# Configures the owner-managed Galileo L1 data fee parameters on
-# L1GasPriceOracle:
+# Applies the fixed migration fee pair and three static Galileo fee parameters
+# as separately confirmed L2
+# transactions:
 #
-#   1. commitScalar  <- COMMIT_SCALAR
-#   2. blobScalar    <- BLOB_SCALAR
-#   3. penaltyFactor <- PENALTY_FACTOR
+#   1. l1BaseFee + l1BlobBaseFee <- fixed constants 1 and 1
+#   2. commitScalar               <- COMMIT_SCALAR
+#   3. blobScalar                 <- BLOB_SCALAR
+#   4. penaltyFactor              <- PENALTY_FACTOR
 #
-# Dynamic fee oracle values (l1BaseFee and l1BlobBaseFee) are not configured
-# here; they are updated by the whitelisted fee_oracle signer.
+# Each transaction is followed by a separate read-only RPC verification before
+# the next transaction is allowed to broadcast. The script is idempotent and can
+# be rerun after an interruption. The external fee-oracle signer replaces the
+# temporary 1/1 dynamic pair after handoff.
 #
-# Inputs:
-#   BROADCAST=1             actually send the txs (otherwise preflight only)
-#   OWNER_PRIVATE_KEY=0x... L1GasPriceOracle owner key, required only when
-#                           BROADCAST=1.
+# Broadcast requires:
+#   BROADCAST=1
+#   OWNER_PRIVATE_KEY=0x...         current L1GasPriceOracle owner
+# The dynamic setter requires the owner to be temporarily whitelisted. The
+# wrapper manages that permission; this script does not manage Kubernetes.
+
+export FOUNDRY_EVM_VERSION="cancun"
+export FOUNDRY_BYTECODE_HASH="none"
 
 OWNER_PRIVATE_KEY="${OWNER_PRIVATE_KEY:-}"
 CONFIG="$VOLUME_PATH/config.toml"
 CONFIG_CONTRACTS="$VOLUME_PATH/config-contracts.toml"
+SCRIPT_TARGET="scripts/deterministic/SubmitL1GasPriceOracleConfig.s.sol:SubmitL1GasPriceOracleConfig"
 
 extract_string() { sed -n "s/^$1 *= *\"\\([^\"]*\\)\".*/\\1/p" "$2"; }
 
@@ -56,6 +65,23 @@ require_file() {
     fi
 }
 
+run_readonly() {
+    signature="$1"
+    forge script "$SCRIPT_TARGET" \
+        --rpc-url "$L2_RPC_ENDPOINT" \
+        --sig "$signature" \
+        --legacy
+}
+
+run_broadcast() {
+    signature="$1"
+    forge script "$SCRIPT_TARGET" \
+        --rpc-url "$L2_RPC_ENDPOINT" \
+        --sig "$signature" \
+        --legacy \
+        --broadcast
+}
+
 require_file "$CONFIG"
 require_file "$CONFIG_CONTRACTS"
 require_command forge
@@ -69,17 +95,14 @@ cd "$REPO_ROOT"
 echo ""
 echo "using REPO_ROOT = $REPO_ROOT"
 echo "using L2_RPC_ENDPOINT = $L2_RPC_ENDPOINT"
+echo ""
+echo "running L1GasPriceOracle fixed-pair/static-parameter migration preflight"
+run_readonly "dryRun()"
 
 if [ "${BROADCAST:-0}" != "1" ]; then
     echo ""
-    echo "running L1GasPriceOracle config dry run"
-    forge script scripts/deterministic/SubmitL1GasPriceOracleConfig.s.sol:SubmitL1GasPriceOracleConfig \
-        --rpc-url "$L2_RPC_ENDPOINT" \
-        --sig "dryRun()" \
-        --legacy
-
-    echo ""
-    echo "dry run only - set BROADCAST=1 to execute the oracle config update"
+    echo "dry run only - no transaction was sent"
+    echo "set BROADCAST=1 to execute"
     exit 0
 fi
 
@@ -89,15 +112,33 @@ if [ "$OWNER_PRIVATE_KEY" = "" ]; then
 fi
 
 echo ""
-echo "broadcasting L1GasPriceOracle config on L2 via forge script"
-forge script scripts/deterministic/SubmitL1GasPriceOracleConfig.s.sol:SubmitL1GasPriceOracleConfig \
-    --rpc-url "$L2_RPC_ENDPOINT" \
-    --legacy \
-    --broadcast
+echo "step 1/4: broadcasting fixed 1/1 migration dynamic fee pair"
+run_broadcast "setMigrationDynamic()"
+run_readonly "verifyMigrationDynamic()"
+echo "step 1/4 verified on chain"
 
 echo ""
-echo "post-config state"
-forge script scripts/deterministic/SubmitL1GasPriceOracleConfig.s.sol:SubmitL1GasPriceOracleConfig \
-    --rpc-url "$L2_RPC_ENDPOINT" \
-    --sig "dryRun()" \
-    --legacy
+echo "step 2/4: broadcasting commit scalar"
+run_broadcast "setCommitScalar()"
+run_readonly "verifyCommitScalar()"
+echo "step 2/4 verified on chain"
+
+echo ""
+echo "step 3/4: broadcasting blob scalar"
+run_broadcast "setBlobScalar()"
+run_readonly "verifyBlobScalar()"
+echo "step 3/4 verified on chain"
+
+echo ""
+echo "step 4/4: broadcasting penalty factor"
+run_broadcast "setPenaltyFactor()"
+run_readonly "verifyFinalState()"
+echo "step 4/4 verified on chain"
+
+echo ""
+echo "final fee tuple"
+run_readonly "dryRun()"
+
+echo ""
+echo "fixed 1/1 migration pair and static fee parameters updated"
+echo "next: submit an internal canary transaction before allowing the fee-oracle signer"

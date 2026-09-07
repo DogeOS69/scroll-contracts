@@ -46,10 +46,6 @@ abstract contract Configuration is NativeDogeSupplyConfig {
 
     // accounts
     uint256 internal DEPLOYER_PRIVATE_KEY;
-    uint256 internal L1_COMMIT_SENDER_PRIVATE_KEY;
-    uint256 internal L1_FINALIZE_SENDER_PRIVATE_KEY;
-    uint256 internal L1_GAS_ORACLE_SENDER_PRIVATE_KEY;
-    uint256 internal L2_GAS_ORACLE_SENDER_PRIVATE_KEY;
 
     address internal DEPLOYER_ADDR;
     address internal L1_COMMIT_SENDER_ADDR;
@@ -135,32 +131,12 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
 
         DEPLOYER_PRIVATE_KEY = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
-        L1_COMMIT_SENDER_PRIVATE_KEY = vm.envOr("L1_COMMIT_SENDER_PRIVATE_KEY", uint256(0));
-        L1_FINALIZE_SENDER_PRIVATE_KEY = vm.envOr("L1_FINALIZE_SENDER_PRIVATE_KEY", uint256(0));
-        L1_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L1_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
-        L2_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L2_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
 
         if (DEPLOYER_PRIVATE_KEY == uint256(0)) {
             DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
         }
-        if (L1_COMMIT_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
-        }
-        if (L1_FINALIZE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_FINALIZE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY");
-        }
-        if (L1_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        }
-        if (L2_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        }
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
-        L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
-        L1_FINALIZE_SENDER_ADDR = cfg.readAddress(".accounts.L1_FINALIZE_SENDER_ADDR");
-        L1_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L1_GAS_ORACLE_SENDER_ADDR");
-        L2_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L2_GAS_ORACLE_SENDER_ADDR");
 
         OWNER_ADDR = cfg.readAddress(".accounts.OWNER_ADDR");
 
@@ -199,11 +175,6 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
         BUNDLE_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BUNDLE_COLLECTION_TIME_SEC");
 
-        COORDINATOR_JWT_SECRET_KEY = vm.envOr("COORDINATOR_JWT_SECRET_KEY", string(""));
-        if (keccak256(abi.encodePacked(COORDINATOR_JWT_SECRET_KEY)) == keccak256(abi.encodePacked(""))) {
-            COORDINATOR_JWT_SECRET_KEY = cfg.readString(".coordinator.COORDINATOR_JWT_SECRET_KEY");
-        }
-
         EXTERNAL_RPC_URI_L1 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L1");
         EXTERNAL_RPC_URI_L2 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L2");
         BRIDGE_API_URI = cfg.readString(".frontend.BRIDGE_API_URI");
@@ -215,6 +186,13 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
 
         runSanityCheck();
+    }
+
+    function readCoordinatorJwtSecret() internal {
+        COORDINATOR_JWT_SECRET_KEY = vm.envOr("COORDINATOR_JWT_SECRET_KEY", string(""));
+        if (bytes(COORDINATOR_JWT_SECRET_KEY).length == 0) {
+            COORDINATOR_JWT_SECRET_KEY = cfg.readString(".coordinator.COORDINATOR_JWT_SECRET_KEY");
+        }
     }
 
     /// @dev Ensure that `addr` is not the zero address.
@@ -268,10 +246,6 @@ abstract contract Configuration is NativeDogeSupplyConfig {
 
     function runSanityCheck() private view {
         verifyAccount("DEPLOYER", DEPLOYER_PRIVATE_KEY, DEPLOYER_ADDR);
-        verifyAccount("L1_COMMIT_SENDER", L1_COMMIT_SENDER_PRIVATE_KEY, L1_COMMIT_SENDER_ADDR);
-        verifyAccount("L1_FINALIZE_SENDER", L1_FINALIZE_SENDER_PRIVATE_KEY, L1_FINALIZE_SENDER_ADDR);
-        verifyAccount("L1_GAS_ORACLE_SENDER", L1_GAS_ORACLE_SENDER_PRIVATE_KEY, L1_GAS_ORACLE_SENDER_ADDR);
-        verifyAccount("L2_GAS_ORACLE_SENDER", L2_GAS_ORACLE_SENDER_PRIVATE_KEY, L2_GAS_ORACLE_SENDER_ADDR);
     }
 
     function verifyAccount(

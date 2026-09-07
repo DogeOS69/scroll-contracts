@@ -113,10 +113,7 @@ if [ "$(lower "$VAULT_MESSENGER")" != "$(lower "$L2_FEE_VAULT_MOAT_ADAPTER_ADDR"
     echo "fee vault is NOT routed through the FeeVaultMoatAdapter yet."
     echo "run submit-fee-vault-rewire.sh first — upgrading now would make fee"
     echo "vault withdrawals revert until the vault is repointed."
-    if [ "${FORCE:-0}" != "1" ]; then
-        exit 1
-    fi
-    echo "FORCE=1 set — continuing anyway"
+    exit 1
 fi
 
 snapshot() {
