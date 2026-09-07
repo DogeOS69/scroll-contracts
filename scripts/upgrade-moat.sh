@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Temporary operator wrapper for UPGRADE_MOAT.md.
+# Operator wrapper for the phased upgrade in UPGRADE_MOAT.md.
 #
 # This file deliberately orchestrates the existing upgrade scripts instead of
 # duplicating their transaction logic.  It is safe to rerun after diagnosing a
@@ -9,6 +9,7 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_NAME=${BASH_SOURCE[0]##*/}
 REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)
 if [[ -z "$REPO_ROOT" ]]; then
     REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
@@ -19,7 +20,7 @@ CONFIG="$VOLUME_DIR/config.toml"
 CONFIG_CONTRACTS="$VOLUME_DIR/config-contracts.toml"
 SHELL_DIR="$REPO_ROOT/scripts/deterministic/shell"
 
-trap 'rc=$?; printf "\nERROR: tmp-upgrade-moat.sh stopped at line %s (exit %s).\n" "$LINENO" "$rc" >&2' ERR
+trap 'rc=$?; printf "\nERROR: %s stopped at line %s (exit %s).\n" "$SCRIPT_NAME" "$LINENO" "$rc" >&2' ERR
 
 die() {
     printf 'ERROR: %s\n' "$*" >&2
@@ -183,7 +184,7 @@ EOF
 prepare_config() {
     local config_dir=${1:-${CONFIG_DIR:-}}
     local staging_dir
-    [[ -n "$config_dir" ]] || die "usage: $0 prepare /path/to/network-config"
+    [[ -n "$config_dir" ]] || die "usage: $SCRIPT_NAME prepare-config DIR"
     require_file "$config_dir/config.toml"
     require_file "$config_dir/config-contracts.toml"
 
@@ -217,7 +218,7 @@ require_bridge_inputs() {
     resolve_deployer_private_key
 }
 
-run_bridge_preflight() {
+preflight_bridge() {
     validate_config
     require_command cast
     require_command forge
@@ -235,7 +236,7 @@ run_bridge_preflight() {
     note "Deployment simulations passed"
     printf '%s\n' \
         'Proxy upgrades and the fee-vault rewire cannot all be preflighted before' \
-        'their target bytecode exists. Run the guarded bridge command to continue.'
+        "their target bytecode exists. Run '$0 bridge upgrade' to continue."
 }
 
 verify_moat_implementation() {
@@ -297,7 +298,7 @@ verify_messenger_implementation() {
         0x0000000000000000000000000000000000000001 0 0x 0
 }
 
-run_bridge() {
+upgrade_bridge() {
     validate_config
     require_command cast
     require_command forge
@@ -465,13 +466,13 @@ whitelist_owner_key() {
     printf '%s' "$value"
 }
 
-run_fee_preflight() {
+preflight_fees() {
     validate_config
     note "L1GasPriceOracle fixed 1/1 and static-parameter read-only preflight"
     BROADCAST=0 "$SHELL_DIR/submit-l1-gas-price-oracle-config.sh"
 }
 
-run_fee_migration() {
+migrate_fees() {
     validate_config
     verify_bridge
     require_command cast
@@ -500,10 +501,10 @@ run_fee_migration() {
         'KEEP INGRESS AND ALL FEE WRITERS STOPPED.' \
         'The oracle owner remains temporarily whitelisted for rollback.' \
         'Next, send and verify the private maintenance canary. Then use:' \
-        "  NEW_FEE_ORACLE_SIGNER=0x... $0 enable-signer"
+        "  NEW_FEE_ORACLE_SIGNER=0x... $0 fee enable-signer"
 }
 
-enable_signer() {
+enable_fee_signer() {
     validate_config
     require_command cast
     require_env NEW_FEE_ORACLE_SIGNER
@@ -517,10 +518,10 @@ enable_signer() {
     note "Signer is allowed; do not restore public ingress yet"
     printf '%s\n' \
         'Start the new fee-oracle and verify at least two consecutive successful' \
-        'on-chain updates plus the production-fee canary. Then run cleanup.'
+        "on-chain updates plus the production-fee canary. Then run '$0 fee finalize'."
 }
 
-cleanup_owner_access() {
+finalize_fee_migration() {
     validate_config
     require_command cast
     require_env NEW_FEE_ORACLE_SIGNER
@@ -555,18 +556,27 @@ cleanup_owner_access() {
 
 show_usage() {
     cat <<EOF
-Usage: $(basename "$0") COMMAND [arguments]
+Usage:
+  $SCRIPT_NAME prepare-config DIR
+  $SCRIPT_NAME bridge <preflight|upgrade|verify>
+  $SCRIPT_NAME fee <preflight|migrate|enable-signer|finalize>
+  $SCRIPT_NAME help
 
 Commands:
-  prepare DIR       Back up an existing volume and copy the network config.
-  bridge-preflight  Validate config and simulate the three deployments only.
-  bridge            Run bridge steps 1-6 and core on-chain readback.
-  verify-bridge     Run the core bridge readback without sending transactions.
-  fee-preflight     Read back current values plus fixed 1/1/static targets.
-  fee-migrate       Apply fixed 1/1, then the three static parameters.
-  enable-signer     Whitelist NEW_FEE_ORACLE_SIGNER after the maintenance canary.
-  cleanup           Remove the owner's temporary whitelist permission.
-  help              Show this help.
+  prepare-config DIR  Back up an existing volume and copy the network config.
+
+Bridge phase:
+  bridge preflight    Validate config and simulate the three deployments only.
+  bridge upgrade      Run bridge steps 1-6 and the core on-chain readback.
+  bridge verify       Run the core bridge readback without sending transactions.
+
+Fee phase:
+  fee preflight       Read back current values plus fixed 1/1/static targets.
+  fee migrate         Apply fixed 1/1, then the three static parameters.
+  fee enable-signer   Whitelist NEW_FEE_ORACLE_SIGNER after the maintenance canary.
+  fee finalize        Remove the oracle owner's temporary whitelist permission.
+
+  help                Show this help.
 
 Bridge requirements:
   OWNER_PRIVATE_KEY
@@ -577,10 +587,11 @@ Bridge requirements:
 Fee migration requirements:
   ORACLE_OWNER_PRIVATE_KEY may be used when the oracle owner differs; it falls
   back to OWNER_PRIVATE_KEY. WHITELIST_OWNER_PRIVATE_KEY is used to temporarily
-  allow the owner, enable the new signer, and clean up; it also falls back to
-  OWNER_PRIVATE_KEY. On the current devnet both contracts have the same owner.
+  allow the owner, enable the new signer, and finalize the migration; it also
+  falls back to OWNER_PRIVATE_KEY. On the current devnet both contracts have
+  the same owner.
 
-Cleanup requirements:
+Fee finalization requirements:
   NEW_FEE_ORACLE_SIGNER=0x...
 
 Commands that send transactions enable broadcasting for their child scripts
@@ -595,30 +606,28 @@ EOF
 cd "$REPO_ROOT"
 
 case "${1:-help}" in
-    prepare)
-        shift
-        prepare_config "${1:-}"
-        ;;
-    bridge-preflight)
-        run_bridge_preflight
+    prepare-config)
+        [[ $# -eq 2 ]] || die "usage: $SCRIPT_NAME prepare-config DIR"
+        prepare_config "$2"
         ;;
     bridge)
-        run_bridge
+        [[ $# -eq 2 ]] || die "usage: $SCRIPT_NAME bridge <preflight|upgrade|verify>"
+        case "$2" in
+            preflight) preflight_bridge ;;
+            upgrade)   upgrade_bridge ;;
+            verify)    verify_bridge ;;
+            *) die "unknown bridge command: $2" ;;
+        esac
         ;;
-    verify-bridge)
-        verify_bridge
-        ;;
-    fee-preflight)
-        run_fee_preflight
-        ;;
-    fee-migrate)
-        run_fee_migration
-        ;;
-    enable-signer)
-        enable_signer
-        ;;
-    cleanup)
-        cleanup_owner_access
+    fee)
+        [[ $# -eq 2 ]] || die "usage: $SCRIPT_NAME fee <preflight|migrate|enable-signer|finalize>"
+        case "$2" in
+            preflight)    preflight_fees ;;
+            migrate)      migrate_fees ;;
+            enable-signer) enable_fee_signer ;;
+            finalize)     finalize_fee_migration ;;
+            *) die "unknown fee command: $2" ;;
+        esac
         ;;
     help|-h|--help)
         show_usage
