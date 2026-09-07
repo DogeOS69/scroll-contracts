@@ -188,7 +188,7 @@ prepare_config() {
     require_file "$config_dir/config.toml"
     require_file "$config_dir/config-contracts.toml"
 
-    staging_dir=$(mktemp -d "${TMPDIR:-/tmp}/scroll-contracts-moat-config.XXXXXX")
+    staging_dir=$(mktemp -d "${TMPDIR:-/tmp}/scroll-contracts-upgrade-config.XXXXXX")
     cp "$config_dir/config.toml" "$staging_dir/config.toml"
     cp "$config_dir/config-contracts.toml" "$staging_dir/config-contracts.toml"
     perl -pi -e 's/testnet\.dogeos\.com/devnet.doge.xyz/g' "$staging_dir/config.toml"
@@ -200,7 +200,7 @@ prepare_config() {
 
     if [[ -e "$VOLUME_DIR" || -L "$VOLUME_DIR" ]]; then
         local backup_root backup_path
-        backup_root=$(mktemp -d "${TMPDIR:-/tmp}/scroll-contracts-moat-volume.XXXXXX")
+        backup_root=$(mktemp -d "${TMPDIR:-/tmp}/scroll-contracts-upgrade-volume.XXXXXX")
         backup_path="$backup_root/volume"
         mv "$VOLUME_DIR" "$backup_path"
         printf 'Existing volume moved to %s\n' "$backup_path"
