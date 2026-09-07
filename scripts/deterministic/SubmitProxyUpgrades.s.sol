@@ -8,7 +8,7 @@ import {stdToml} from "forge-std/StdToml.sol";
 
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 
-import {CONFIG_CONTRACTS_PATH} from "./Constants.sol";
+import {CONFIG_PATH, CONFIG_CONTRACTS_PATH} from "./Constants.sol";
 
 abstract contract ProxyUpgradeScriptBase is Script {
     using stdToml for string;
@@ -54,6 +54,12 @@ abstract contract ProxyUpgradeScriptBase is Script {
     }
 
     function _validateUpgradeInputs(UpgradeInputs memory inputs) private view {
+        string memory cfg = vm.readFile(CONFIG_PATH);
+        require(vm.keyExistsToml(cfg, ".general.CHAIN_ID_L2"), "CHAIN_ID_L2 is missing from config.toml");
+        uint256 expectedChainId = cfg.readUint(".general.CHAIN_ID_L2");
+        require(expectedChainId != 0, "CHAIN_ID_L2 is zero");
+        require(block.chainid == expectedChainId, "unexpected L2 chain ID");
+
         require(inputs.proxyAdmin != address(0), "L2_PROXY_ADMIN_ADDR is zero");
         require(inputs.proxy != address(0), "proxy address is zero");
         require(inputs.implementation != address(0), "implementation address is zero");

@@ -44,6 +44,11 @@ require_env() {
     [[ -n "${!name:-}" ]] || die "$name is required"
 }
 
+require_broadcast() {
+    local command_name=$1
+    [[ "${BROADCAST:-0}" == "1" ]] || die "$command_name sends transactions; set BROADCAST=1"
+}
+
 resolve_deployer_private_key() {
     local config_deployer_private_key deployer_addr owner_addr signer
     deployer_addr=$(extract_string DEPLOYER_ADDR "$CONFIG")
@@ -140,25 +145,63 @@ expect_revert_selector() {
     printf '  [ok] %-28s %s (%s)\n' "$label" "$expected_name" "$expected_selector"
 }
 
-validate_config() {
+validate_network_config() {
     require_file "$CONFIG"
     require_file "$CONFIG_CONTRACTS"
+    require_command cast
 
-    local key value expected
-    for key in COMMIT_SCALAR BLOB_SCALAR SCALAR PENALTY_FACTOR FEE_VAULT_DOGE_RECIPIENT_ADDR; do
+    local key rpc expected_chain_id actual_chain_id
+    for key in EXTERNAL_RPC_URI_L2 CHAIN_ID_L2; do
         grep -Eq "^${key}[[:space:]]*=" "$CONFIG" || die "$key is missing from $CONFIG"
     done
 
-    for key in EXTERNAL_RPC_URI_L2 CHAIN_ID_L1; do
+    rpc=$(extract_string EXTERNAL_RPC_URI_L2 "$CONFIG")
+    expected_chain_id=$(extract_number CHAIN_ID_L2 "$CONFIG")
+    [[ -n "$rpc" ]] || die "EXTERNAL_RPC_URI_L2 is missing or empty in $CONFIG"
+    [[ -n "$expected_chain_id" ]] || die "CHAIN_ID_L2 is missing or invalid in $CONFIG"
+    actual_chain_id=$(cast chain-id --rpc-url "$rpc") || die "failed to read L2 chain ID from $rpc"
+    assert_equal "L2 chain ID" "$actual_chain_id" "$expected_chain_id"
+}
+
+validate_bridge_config() {
+    validate_network_config
+
+    local key value
+    for key in CHAIN_ID_L1 FEE_VAULT_DOGE_RECIPIENT_ADDR; do
         grep -Eq "^${key}[[:space:]]*=" "$CONFIG" || die "$key is missing from $CONFIG"
     done
 
     for key in L2_PROXY_ADMIN_ADDR L2_MOAT_PROXY_ADDR L2_TX_FEE_VAULT_ADDR \
         L2_DOGEOS_MESSENGER_PROXY_ADDR L1_SCROLL_MESSENGER_PROXY_ADDR \
-        L2_MESSAGE_QUEUE_ADDR L2_WHITELIST_ADDR L1_GAS_PRICE_ORACLE_ADDR; do
+        L2_MESSAGE_QUEUE_ADDR; do
         value=$(extract_string "$key" "$CONFIG_CONTRACTS")
         [[ -n "$value" ]] || die "$key is missing or empty in $CONFIG_CONTRACTS"
         validate_address "$key" "$value"
+    done
+
+    value=$(extract_string FEE_VAULT_DOGE_RECIPIENT_ADDR "$CONFIG")
+    validate_address FEE_VAULT_DOGE_RECIPIENT_ADDR "$value"
+
+    printf '  [ok] bridge configuration and required addresses\n'
+}
+
+validate_fee_access_config() {
+    validate_network_config
+
+    local key value
+    for key in L2_WHITELIST_ADDR L1_GAS_PRICE_ORACLE_ADDR; do
+        value=$(extract_string "$key" "$CONFIG_CONTRACTS")
+        [[ -n "$value" ]] || die "$key is missing or empty in $CONFIG_CONTRACTS"
+        validate_address "$key" "$value"
+    done
+}
+
+validate_fee_config() {
+    validate_fee_access_config
+
+    local key value expected
+    for key in COMMIT_SCALAR BLOB_SCALAR SCALAR PENALTY_FACTOR; do
+        grep -Eq "^${key}[[:space:]]*=" "$CONFIG" || die "$key is missing from $CONFIG"
     done
 
     while read -r key expected; do
@@ -171,14 +214,7 @@ SCALAR 938846
 PENALTY_FACTOR 10000
 EOF
 
-    value=$(extract_string FEE_VAULT_DOGE_RECIPIENT_ADDR "$CONFIG")
-    validate_address FEE_VAULT_DOGE_RECIPIENT_ADDR "$value"
-
-    if grep -n 'dogeos\.com' "$CONFIG"; then
-        die "dogeos.com still appears in $CONFIG"
-    fi
-
-    printf '  [ok] configuration files and required Moat values\n'
+    printf '  [ok] fee migration configuration\n'
 }
 
 prepare_config() {
@@ -191,12 +227,11 @@ prepare_config() {
     staging_dir=$(mktemp -d "${TMPDIR:-/tmp}/scroll-contracts-upgrade-config.XXXXXX")
     cp "$config_dir/config.toml" "$staging_dir/config.toml"
     cp "$config_dir/config-contracts.toml" "$staging_dir/config-contracts.toml"
-    perl -pi -e 's/testnet\.dogeos\.com/devnet.doge.xyz/g' "$staging_dir/config.toml"
 
     # Validate the staged copy before touching an existing volume.
     CONFIG="$staging_dir/config.toml" \
         CONFIG_CONTRACTS="$staging_dir/config-contracts.toml" \
-        validate_config
+        validate_bridge_config
 
     if [[ -e "$VOLUME_DIR" || -L "$VOLUME_DIR" ]]; then
         local backup_root backup_path
@@ -208,7 +243,7 @@ prepare_config() {
 
     mv "$staging_dir" "$VOLUME_DIR"
 
-    validate_config
+    validate_bridge_config
     note "Local upgrade configuration is ready"
     ls -l "$CONFIG" "$CONFIG_CONTRACTS"
 }
@@ -219,7 +254,7 @@ require_bridge_inputs() {
 }
 
 preflight_bridge() {
-    validate_config
+    validate_bridge_config
     require_command cast
     require_command forge
     resolve_deployer_private_key
@@ -299,7 +334,8 @@ verify_messenger_implementation() {
 }
 
 upgrade_bridge() {
-    validate_config
+    require_broadcast "bridge upgrade"
+    validate_bridge_config
     require_command cast
     require_command forge
     require_bridge_inputs
@@ -377,13 +413,13 @@ upgrade_bridge() {
 }
 
 verify_bridge() {
-    validate_config
+    validate_bridge_config
     require_command cast
 
     local rpc chain_id p2pkh_expected p2sh_expected
     local proxy moat_impl messenger_proxy messenger_impl adapter vault recipient
     local counterpart_expected message_queue
-    local actual moat_min vault_min required_min
+    local actual moat_min vault_min required_min deposit_error
 
     rpc=$(extract_string EXTERNAL_RPC_URI_L2 "$CONFIG")
     chain_id=$(extract_number CHAIN_ID_L1 "$CONFIG")
@@ -427,6 +463,13 @@ verify_bridge() {
     actual=$(first_word "$(cast call "$proxy" 'SATOSHI_TO_WEI()(uint256)' --rpc-url "$rpc")")
     assert_equal "SATOSHI_TO_WEI" "$actual" "10000000000"
 
+    deposit_error=$(cast sig 'ErrorOnlyMessenger(address,address)')
+    expect_revert_selector "deposit entry gated" "$deposit_error" "ErrorOnlyMessenger" \
+        "$rpc" 0x0000000000000000000000000000000000000001 "$proxy" \
+        'handleL1Message(address,bytes32)' \
+        0x0000000000000000000000000000000000000001 \
+        0x0000000000000000000000000000000000000000000000000000000000000000
+
     actual=$(cast call "$adapter" 'FEE_VAULT()(address)' --rpc-url "$rpc")
     assert_address_equal "adapter fee vault" "$actual" "$vault"
     actual=$(cast call "$adapter" 'MOAT()(address)' --rpc-url "$rpc")
@@ -467,13 +510,14 @@ whitelist_owner_key() {
 }
 
 preflight_fees() {
-    validate_config
+    validate_fee_config
     note "L1GasPriceOracle fixed 1/1 and static-parameter read-only preflight"
     BROADCAST=0 "$SHELL_DIR/submit-l1-gas-price-oracle-config.sh"
 }
 
 migrate_fees() {
-    validate_config
+    require_broadcast "fee migrate"
+    validate_fee_config
     verify_bridge
     require_command cast
     local oracle_key whitelist_key rpc oracle owner_addr oracle_signer
@@ -501,11 +545,12 @@ migrate_fees() {
         'KEEP INGRESS AND ALL FEE WRITERS STOPPED.' \
         'The oracle owner remains temporarily whitelisted for rollback.' \
         'Next, send and verify the private maintenance canary. Then use:' \
-        "  NEW_FEE_ORACLE_SIGNER=0x... $0 fee enable-signer"
+        "  BROADCAST=1 NEW_FEE_ORACLE_SIGNER=0x... $0 fee enable-signer"
 }
 
 enable_fee_signer() {
-    validate_config
+    require_broadcast "fee enable-signer"
+    validate_fee_access_config
     require_command cast
     require_env NEW_FEE_ORACLE_SIGNER
     validate_address NEW_FEE_ORACLE_SIGNER "$NEW_FEE_ORACLE_SIGNER"
@@ -518,11 +563,13 @@ enable_fee_signer() {
     note "Signer is allowed; do not restore public ingress yet"
     printf '%s\n' \
         'Start the new fee-oracle and verify at least two consecutive successful' \
-        "on-chain updates plus the production-fee canary. Then run '$0 fee finalize'."
+        'on-chain updates plus the production-fee canary. Then run:' \
+        "  BROADCAST=1 NEW_FEE_ORACLE_SIGNER=$NEW_FEE_ORACLE_SIGNER $0 fee finalize"
 }
 
 finalize_fee_migration() {
-    validate_config
+    require_broadcast "fee finalize"
+    validate_fee_access_config
     require_command cast
     require_env NEW_FEE_ORACLE_SIGNER
     validate_address NEW_FEE_ORACLE_SIGNER "$NEW_FEE_ORACLE_SIGNER"
@@ -578,24 +625,23 @@ Fee phase:
 
   help                Show this help.
 
-Bridge requirements:
-  OWNER_PRIVATE_KEY
+Bridge upgrade requirements:
+  BROADCAST=1 OWNER_PRIVATE_KEY
   DEPLOYER_PRIVATE_KEY is read from the environment first, then from
   volume/config.toml. If it is absent and DEPLOYER_ADDR equals OWNER_ADDR, the
   wrapper validates and reuses OWNER_PRIVATE_KEY for deterministic deployments.
 
 Fee migration requirements:
+  BROADCAST=1
   ORACLE_OWNER_PRIVATE_KEY may be used when the oracle owner differs; it falls
   back to OWNER_PRIVATE_KEY. WHITELIST_OWNER_PRIVATE_KEY is used to temporarily
   allow the owner, enable the new signer, and finalize the migration; it also
-  falls back to OWNER_PRIVATE_KEY. On the current devnet both contracts have
-  the same owner.
+  falls back to OWNER_PRIVATE_KEY.
 
 Fee finalization requirements:
-  NEW_FEE_ORACLE_SIGNER=0x...
+  BROADCAST=1 NEW_FEE_ORACLE_SIGNER=0x...
 
-Commands that send transactions enable broadcasting for their child scripts
-automatically; callers do not need to set BROADCAST.
+Commands that send transactions require the caller to set BROADCAST=1 explicitly.
 
 This wrapper never stops/starts infrastructure, submits canaries, verifies the
 Dogecoin L1 withdrawal processor, or restores public ingress. Those are manual
