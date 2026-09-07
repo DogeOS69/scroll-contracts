@@ -106,6 +106,39 @@ validate_address() {
     [[ "$(lower "$value")" != "0x0000000000000000000000000000000000000000" ]] || die "$label must not be zero"
 }
 
+assert_selector_present() {
+    local label=$1 bytecode=$2 signature=$3 selector
+    selector=$(cast sig "$signature")
+    [[ "$(lower "$bytecode")" == *"${selector#0x}"* ]] ||
+        die "$label does not contain $signature selector ($selector)"
+    printf '  [ok] %-28s %s (%s)\n' "$label" "$signature" "$selector"
+}
+
+assert_selector_absent() {
+    local label=$1 bytecode=$2 signature=$3 selector
+    selector=$(cast sig "$signature")
+    [[ "$(lower "$bytecode")" != *"${selector#0x}"* ]] ||
+        die "$label unexpectedly contains $signature selector ($selector)"
+    printf '  [ok] %-28s no %s\n' "$label" "$signature"
+}
+
+expect_revert_selector() {
+    local label=$1 expected_selector=$2 expected_name=$3 rpc=$4 from=$5 target=$6
+    local output normalized
+    shift 6
+
+    if output=$(cast call "$target" "$@" --from "$from" --rpc-url "$rpc" 2>&1); then
+        die "$label unexpectedly succeeded: $output"
+    fi
+
+    normalized=$(lower "$output")
+    if [[ "$normalized" != *"${expected_selector#0x}"* &&
+        "$normalized" != *"$(lower "$expected_name")"* ]]; then
+        die "$label reverted without $expected_name ($expected_selector): $output"
+    fi
+    printf '  [ok] %-28s %s (%s)\n' "$label" "$expected_name" "$expected_selector"
+}
+
 validate_config() {
     require_file "$CONFIG"
     require_file "$CONFIG_CONTRACTS"
@@ -120,7 +153,8 @@ validate_config() {
     done
 
     for key in L2_PROXY_ADMIN_ADDR L2_MOAT_PROXY_ADDR L2_TX_FEE_VAULT_ADDR \
-        L2_DOGEOS_MESSENGER_PROXY_ADDR L2_WHITELIST_ADDR L1_GAS_PRICE_ORACLE_ADDR; do
+        L2_DOGEOS_MESSENGER_PROXY_ADDR L1_SCROLL_MESSENGER_PROXY_ADDR \
+        L2_MESSAGE_QUEUE_ADDR L2_WHITELIST_ADDR L1_GAS_PRICE_ORACLE_ADDR; do
         value=$(extract_string "$key" "$CONFIG_CONTRACTS")
         [[ -n "$value" ]] || die "$key is missing or empty in $CONFIG_CONTRACTS"
         validate_address "$key" "$value"
@@ -178,8 +212,7 @@ prepare_config() {
     ls -l "$CONFIG" "$CONFIG_CONTRACTS"
 }
 
-require_bridge_broadcast_inputs() {
-    [[ "${BROADCAST:-0}" == "1" ]] || die "bridge sends transactions; set BROADCAST=1"
+require_bridge_inputs() {
     require_env OWNER_PRIVATE_KEY
     resolve_deployer_private_key
 }
@@ -205,16 +238,75 @@ run_bridge_preflight() {
         'their target bytecode exists. Run the guarded bridge command to continue.'
 }
 
+verify_moat_implementation() {
+    local rpc moat_impl moat_bytecode
+    rpc=$(extract_string EXTERNAL_RPC_URI_L2 "$CONFIG")
+    moat_impl=$(extract_string L2_MOAT_IMPLEMENTATION_ADDR "$CONFIG_CONTRACTS")
+    [[ -n "$moat_impl" ]] || die "L2_MOAT_IMPLEMENTATION_ADDR is missing from $CONFIG_CONTRACTS"
+    validate_address L2_MOAT_IMPLEMENTATION_ADDR "$moat_impl"
+
+    moat_bytecode=$(cast code "$moat_impl" --rpc-url "$rpc")
+    [[ "$moat_bytecode" != "0x" ]] || die "no deployed Moat bytecode at $moat_impl"
+
+    note "Verify deployed Moat implementation ABI"
+    assert_selector_present "Moat deposit ABI" "$moat_bytecode" 'handleL1Message(address,bytes32)'
+    assert_selector_present "Moat P2SH ABI" "$moat_bytecode" 'withdrawToP2SH(address)'
+    assert_selector_absent "Moat no-Bascule ABI" "$moat_bytecode" 'basculeVerifier()'
+    assert_selector_absent "Moat no-Bascule setter" "$moat_bytecode" 'setBascule(address)'
+}
+
+verify_messenger_implementation() {
+    local rpc messenger_impl vault proxy counterpart_expected message_queue
+    local messenger_bytecode actual sender_error envelope_error
+    rpc=$(extract_string EXTERNAL_RPC_URI_L2 "$CONFIG")
+    messenger_impl=$(extract_string L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR "$CONFIG_CONTRACTS")
+    vault=$(extract_string L2_TX_FEE_VAULT_ADDR "$CONFIG_CONTRACTS")
+    proxy=$(extract_string L2_MOAT_PROXY_ADDR "$CONFIG_CONTRACTS")
+    counterpart_expected=$(extract_string L1_SCROLL_MESSENGER_PROXY_ADDR "$CONFIG_CONTRACTS")
+    message_queue=$(extract_string L2_MESSAGE_QUEUE_ADDR "$CONFIG_CONTRACTS")
+    [[ -n "$messenger_impl" ]] ||
+        die "L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR is missing from $CONFIG_CONTRACTS"
+    validate_address L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR "$messenger_impl"
+
+    messenger_bytecode=$(cast code "$messenger_impl" --rpc-url "$rpc")
+    [[ "$messenger_bytecode" != "0x" ]] || die "no deployed messenger bytecode at $messenger_impl"
+
+    note "Verify deployed messenger implementation"
+    assert_selector_present "messenger queue getter" "$messenger_bytecode" 'messageQueue()'
+    assert_selector_present "messenger Moat getter" "$messenger_bytecode" 'MOAT()'
+
+    actual=$(cast call "$messenger_impl" 'counterpart()(address)' --rpc-url "$rpc")
+    assert_address_equal "impl counterpart" "$actual" "$counterpart_expected"
+    actual=$(cast call "$messenger_impl" 'messageQueue()(address)' --rpc-url "$rpc")
+    assert_address_equal "impl messageQueue" "$actual" "$message_queue"
+    actual=$(cast call "$messenger_impl" 'MOAT()(address)' --rpc-url "$rpc")
+    assert_address_equal "impl Moat" "$actual" "$proxy"
+
+    # Target the implementation directly so proxy pause state cannot mask the
+    # sender and envelope guards. These are eth_call simulations only.
+    sender_error=$(cast sig 'ErrorSenderNotMoat(address,address)')
+    expect_revert_selector "vault direct send rejected" "$sender_error" "ErrorSenderNotMoat" \
+        "$rpc" "$vault" "$messenger_impl" \
+        'sendMessage(address,uint256,bytes,uint256)' \
+        0x0000000000000000000000000000000000000001 0 0x0100 0
+
+    envelope_error=$(cast sig 'ErrorInvalidWithdrawalEnvelope(bytes)')
+    expect_revert_selector "empty envelope rejected" "$envelope_error" "ErrorInvalidWithdrawalEnvelope" \
+        "$rpc" "$proxy" "$messenger_impl" \
+        'sendMessage(address,uint256,bytes,uint256)' \
+        0x0000000000000000000000000000000000000001 0 0x 0
+}
+
 run_bridge() {
     validate_config
     require_command cast
     require_command forge
-    require_bridge_broadcast_inputs
+    require_bridge_inputs
 
     local rpc proxy messenger_proxy
     local moat_messenger_before moat_withdrawal_fee_before moat_min_before
     local moat_deposit_fee_before moat_fee_recipient_before moat_owner_before
-    local messenger_counterpart_before messenger_paused_before
+    local messenger_counterpart_before messenger_message_queue_before messenger_paused_before
     rpc=$(extract_string EXTERNAL_RPC_URI_L2 "$CONFIG")
     proxy=$(extract_string L2_MOAT_PROXY_ADDR "$CONFIG_CONTRACTS")
     messenger_proxy=$(extract_string L2_DOGEOS_MESSENGER_PROXY_ADDR "$CONFIG_CONTRACTS")
@@ -227,10 +319,12 @@ run_bridge() {
     moat_fee_recipient_before=$(cast call "$proxy" 'feeRecipient()(address)' --rpc-url "$rpc")
     moat_owner_before=$(cast call "$proxy" 'owner()(address)' --rpc-url "$rpc")
     messenger_counterpart_before=$(cast call "$messenger_proxy" 'counterpart()(address)' --rpc-url "$rpc")
+    messenger_message_queue_before=$(cast call "$messenger_proxy" 'messageQueue()(address)' --rpc-url "$rpc")
     messenger_paused_before=$(first_word "$(cast call "$messenger_proxy" 'paused()(bool)' --rpc-url "$rpc")")
 
     note "1/6 Deploy Moat implementation (includes simulation)"
     BROADCAST=1 "$SHELL_DIR/deploy-moat-impl.sh"
+    verify_moat_implementation
 
     note "2/6 Upgrade Moat proxy"
     BROADCAST=1 OWNER_PRIVATE_KEY="$OWNER_PRIVATE_KEY" \
@@ -245,6 +339,7 @@ run_bridge() {
 
     note "5/6 Deploy L2DogeOsMessenger implementation (includes simulation)"
     BROADCAST=1 "$SHELL_DIR/deploy-dogeos-messenger-impl.sh"
+    verify_messenger_implementation
 
     note "6/6 Upgrade L2DogeOsMessenger proxy"
     BROADCAST=1 OWNER_PRIVATE_KEY="$OWNER_PRIVATE_KEY" \
@@ -267,6 +362,8 @@ run_bridge() {
         "$(cast call "$proxy" 'owner()(address)' --rpc-url "$rpc")" "$moat_owner_before"
     assert_address_equal "messenger counterpart" \
         "$(cast call "$messenger_proxy" 'counterpart()(address)' --rpc-url "$rpc")" "$messenger_counterpart_before"
+    assert_address_equal "messenger messageQueue" \
+        "$(cast call "$messenger_proxy" 'messageQueue()(address)' --rpc-url "$rpc")" "$messenger_message_queue_before"
     assert_equal "messenger paused" \
         "$(first_word "$(cast call "$messenger_proxy" 'paused()(bool)' --rpc-url "$rpc")")" "$messenger_paused_before"
 
@@ -284,6 +381,7 @@ verify_bridge() {
 
     local rpc chain_id p2pkh_expected p2sh_expected
     local proxy moat_impl messenger_proxy messenger_impl adapter vault recipient
+    local counterpart_expected message_queue
     local actual moat_min vault_min required_min
 
     rpc=$(extract_string EXTERNAL_RPC_URI_L2 "$CONFIG")
@@ -295,6 +393,8 @@ verify_bridge() {
     adapter=$(extract_string L2_FEE_VAULT_MOAT_ADAPTER_ADDR "$CONFIG_CONTRACTS")
     vault=$(extract_string L2_TX_FEE_VAULT_ADDR "$CONFIG_CONTRACTS")
     recipient=$(extract_string FEE_VAULT_DOGE_RECIPIENT_ADDR "$CONFIG")
+    counterpart_expected=$(extract_string L1_SCROLL_MESSENGER_PROXY_ADDR "$CONFIG_CONTRACTS")
+    message_queue=$(extract_string L2_MESSAGE_QUEUE_ADDR "$CONFIG_CONTRACTS")
 
     for value in "$moat_impl" "$messenger_impl" "$adapter"; do
         [[ -n "$value" ]] || die "bridge deployment address is missing from $CONFIG_CONTRACTS"
@@ -316,6 +416,9 @@ verify_bridge() {
     actual=$(cast implementation "$messenger_proxy" --rpc-url "$rpc")
     assert_address_equal "messenger implementation" "$actual" "$messenger_impl"
 
+    verify_moat_implementation
+    verify_messenger_implementation
+
     actual=$(first_word "$(cast call "$proxy" 'P2PKH_PREFIX()(bytes1)' --rpc-url "$rpc")")
     assert_equal "P2PKH prefix" "$(lower "$actual")" "$p2pkh_expected"
     actual=$(first_word "$(cast call "$proxy" 'P2SH_PREFIX()(bytes1)' --rpc-url "$rpc")")
@@ -335,6 +438,10 @@ verify_bridge() {
     assert_address_equal "fee-vault recipient" "$actual" "$recipient"
     actual=$(cast call "$messenger_proxy" 'MOAT()(address)' --rpc-url "$rpc")
     assert_address_equal "messenger Moat" "$actual" "$proxy"
+    actual=$(cast call "$messenger_proxy" 'counterpart()(address)' --rpc-url "$rpc")
+    assert_address_equal "messenger counterpart" "$actual" "$counterpart_expected"
+    actual=$(cast call "$messenger_proxy" 'messageQueue()(address)' --rpc-url "$rpc")
+    assert_address_equal "messenger messageQueue" "$actual" "$message_queue"
 
     require_command python3
     moat_min=$(first_word "$(cast call "$proxy" 'minWithdrawalAmount()(uint256)' --rpc-url "$rpc")")
@@ -368,8 +475,6 @@ run_fee_migration() {
     validate_config
     verify_bridge
     require_command cast
-    [[ "${BROADCAST:-0}" == "1" ]] || die "fee-migrate sends transactions; set BROADCAST=1"
-
     local oracle_key whitelist_key rpc oracle owner_addr oracle_signer
     oracle_key=$(oracle_owner_key)
     whitelist_key=$(whitelist_owner_key)
@@ -395,7 +500,7 @@ run_fee_migration() {
         'KEEP INGRESS AND ALL FEE WRITERS STOPPED.' \
         'The oracle owner remains temporarily whitelisted for rollback.' \
         'Next, send and verify the private maintenance canary. Then use:' \
-        "  NEW_FEE_ORACLE_SIGNER=0x... BROADCAST=1 $0 enable-signer"
+        "  NEW_FEE_ORACLE_SIGNER=0x... $0 enable-signer"
 }
 
 enable_signer() {
@@ -403,8 +508,6 @@ enable_signer() {
     require_command cast
     require_env NEW_FEE_ORACLE_SIGNER
     validate_address NEW_FEE_ORACLE_SIGNER "$NEW_FEE_ORACLE_SIGNER"
-    [[ "${BROADCAST:-0}" == "1" ]] || die "enable-signer sends a transaction; set BROADCAST=1"
-
     local whitelist_key
     whitelist_key=$(whitelist_owner_key)
     note "Whitelist the new fee-oracle signer ($NEW_FEE_ORACLE_SIGNER)"
@@ -422,7 +525,6 @@ cleanup_owner_access() {
     require_command cast
     require_env NEW_FEE_ORACLE_SIGNER
     validate_address NEW_FEE_ORACLE_SIGNER "$NEW_FEE_ORACLE_SIGNER"
-    [[ "${BROADCAST:-0}" == "1" ]] || die "cleanup removes owner permission; set BROADCAST=1"
     local owner_addr rpc oracle whitelist signer_allowed whitelist_key
     rpc=$(extract_string EXTERNAL_RPC_URI_L2 "$CONFIG")
     oracle=$(extract_string L1_GAS_PRICE_ORACLE_ADDR "$CONFIG_CONTRACTS")
@@ -466,21 +568,23 @@ Commands:
   cleanup           Remove the owner's temporary whitelist permission.
   help              Show this help.
 
-Bridge broadcast requirements:
-  BROADCAST=1 OWNER_PRIVATE_KEY
+Bridge requirements:
+  OWNER_PRIVATE_KEY
   DEPLOYER_PRIVATE_KEY is read from the environment first, then from
   volume/config.toml. If it is absent and DEPLOYER_ADDR equals OWNER_ADDR, the
   wrapper validates and reuses OWNER_PRIVATE_KEY for deterministic deployments.
 
 Fee migration requirements:
-  BROADCAST=1
   ORACLE_OWNER_PRIVATE_KEY may be used when the oracle owner differs; it falls
   back to OWNER_PRIVATE_KEY. WHITELIST_OWNER_PRIVATE_KEY is used to temporarily
   allow the owner, enable the new signer, and clean up; it also falls back to
   OWNER_PRIVATE_KEY. On the current devnet both contracts have the same owner.
 
-Cleanup broadcast requirements:
-  BROADCAST=1 NEW_FEE_ORACLE_SIGNER=0x...
+Cleanup requirements:
+  NEW_FEE_ORACLE_SIGNER=0x...
+
+Commands that send transactions enable broadcasting for their child scripts
+automatically; callers do not need to set BROADCAST.
 
 This wrapper never stops/starts infrastructure, submits canaries, verifies the
 Dogecoin L1 withdrawal processor, or restores public ingress. Those are manual
