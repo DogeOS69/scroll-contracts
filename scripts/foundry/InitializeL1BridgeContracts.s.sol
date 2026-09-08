@@ -35,9 +35,7 @@ contract InitializeL1BridgeContracts is Script {
     uint256 MAX_L1_MESSAGE_GAS_LIMIT = vm.envUint("MAX_L1_MESSAGE_GAS_LIMIT");
     uint256 FINALIZE_BATCH_DEADLINE_SEC = vm.envUint("FINALIZE_BATCH_DEADLINE_SEC");
     uint256 RELAY_MESSAGE_DEADLINE_SEC = vm.envUint("RELAY_MESSAGE_DEADLINE_SEC");
-    address L2GETH_SIGNER_ADDRESS = vm.envAddress("L2GETH_SIGNER_ADDRESS");
-    address L1_COMMIT_SENDER_ADDRESS = vm.envAddress("L1_COMMIT_SENDER_ADDRESS");
-    address L1_FINALIZE_SENDER_ADDRESS = vm.envAddress("L1_FINALIZE_SENDER_ADDRESS");
+    address constant L2GETH_SIGNER_ADDRESS = address(0);
     address L1_FEE_VAULT_ADDR = vm.envAddress("L1_FEE_VAULT_ADDR");
     // address L1_WETH_ADDR = vm.envAddress("L1_WETH_ADDR");
     address L1_WDOGE_ADDR = vm.envAddress("L1_WDOGE_ADDR");
@@ -127,9 +125,6 @@ contract InitializeL1BridgeContracts is Script {
         );
 
         ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).initializeV2();
-
-        ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).addSequencer(L1_COMMIT_SENDER_ADDRESS);
-        ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).addProver(L1_FINALIZE_SENDER_ADDRESS);
 
         // initialize L2GasPriceOracle
         L2GasPriceOracle(L2_GAS_PRICE_ORACLE_PROXY_ADDR).initialize(

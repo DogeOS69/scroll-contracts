@@ -23,6 +23,7 @@
     "feynmanTime": 0,
     "galileoTime": 0,
     "galileoV2Time": 0,
+    "tsukiTime": 0,
     "scroll": {
       "maxTxPayloadBytesPerBlock": 122880,
       "l1DataFeeBufferCheck": false,

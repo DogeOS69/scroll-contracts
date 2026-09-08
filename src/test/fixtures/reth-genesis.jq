@@ -6,6 +6,7 @@ def hex_string: type == "string" and test("^0x[0-9a-fA-F]+$");
 def address: type == "string" and test("^0x[0-9a-fA-F]{40}$");
 
 (.config.chainId | uint) and
+(.config.tsukiTime | uint and . == 0) and
 (.config.scroll | keys == ["feeVaultAddress", "l1Config", "l1DataFeeBufferCheck", "maxTxPayloadBytesPerBlock"]) and
 (.config.scroll.feeVaultAddress | address) and
 (.config.scroll.maxTxPayloadBytesPerBlock | uint) and

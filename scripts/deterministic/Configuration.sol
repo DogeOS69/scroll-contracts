@@ -46,19 +46,14 @@ abstract contract Configuration is NativeDogeSupplyConfig {
 
     // accounts
     uint256 internal DEPLOYER_PRIVATE_KEY;
-    uint256 internal L1_COMMIT_SENDER_PRIVATE_KEY;
-    uint256 internal L1_FINALIZE_SENDER_PRIVATE_KEY;
-    uint256 internal L1_GAS_ORACLE_SENDER_PRIVATE_KEY;
 
     address internal DEPLOYER_ADDR;
-    address internal L1_COMMIT_SENDER_ADDR;
-    address internal L1_FINALIZE_SENDER_ADDR;
-    address internal L1_GAS_ORACLE_SENDER_ADDR;
+    address internal constant L1_GAS_ORACLE_SENDER_ADDR = address(0);
     address internal L2_GAS_ORACLE_SENDER_ADDR;
 
     address internal OWNER_ADDR;
 
-    address internal L2GETH_SIGNER_ADDRESS;
+    address internal constant L2GETH_SIGNER_ADDRESS = address(0);
 
     // genesis
     uint256 internal L2_MAX_ETH_SUPPLY;
@@ -84,7 +79,7 @@ abstract contract Configuration is NativeDogeSupplyConfig {
     string internal CHUNK_COLLECTION_TIME_SEC;
     string internal BATCH_COLLECTION_TIME_SEC;
     string internal BUNDLE_COLLECTION_TIME_SEC;
-    string internal COORDINATOR_JWT_SECRET_KEY;
+    string internal constant COORDINATOR_JWT_SECRET_KEY = "dogeos-coordinator-jwt-secret";
 
     // frontend
     string internal EXTERNAL_RPC_URI_L1;
@@ -134,32 +129,15 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
 
         DEPLOYER_PRIVATE_KEY = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
-        L1_COMMIT_SENDER_PRIVATE_KEY = vm.envOr("L1_COMMIT_SENDER_PRIVATE_KEY", uint256(0));
-        L1_FINALIZE_SENDER_PRIVATE_KEY = vm.envOr("L1_FINALIZE_SENDER_PRIVATE_KEY", uint256(0));
-        L1_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L1_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
 
         if (DEPLOYER_PRIVATE_KEY == uint256(0)) {
             DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
         }
-        if (L1_COMMIT_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
-        }
-        if (L1_FINALIZE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_FINALIZE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY");
-        }
-        if (L1_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        }
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
-        L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
-        L1_FINALIZE_SENDER_ADDR = cfg.readAddress(".accounts.L1_FINALIZE_SENDER_ADDR");
-        L1_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L1_GAS_ORACLE_SENDER_ADDR");
         L2_GAS_ORACLE_SENDER_ADDR = readL2GasOracleSenderAddress();
 
         OWNER_ADDR = cfg.readAddress(".accounts.OWNER_ADDR");
-
-        L2GETH_SIGNER_ADDRESS = cfg.readAddress(".sequencer.L2GETH_SIGNER_ADDRESS");
 
         L2_MAX_NATIVE_DOGE_SUPPLY = readL2MaxNativeDogeSupply(cfg);
         L2_MAX_ETH_SUPPLY = L2_MAX_NATIVE_DOGE_SUPPLY;
@@ -193,11 +171,6 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
         BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
         BUNDLE_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BUNDLE_COLLECTION_TIME_SEC");
-
-        COORDINATOR_JWT_SECRET_KEY = vm.envOr("COORDINATOR_JWT_SECRET_KEY", string(""));
-        if (keccak256(abi.encodePacked(COORDINATOR_JWT_SECRET_KEY)) == keccak256(abi.encodePacked(""))) {
-            COORDINATOR_JWT_SECRET_KEY = cfg.readString(".coordinator.COORDINATOR_JWT_SECRET_KEY");
-        }
 
         EXTERNAL_RPC_URI_L1 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L1");
         EXTERNAL_RPC_URI_L2 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L2");
@@ -271,9 +244,6 @@ abstract contract Configuration is NativeDogeSupplyConfig {
 
     function runSanityCheck() private view {
         verifyAccount("DEPLOYER", DEPLOYER_PRIVATE_KEY, DEPLOYER_ADDR);
-        verifyAccount("L1_COMMIT_SENDER", L1_COMMIT_SENDER_PRIVATE_KEY, L1_COMMIT_SENDER_ADDR);
-        verifyAccount("L1_FINALIZE_SENDER", L1_FINALIZE_SENDER_PRIVATE_KEY, L1_FINALIZE_SENDER_ADDR);
-        verifyAccount("L1_GAS_ORACLE_SENDER", L1_GAS_ORACLE_SENDER_PRIVATE_KEY, L1_GAS_ORACLE_SENDER_ADDR);
     }
 
     function verifyAccount(

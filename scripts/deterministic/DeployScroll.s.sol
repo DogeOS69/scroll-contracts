@@ -1355,14 +1355,6 @@ contract DeployScroll is DeterministicDeployment {
                 MAX_TX_IN_CHUNK
             );
         }
-
-        if (!ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).isSequencer(L1_COMMIT_SENDER_ADDR)) {
-            ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).addSequencer(L1_COMMIT_SENDER_ADDR);
-        }
-
-        if (!ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).isProver(L1_FINALIZE_SENDER_ADDR)) {
-            ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).addProver(L1_FINALIZE_SENDER_ADDR);
-        }
     }
 
     function initializeSystemConfig() private {
@@ -1496,6 +1488,9 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function initializeL1Whitelist() private {
+        // The legacy L1 gas-oracle sender is disabled; do not whitelist address(0).
+        if (L1_GAS_ORACLE_SENDER_ADDR == address(0)) return;
+
         address[] memory accounts = new address[](1);
         accounts[0] = L1_GAS_ORACLE_SENDER_ADDR;
 

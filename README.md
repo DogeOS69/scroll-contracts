@@ -41,8 +41,21 @@ The deterministic deployment scripts require only a valid, nonzero
 address in the L2 Whitelist but do not sign transactions as that service.
 `L2_GAS_ORACLE_SENDER_PRIVATE_KEY` is neither required nor read from TOML or the
 environment, allowing AWS KMS/HSM-managed service keys. Configure the service's
-signing backend separately through scroll-sdk-cli. Deployer and legacy L1
-account requirements are unchanged.
+signing backend separately through scroll-sdk-cli.
+
+The deployment scripts no longer read L1 commit-sender or finalize-sender
+addresses or private keys, or register those accounts through
+`ScrollChain.addSequencer()` or `ScrollChain.addProver()`. The unused L1 gas-oracle
+sender is fixed to the zero address, is not whitelisted, and requires no address
+or private-key configuration. Deployer account requirements are unchanged.
+
+The legacy `L2GETH_SIGNER_ADDRESS` is fixed to the zero address and is not read
+from TOML or the environment. SystemConfig initialization uses that zero signer;
+genesis keeps `extraData` empty.
+
+`COORDINATOR_JWT_SECRET_KEY` is fixed to `dogeos-coordinator-jwt-secret` in the
+configuration scripts and is not read from TOML or the environment. Generated
+coordinator configurations use that value for `auth.secret`.
 
 ### Node.js
 

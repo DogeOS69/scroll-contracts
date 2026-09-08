@@ -17,7 +17,6 @@ contract RethGenesisHarness is GenerateGenesis {
         L1_SCROLL_CHAIN_PROXY_ADDR = address(0x3333);
         L2_SYSTEM_CONFIG_PROXY_ADDR = address(0x4444);
         L2_TX_FEE_VAULT_ADDR = 0x5300000000000000000000000000000000000005;
-        L2GETH_SIGNER_ADDRESS = address(0x5555);
 
         // Exercise Foundry's actual alloc encoding, including a balance beyond u64.
         vm.deal(address(0x1234), 2**247);
@@ -42,6 +41,7 @@ contract GenerateGenesisTest is Test {
         string memory genesis = vm.readFile(outputPath);
 
         assertEq(vm.parseJsonUint(genesis, ".config.chainId"), 938471);
+        assertEq(vm.parseJsonUint(genesis, ".config.tsukiTime"), 0);
         assertEq(vm.parseJsonUint(genesis, ".config.scroll.l1Config.l1ChainId"), 111111);
         assertEq(vm.parseJsonUint(genesis, ".config.scroll.l1Config.startL1Block"), 0);
         assertEq(vm.parseJsonUint(genesis, ".config.scroll.l1Config.numL1MessagesPerBlock"), 10);
