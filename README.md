@@ -34,6 +34,16 @@ This directory contains the solidity code for Scroll L1 bridge and rollup contra
 
 ## Dependencies
 
+### Fee-oracle deployment identity
+
+The deterministic deployment scripts require only a valid, nonzero
+`accounts.L2_GAS_ORACLE_SENDER_ADDR` for the L2 fee oracle. They authorize this
+address in the L2 Whitelist but do not sign transactions as that service.
+`L2_GAS_ORACLE_SENDER_PRIVATE_KEY` is neither required nor read from TOML or the
+environment, allowing AWS KMS/HSM-managed service keys. Configure the service's
+signing backend separately through scroll-sdk-cli. Deployer and legacy L1
+account requirements are unchanged.
+
 ### Node.js
 
 First install [`Node.js`](https://nodejs.org/en) and [`npm`](https://www.npmjs.com/).

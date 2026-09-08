@@ -49,7 +49,6 @@ abstract contract Configuration is NativeDogeSupplyConfig {
     uint256 internal L1_COMMIT_SENDER_PRIVATE_KEY;
     uint256 internal L1_FINALIZE_SENDER_PRIVATE_KEY;
     uint256 internal L1_GAS_ORACLE_SENDER_PRIVATE_KEY;
-    uint256 internal L2_GAS_ORACLE_SENDER_PRIVATE_KEY;
 
     address internal DEPLOYER_ADDR;
     address internal L1_COMMIT_SENDER_ADDR;
@@ -138,7 +137,6 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         L1_COMMIT_SENDER_PRIVATE_KEY = vm.envOr("L1_COMMIT_SENDER_PRIVATE_KEY", uint256(0));
         L1_FINALIZE_SENDER_PRIVATE_KEY = vm.envOr("L1_FINALIZE_SENDER_PRIVATE_KEY", uint256(0));
         L1_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L1_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
-        L2_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L2_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
 
         if (DEPLOYER_PRIVATE_KEY == uint256(0)) {
             DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
@@ -152,15 +150,12 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         if (L1_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
             L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
         }
-        if (L2_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        }
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
         L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
         L1_FINALIZE_SENDER_ADDR = cfg.readAddress(".accounts.L1_FINALIZE_SENDER_ADDR");
         L1_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L1_GAS_ORACLE_SENDER_ADDR");
-        L2_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L2_GAS_ORACLE_SENDER_ADDR");
+        L2_GAS_ORACLE_SENDER_ADDR = readL2GasOracleSenderAddress();
 
         OWNER_ADDR = cfg.readAddress(".accounts.OWNER_ADDR");
 
@@ -266,12 +261,19 @@ abstract contract Configuration is NativeDogeSupplyConfig {
      * Private functions *
      *********************/
 
+    /// @dev Deployment authorizes this service but never signs as it. KMS/HSM
+    ///      operators provide only the public address, not an exportable key.
+    function readL2GasOracleSenderAddress() internal view returns (address) {
+        address sender = cfg.readAddress(".accounts.L2_GAS_ORACLE_SENDER_ADDR");
+        require(sender != address(0), "L2_GAS_ORACLE_SENDER_ADDR must not be zero");
+        return sender;
+    }
+
     function runSanityCheck() private view {
         verifyAccount("DEPLOYER", DEPLOYER_PRIVATE_KEY, DEPLOYER_ADDR);
         verifyAccount("L1_COMMIT_SENDER", L1_COMMIT_SENDER_PRIVATE_KEY, L1_COMMIT_SENDER_ADDR);
         verifyAccount("L1_FINALIZE_SENDER", L1_FINALIZE_SENDER_PRIVATE_KEY, L1_FINALIZE_SENDER_ADDR);
         verifyAccount("L1_GAS_ORACLE_SENDER", L1_GAS_ORACLE_SENDER_PRIVATE_KEY, L1_GAS_ORACLE_SENDER_ADDR);
-        verifyAccount("L2_GAS_ORACLE_SENDER", L2_GAS_ORACLE_SENDER_PRIVATE_KEY, L2_GAS_ORACLE_SENDER_ADDR);
     }
 
     function verifyAccount(
