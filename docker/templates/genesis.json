@@ -23,45 +23,29 @@
     "feynmanTime": 0,
     "galileoTime": 0,
     "galileoV2Time": 0,
-    "clique": {
-      "period": 3,
-      "epoch": 30000,
-      "relaxed_period": true
-    },
-    "systemContract": {
-      "relaxed_period": true,
-      "period": 3,
-      "system_contract_address": "",
-      "system_contract_slot": "0x0000000000000000000000000000000000000000000000000000000000000067"
-    },
     "scroll": {
-      "useZktrie": false,
-      "maxTxPerBlock": 100,
       "maxTxPayloadBytesPerBlock": 122880,
+      "l1DataFeeBufferCheck": false,
       "feeVaultAddress": null,
       "l1Config": {
         "l1ChainId": null,
         "l1MessageQueueAddress": null,
         "l1MessageQueueV2Address": null,
-        "l1MessageQueueV2DeploymentBlock": 0,
         "scrollChainAddress": null,
+        "systemContractAddress": null,
         "l2SystemConfigAddress": null,
-        "numL1MessagesPerBlock": "10"
-      },
-      "genesisStateRoot": null,
-      "missingHeaderFieldsSHA256": null
+        "numL1MessagesPerBlock": 10,
+        "startL1Block": 0
+      }
     }
   },
   "nonce": "0x0",
   "timestamp": null,
-  "extraData": null,
-  "gasLimit": "10000000",
+  "extraData": "0x",
+  "gasLimit": "0x989680",
   "difficulty": "0x1",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x0000000000000000000000000000000000000000",
   "alloc": {},
-  "number": "0x0",
-  "gasUsed": "0x0",
-  "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "baseFeePerGas": 1
+  "baseFeePerGas": "0x1"
 }
