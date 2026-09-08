@@ -75,6 +75,26 @@ Run the following command to install [Hardhat](https://hardhat.org/) and other d
 yarn install
 ```
 
+## Verify L2 contracts
+
+From the repository root, run `bash docker/scripts/verify.sh` with Node.js, the
+installed project dependencies, Foundry, and the deployment files in `volume/`.
+The script reads L2 RPC/explorer settings from `[contracts.verification]` in
+`config.toml` and deployed addresses from `config-contracts.toml`.
+`NativeDogeToken` uses `[contracts.overrides].L2_NATIVE_DOGE_TOKEN` instead,
+defaulting to the protocol address `0x530000000000000000000000000000000000d09e`
+when the override is absent from older deployment configurations.
+
+The verification list includes `FeeVaultMoatAdapter` and the L2 predeploys,
+including `L1GasPriceOracle`. Genesis predeploys do not use constructor-argument
+guessing. The unused Standard/Custom ERC20, ERC721 and ERC1155 gateways, ERC20
+template and factory remain excluded. Unconfigured deployment addresses are
+reported as skipped; failed verifications are collected and produce a nonzero
+exit status after the remaining contracts have been attempted.
+
+Run `node --test docker/scripts/verify.test.js` to check the verification flow
+using a mock forge executable, without submitting explorer requests.
+
 ## Build
 
 - Run `git submodule update --init --recursive` to initialize git submodules.

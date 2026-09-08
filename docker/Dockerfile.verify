@@ -9,5 +9,7 @@ WORKDIR /contracts
 
 # copy scripts
 COPY ./docker/scripts/verify.sh /contracts/docker/scripts/verify.sh
+COPY ./docker/scripts/verify-contracts.js /contracts/docker/scripts/verify-contracts.js
+COPY ./node_modules/toml /contracts/node_modules/toml
 
 ENTRYPOINT ["/bin/bash", "/contracts/docker/scripts/verify.sh"]
