@@ -32,8 +32,17 @@ contract FeeOracleAddressConfigurationTest is Test {
     }
 
     function testRejectsMissingAddress() public {
-        vm.expectRevert();
+        vm.expectRevert(
+            "Set accounts.L2_GAS_ORACLE_SENDER_ADDR in volume/config.toml to the L2 gas oracle signer address"
+        );
         harness.readAddress("[accounts]\n");
+    }
+
+    function testRejectsEmptyAddress() public {
+        vm.expectRevert(
+            "Set accounts.L2_GAS_ORACLE_SENDER_ADDR in volume/config.toml to the L2 gas oracle signer address"
+        );
+        harness.readAddress('[accounts]\nL2_GAS_ORACLE_SENDER_ADDR = ""\n');
     }
 
     function testRejectsMalformedAddress() public {

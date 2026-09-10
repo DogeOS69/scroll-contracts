@@ -41,12 +41,6 @@ forge script scripts/deterministic/GenerateGenesis.s.sol:GenerateGenesis --sig "
 format_config_file "./volume/genesis.yaml"
 
 echo ""
-echo "generating coordinator-cron-config.yaml and coordinator-api-config.yaml"
-forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateCoordinatorConfig --sig "run()" || exit 1
-format_config_file "./volume/coordinator-cron-config.yaml"
-format_config_file "./volume/coordinator-api-config.yaml"
-
-echo ""
 echo "generating frontend-config.yaml"
 forge script scripts/deterministic/GenerateConfigs.s.sol:GenerateFrontendConfig --sig "run()" || exit 1
 format_config_file "./volume/frontend-config.yaml"

@@ -8,8 +8,6 @@ contract RethGenesisHarness is GenerateGenesis {
     function exportGenesis(string memory allocPath, string memory outputPath) external {
         CHAIN_ID_L1 = 111111;
         CHAIN_ID_L2 = 938471;
-        // The scan start must remain zero even for an existing L1 deployment.
-        L1_CONTRACT_DEPLOYMENT_BLOCK = 62942942;
         BASE_FEE_PER_GAS = 1000000000;
         SYSTEM_CONFIG_PROXY_ADDR = address(0x1234);
         L1_MESSAGE_QUEUE_V1_PROXY_ADDR = address(0x1111);

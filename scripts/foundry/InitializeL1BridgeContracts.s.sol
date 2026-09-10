@@ -31,7 +31,6 @@ contract InitializeL1BridgeContracts is Script {
     uint256 L1_DEPLOYER_PRIVATE_KEY = vm.envUint("L1_DEPLOYER_PRIVATE_KEY");
 
     uint256 CHAIN_ID_L2 = vm.envUint("CHAIN_ID_L2");
-    uint256 MAX_TX_IN_CHUNK = vm.envUint("MAX_TX_IN_CHUNK");
     uint256 MAX_L1_MESSAGE_GAS_LIMIT = vm.envUint("MAX_L1_MESSAGE_GAS_LIMIT");
     uint256 FINALIZE_BATCH_DEADLINE_SEC = vm.envUint("FINALIZE_BATCH_DEADLINE_SEC");
     uint256 RELAY_MESSAGE_DEADLINE_SEC = vm.envUint("RELAY_MESSAGE_DEADLINE_SEC");
@@ -121,7 +120,7 @@ contract InitializeL1BridgeContracts is Script {
         ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).initialize(
             L1_MESSAGE_QUEUE_V1_PROXY_ADDR, // not used
             L1_MULTIPLE_VERSION_ROLLUP_VERIFIER_ADDR,
-            MAX_TX_IN_CHUNK
+            0 // Deprecated maxNumTxInChunk initializer argument; never read by ScrollChain.
         );
 
         ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).initializeV2();

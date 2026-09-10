@@ -20,7 +20,7 @@ EXPLORER_URI_L2 = "http://explorer.invalid/api/"
 EXPLORER_API_KEY_L2 = "test key with spaces"
 `;
 
-function fixture(t) {
+function fixture(t, configToml = config) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "verify l2 "));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   fs.mkdirSync(path.join(directory, "volume"));
@@ -28,7 +28,7 @@ function fixture(t) {
   const configPath = path.join(directory, "volume/config.toml");
   const addressesPath = path.join(directory, "volume/config-contracts.toml");
   const log = path.join(directory, "calls.jsonl");
-  fs.writeFileSync(configPath, config);
+  fs.writeFileSync(configPath, configToml);
   // Populate every template entry, including real L1 addresses and the ten L2
   // contracts deliberately excluded from verification. None may leak into calls.
   const template = fs.readFileSync(path.join(__dirname, "../templates/config-contracts.toml"), "utf8");
@@ -77,6 +77,13 @@ process.exit(process.env.VERIFY_TEST_FAIL === "all" || process.env.VERIFY_TEST_F
     },
   };
 }
+
+test("the Docker config template supplies every required verification setting", (t) => {
+  const template = fs.readFileSync(path.join(__dirname, "../templates/config.toml"), "utf8");
+  const result = fixture(t, template).run();
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.calls.length, 21);
+});
 
 test("verifies the 21 selected L2 contracts, including adapter and native predeploy", (t) => {
   const f = fixture(t);
