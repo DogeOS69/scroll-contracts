@@ -4,14 +4,29 @@ pragma solidity =0.8.24;
 import {COORDINATOR_API_CONFIG_PATH, COORDINATOR_CONFIG_TEMPLATE_PATH, COORDINATOR_CRON_CONFIG_PATH, FRONTEND_ENV_PATH} from "./Constants.sol";
 import {DeployScroll} from "./DeployScroll.s.sol";
 import {DeterministicDeployment} from "./DeterministicDeployment.sol";
+import {stdToml} from "forge-std/StdToml.sol";
 
 contract GenerateCoordinatorConfig is DeployScroll {
+    using stdToml for string;
+
+    // Legacy standalone generator only; the Docker gen-configs entrypoint does
+    // not generate coordinator configs or require these settings.
+    string internal CHUNK_COLLECTION_TIME_SEC;
+    string internal BATCH_COLLECTION_TIME_SEC;
+    string internal BUNDLE_COLLECTION_TIME_SEC;
+    string internal L2_RPC_ENDPOINT;
+    string internal constant COORDINATOR_JWT_SECRET_KEY = "dogeos-coordinator-jwt-secret";
+
     /***************
      * Entry point *
      ***************/
 
     function run() public {
         DeterministicDeployment.initialize(ScriptMode.VerifyConfig);
+        CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
+        BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
+        BUNDLE_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BUNDLE_COLLECTION_TIME_SEC");
+        L2_RPC_ENDPOINT = cfg.readString(".general.L2_RPC_ENDPOINT");
         predictAllContracts();
         generateCoordinatorConfig(COORDINATOR_API_CONFIG_PATH);
         generateCoordinatorConfig(COORDINATOR_CRON_CONFIG_PATH);
@@ -69,7 +84,6 @@ contract GenerateFrontendConfig is DeployScroll {
         vm.writeLine(FRONTEND_ENV_PATH, "");
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_RPC_URI_L1 = \"", EXTERNAL_RPC_URI_L1, "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_RPC_URI_L2 = \"", EXTERNAL_RPC_URI_L2, "\""));
-        vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_BRIDGE_API_URI = \"", BRIDGE_API_URI, "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_EXPLORER_URI_L1 = \"", EXTERNAL_EXPLORER_URI_L1, "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("REACT_APP_EXTERNAL_EXPLORER_URI_L2 = \"", EXTERNAL_EXPLORER_URI_L2, "\""));
         vm.writeLine(FRONTEND_ENV_PATH, string.concat("GRAFANA_URI = \"", GRAFANA_URI, "\""));

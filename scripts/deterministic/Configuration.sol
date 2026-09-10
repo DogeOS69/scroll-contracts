@@ -24,45 +24,23 @@ abstract contract Configuration is NativeDogeSupplyConfig {
      ****************************/
 
     // general
-    string internal L1_RPC_ENDPOINT;
-    string internal L2_RPC_ENDPOINT;
-
     string internal CHAIN_NAME_L1;
     string internal CHAIN_NAME_L2;
     uint64 internal CHAIN_ID_L1;
     uint64 internal CHAIN_ID_L2;
 
-    uint256 internal MAX_TX_IN_CHUNK;
-    uint256 internal MAX_BLOCK_IN_CHUNK;
-    uint256 internal MAX_BATCH_IN_BUNDLE;
-    uint256 internal MAX_L1_MESSAGE_GAS_LIMIT;
-    uint256 internal FINALIZE_BATCH_DEADLINE_SEC;
-    uint256 internal RELAY_MESSAGE_DEADLINE_SEC;
-
-    uint256 internal L1_CONTRACT_DEPLOYMENT_BLOCK;
-
-    bool internal TEST_ENV_MOCK_FINALIZE_ENABLED;
-    uint256 internal TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC;
-
     // accounts
     uint256 internal DEPLOYER_PRIVATE_KEY;
-    uint256 internal L1_COMMIT_SENDER_PRIVATE_KEY;
-    uint256 internal L1_FINALIZE_SENDER_PRIVATE_KEY;
-    uint256 internal L1_GAS_ORACLE_SENDER_PRIVATE_KEY;
-    uint256 internal L2_GAS_ORACLE_SENDER_PRIVATE_KEY;
 
     address internal DEPLOYER_ADDR;
-    address internal L1_COMMIT_SENDER_ADDR;
-    address internal L1_FINALIZE_SENDER_ADDR;
-    address internal L1_GAS_ORACLE_SENDER_ADDR;
+    address internal constant L1_GAS_ORACLE_SENDER_ADDR = address(0);
     address internal L2_GAS_ORACLE_SENDER_ADDR;
 
     address internal OWNER_ADDR;
 
-    address internal L2GETH_SIGNER_ADDRESS;
+    address internal constant L2GETH_SIGNER_ADDRESS = address(0);
 
     // genesis
-    uint256 internal L2_MAX_ETH_SUPPLY;
     uint256 internal L2_MAX_NATIVE_DOGE_SUPPLY;
     uint256 internal L2_DEPLOYER_INITIAL_BALANCE;
     uint256 internal L2_SCROLL_MESSENGER_INITIAL_BALANCE;
@@ -81,16 +59,9 @@ abstract contract Configuration is NativeDogeSupplyConfig {
     uint256 internal WITHDRAWAL_FEE;
     uint256 internal MIN_WITHDRAWAL_AMOUNT;
 
-    // coordinator
-    string internal CHUNK_COLLECTION_TIME_SEC;
-    string internal BATCH_COLLECTION_TIME_SEC;
-    string internal BUNDLE_COLLECTION_TIME_SEC;
-    string internal COORDINATOR_JWT_SECRET_KEY;
-
     // frontend
     string internal EXTERNAL_RPC_URI_L1;
     string internal EXTERNAL_RPC_URI_L2;
-    string internal BRIDGE_API_URI;
     string internal EXTERNAL_EXPLORER_URI_L1;
     string internal EXTERNAL_EXPLORER_URI_L2;
     string internal GRAFANA_URI;
@@ -114,60 +85,23 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         cfg = vm.readFile(CONFIG_PATH);
         contractsCfg = vm.readFile(CONFIG_CONTRACTS_PATH);
 
-        L1_RPC_ENDPOINT = cfg.readString(".general.L1_RPC_ENDPOINT");
-        L2_RPC_ENDPOINT = cfg.readString(".general.L2_RPC_ENDPOINT");
-
         CHAIN_NAME_L1 = cfg.readString(".general.CHAIN_NAME_L1");
         CHAIN_NAME_L2 = cfg.readString(".general.CHAIN_NAME_L2");
         CHAIN_ID_L1 = uint64(cfg.readUint(".general.CHAIN_ID_L1"));
         CHAIN_ID_L2 = uint64(cfg.readUint(".general.CHAIN_ID_L2"));
 
-        MAX_TX_IN_CHUNK = cfg.readUint(".rollup.MAX_TX_IN_CHUNK");
-        MAX_BLOCK_IN_CHUNK = cfg.readUint(".rollup.MAX_BLOCK_IN_CHUNK");
-        MAX_BATCH_IN_BUNDLE = cfg.readUint(".rollup.MAX_BATCH_IN_BUNDLE");
-        MAX_L1_MESSAGE_GAS_LIMIT = cfg.readUint(".rollup.MAX_L1_MESSAGE_GAS_LIMIT");
-        FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
-        RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
-
-        L1_CONTRACT_DEPLOYMENT_BLOCK = cfg.readUint(".general.L1_CONTRACT_DEPLOYMENT_BLOCK");
-
-        TEST_ENV_MOCK_FINALIZE_ENABLED = cfg.readBool(".rollup.TEST_ENV_MOCK_FINALIZE_ENABLED");
-        TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC = cfg.readUint(".rollup.TEST_ENV_MOCK_FINALIZE_TIMEOUT_SEC");
-
         DEPLOYER_PRIVATE_KEY = vm.envOr("DEPLOYER_PRIVATE_KEY", uint256(0));
-        L1_COMMIT_SENDER_PRIVATE_KEY = vm.envOr("L1_COMMIT_SENDER_PRIVATE_KEY", uint256(0));
-        L1_FINALIZE_SENDER_PRIVATE_KEY = vm.envOr("L1_FINALIZE_SENDER_PRIVATE_KEY", uint256(0));
-        L1_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L1_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
-        L2_GAS_ORACLE_SENDER_PRIVATE_KEY = vm.envOr("L2_GAS_ORACLE_SENDER_PRIVATE_KEY", uint256(0));
 
         if (DEPLOYER_PRIVATE_KEY == uint256(0)) {
             DEPLOYER_PRIVATE_KEY = cfg.readUint(".accounts.DEPLOYER_PRIVATE_KEY");
         }
-        if (L1_COMMIT_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_COMMIT_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_COMMIT_SENDER_PRIVATE_KEY");
-        }
-        if (L1_FINALIZE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_FINALIZE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_FINALIZE_SENDER_PRIVATE_KEY");
-        }
-        if (L1_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L1_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L1_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        }
-        if (L2_GAS_ORACLE_SENDER_PRIVATE_KEY == uint256(0)) {
-            L2_GAS_ORACLE_SENDER_PRIVATE_KEY = cfg.readUint(".accounts.L2_GAS_ORACLE_SENDER_PRIVATE_KEY");
-        }
 
         DEPLOYER_ADDR = cfg.readAddress(".accounts.DEPLOYER_ADDR");
-        L1_COMMIT_SENDER_ADDR = cfg.readAddress(".accounts.L1_COMMIT_SENDER_ADDR");
-        L1_FINALIZE_SENDER_ADDR = cfg.readAddress(".accounts.L1_FINALIZE_SENDER_ADDR");
-        L1_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L1_GAS_ORACLE_SENDER_ADDR");
-        L2_GAS_ORACLE_SENDER_ADDR = cfg.readAddress(".accounts.L2_GAS_ORACLE_SENDER_ADDR");
+        L2_GAS_ORACLE_SENDER_ADDR = readL2GasOracleSenderAddress();
 
         OWNER_ADDR = cfg.readAddress(".accounts.OWNER_ADDR");
 
-        L2GETH_SIGNER_ADDRESS = cfg.readAddress(".sequencer.L2GETH_SIGNER_ADDRESS");
-
         L2_MAX_NATIVE_DOGE_SUPPLY = readL2MaxNativeDogeSupply(cfg);
-        L2_MAX_ETH_SUPPLY = L2_MAX_NATIVE_DOGE_SUPPLY;
         L2_DEPLOYER_INITIAL_BALANCE = cfg.readUint(".genesis.L2_DEPLOYER_INITIAL_BALANCE");
         BASE_FEE_PER_GAS = cfg.readUint(".genesis.BASE_FEE_PER_GAS");
 
@@ -195,24 +129,11 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         SCALAR = cfg.readUint(".contracts.SCALAR");
         PENALTY_FACTOR = cfg.readUint(".contracts.PENALTY_FACTOR");
 
-        CHUNK_COLLECTION_TIME_SEC = cfg.readString(".coordinator.CHUNK_COLLECTION_TIME_SEC");
-        BATCH_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BATCH_COLLECTION_TIME_SEC");
-        BUNDLE_COLLECTION_TIME_SEC = cfg.readString(".coordinator.BUNDLE_COLLECTION_TIME_SEC");
-
-        COORDINATOR_JWT_SECRET_KEY = vm.envOr("COORDINATOR_JWT_SECRET_KEY", string(""));
-        if (keccak256(abi.encodePacked(COORDINATOR_JWT_SECRET_KEY)) == keccak256(abi.encodePacked(""))) {
-            COORDINATOR_JWT_SECRET_KEY = cfg.readString(".coordinator.COORDINATOR_JWT_SECRET_KEY");
-        }
-
         EXTERNAL_RPC_URI_L1 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L1");
         EXTERNAL_RPC_URI_L2 = cfg.readString(".frontend.EXTERNAL_RPC_URI_L2");
-        BRIDGE_API_URI = cfg.readString(".frontend.BRIDGE_API_URI");
         EXTERNAL_EXPLORER_URI_L1 = cfg.readString(".frontend.EXTERNAL_EXPLORER_URI_L1");
         EXTERNAL_EXPLORER_URI_L2 = cfg.readString(".frontend.EXTERNAL_EXPLORER_URI_L2");
         GRAFANA_URI = cfg.readString(".frontend.GRAFANA_URI");
-
-        FINALIZE_BATCH_DEADLINE_SEC = cfg.readUint(".rollup.FINALIZE_BATCH_DEADLINE_SEC");
-        RELAY_MESSAGE_DEADLINE_SEC = cfg.readUint(".rollup.RELAY_MESSAGE_DEADLINE_SEC");
 
         runSanityCheck();
     }
@@ -266,12 +187,21 @@ abstract contract Configuration is NativeDogeSupplyConfig {
      * Private functions *
      *********************/
 
+    /// @dev Deployment authorizes this service but never signs as it. KMS/HSM
+    ///      operators provide only the public address, not an exportable key.
+    function readL2GasOracleSenderAddress() internal view returns (address) {
+        string memory key = ".accounts.L2_GAS_ORACLE_SENDER_ADDR";
+        string
+            memory missingAddressMessage = "Set accounts.L2_GAS_ORACLE_SENDER_ADDR in volume/config.toml to the L2 gas oracle signer address";
+        require(vm.keyExistsToml(cfg, key), missingAddressMessage);
+        require(bytes(cfg.readString(key)).length != 0, missingAddressMessage);
+        address sender = cfg.readAddress(key);
+        require(sender != address(0), "L2_GAS_ORACLE_SENDER_ADDR must not be zero");
+        return sender;
+    }
+
     function runSanityCheck() private view {
         verifyAccount("DEPLOYER", DEPLOYER_PRIVATE_KEY, DEPLOYER_ADDR);
-        verifyAccount("L1_COMMIT_SENDER", L1_COMMIT_SENDER_PRIVATE_KEY, L1_COMMIT_SENDER_ADDR);
-        verifyAccount("L1_FINALIZE_SENDER", L1_FINALIZE_SENDER_PRIVATE_KEY, L1_FINALIZE_SENDER_ADDR);
-        verifyAccount("L1_GAS_ORACLE_SENDER", L1_GAS_ORACLE_SENDER_PRIVATE_KEY, L1_GAS_ORACLE_SENDER_ADDR);
-        verifyAccount("L2_GAS_ORACLE_SENDER", L2_GAS_ORACLE_SENDER_PRIVATE_KEY, L2_GAS_ORACLE_SENDER_ADDR);
     }
 
     function verifyAccount(
