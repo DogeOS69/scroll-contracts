@@ -312,6 +312,9 @@ Check the printed values before continuing:
 - selected Dogecoin prefixes
 - `L2_PROXY_ADMIN_ADDR`
 - `L2_MOAT_PROXY_ADDR`
+- `L2_DOGEOS_MESSENGER_PROXY_ADDR`, which the new implementation binds as its
+  immutable `MESSENGER`. The script refuses to deploy unless it equals the
+  proxy's current `messenger()`.
 - current implementation
 - predicted or target new implementation
 - generated `upgrade(address,address)` calldata
@@ -344,6 +347,9 @@ Check the printed values before continuing:
 - `ProxyAdmin owner`
 - implementation before upgrade
 - target implementation
+- `current messenger` and `new impl MESSENGER`: they must be equal, and equal
+  to `L2_DOGEOS_MESSENGER_PROXY_ADDR`. Both the shell script and the Forge
+  script that broadcasts refuse to upgrade otherwise; there is no override.
 - pre-upgrade storage snapshot: `messenger`, `withdrawalFee`,
   `minWithdrawalAmount`, `depositFee`, `feeRecipient`, `owner`
 
@@ -491,12 +497,15 @@ Check that key storage-backed values are preserved:
 
 ```bash
 cast call <L2_MOAT_PROXY_ADDR> 'messenger()(address)'           --rpc-url "$L2_RPC"
+cast call <L2_MOAT_PROXY_ADDR> 'MESSENGER()(address)'           --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'withdrawalFee()(uint256)'       --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'minWithdrawalAmount()(uint256)' --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'owner()(address)'               --rpc-url "$L2_RPC"
 ```
 
 Compare these values with the pre-upgrade snapshot printed in Step 6.
+`messenger()` and `MESSENGER()` must both return the messenger from the
+snapshot.
 
 Check that a new entry point exists:
 
@@ -613,6 +622,10 @@ cast send <L2_PROXY_ADMIN_ADDR> \
 Before rollback, confirm the withdraw processor can safely handle any
 already-queued `version=1` envelope withdrawals.
 
+Rolling back to an implementation from before the messenger became immutable
+is safe: the old `messenger` storage slot is never cleared, so the old code
+reads the same messenger address it used before the upgrade.
+
 ---
 
 ## 2. Explanation
@@ -723,11 +736,19 @@ constructor()
 After:
 
 ```solidity
-constructor(bytes1 _p2pkhPrefix, bytes1 _p2shPrefix)
+constructor(bytes1 _p2pkhPrefix, bytes1 _p2shPrefix, address _messenger)
 ```
 
-`P2PKH_PREFIX` and `P2SH_PREFIX` are immutables. They are baked into the
-implementation runtime bytecode and do not use proxy storage.
+`P2PKH_PREFIX`, `P2SH_PREFIX`, and `MESSENGER` are immutables. They are baked
+into the implementation runtime bytecode and do not use proxy storage.
+
+`MESSENGER` replaces the owner-settable `messenger` variable and
+`updateMessenger`. L1 messages are addressed to a messenger fixed by the
+protocol configuration, so a different messenger already needs a coordinated
+protocol upgrade. Binding it in the implementation removes a one-call way to
+redirect every withdrawal and removes the "messenger unset" state. Changing it
+now takes an implementation upgrade. `messenger()` still exists and returns
+`MESSENGER`.
 
 This means a new implementation contract must be deployed per network. The
 implementation address can differ even when the proxy address is the same.
@@ -744,6 +765,7 @@ Additions to `IMoat`:
 - `function withdrawToP2PKH(address) external payable;`
 - `function withdrawToP2SH(address) external payable;`
 - `function withdrawToDogeAddress(string) external payable;`
+- `function MESSENGER() external view returns (address);`
 - `event FeeExemptionUpdated(address indexed account, bool exempt);`
 
 `L2DogeOsMessenger` removals: the `FEE_VAULT()` getter and the fee vault
@@ -754,6 +776,8 @@ constructor argument.
 - `function basculeVerifier() external view returns (address);`
 - `function setBascule(address) external;`
 - `event BasculeVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);`
+- `function updateMessenger(address) external;`
+- `event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);`
 
 Removed custom errors:
 
@@ -776,8 +800,10 @@ The Moat contract layout is preserved and safe for proxy upgrade:
 | `0x33`-`0x38` | `messenger`, deprecated verifier slot, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee` |
 | `0x39` (57)   | **new in v0.3.0:** `feeExemptCallers` mapping — appended after the previously-last variable                 |
 
-`P2PKH_PREFIX`, `P2SH_PREFIX`, and `SATOSHI_TO_WEI` live in bytecode as
-immutables/constants and consume no storage slots. The only layout change is
+`P2PKH_PREFIX`, `P2SH_PREFIX`, `MESSENGER`, and `SATOSHI_TO_WEI` live in bytecode
+as immutables/constants and consume no storage slots. Slot `0x33` (`messenger`)
+is now a deprecated slot; it keeps its old value (it is never cleared) so a
+rollback reads the same address. The only layout change is
 the appended mapping, so no storage migration is required.
 
 No `initialize` re-run is required because the proxy is already initialized.

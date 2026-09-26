@@ -2,17 +2,30 @@
 
 pragma solidity =0.8.24;
 
-import {OwnableBase} from "../libraries/common/OwnableBase.sol";
+// REFERENCE IMPLEMENTATION (test-only). Do not modify.
+//
+// Copy of src/dogeos/Moat.sol at commit 28f6ca9, the implementation running
+// before the messenger became immutable. Only the import paths (for this
+// directory) and the contract name differ. MoatUpgrade.t.sol upgrades a proxy
+// from this implementation to the current Moat to prove the storage layout is
+// preserved, and rolls back to it to prove the deprecated messenger slot stays
+// usable. To confirm the copy:
+//   diff <(git show 28f6ca9:src/dogeos/Moat.sol) src/test/dogeos/reference/ReferenceMoat.sol
+//
+// Files under src/test/**/reference/ hold such pinned implementations. They are
+// compiled only by the test suite and never deployed.
+
+import {OwnableBase} from "../../../libraries/common/OwnableBase.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import {IL2ScrollMessenger} from "../L2/IL2ScrollMessenger.sol";
-import {DogeAddressLib} from "./DogeAddressLib.sol";
-import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
+import {IL2ScrollMessenger} from "../../../L2/IL2ScrollMessenger.sol";
+import {DogeAddressLib} from "../../../dogeos/DogeAddressLib.sol";
+import {WithdrawalEnvelope} from "../../../dogeos/WithdrawalEnvelope.sol";
 
 /**
  * @title Moat
  * @notice Handles verified L1->L2 message execution and L2->L1 withdrawals via the L2DogeOsMessenger.
  */
-contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
+contract ReferenceMoat is OwnableBase, ReentrancyGuardUpgradeable {
     // --- Errors --- //
     error ErrorZeroAddress();
     error ErrorFeeNotCovered();
@@ -38,29 +51,21 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /// @notice The P2SH version byte for this network (0x16 mainnet, 0xc4 testnet/regtest).
     bytes1 public immutable P2SH_PREFIX;
 
-    /// @notice The L2DogeOsMessenger (proxy) this Moat is bound to: the only caller allowed
-    /// to deliver L1->L2 deposits and the messenger that carries L2->L1 withdrawals.
-    /// @dev Immutable. L1 messages are addressed to a messenger address fixed by the protocol
-    /// configuration, so moving to a different messenger already requires a coordinated
-    /// protocol upgrade; it is changed only by upgrading this implementation.
-    address public immutable MESSENGER;
-
     // --- Events --- //
     event WithdrawalFeeUpdated(uint256 oldFee, uint256 newFee);
     event DepositFeeUpdated(uint256 oldFee, uint256 newFee);
     event MinWithdrawalUpdated(uint256 oldMin, uint256 newMin);
     event FeeRecipientUpdated(address indexed oldRecip, address indexed newRecip);
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
+    event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
     event FeeExemptionUpdated(address indexed account, bool exempt);
 
     event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
 
     // --- State Variables --- //
 
-    /// @dev Deprecated storage slot that held the mutable messenger address before it became
-    /// the {MESSENGER} immutable. Kept, and never cleared, to preserve the proxy storage layout;
-    /// on upgraded networks it still holds the messenger address an older implementation reads.
-    address private _deprecatedMessengerSlot;
+    /// @notice The L2 messenger contract used for L2->L1 communication.
+    address public messenger;
 
     /// @dev Deprecated storage slot kept to preserve proxy upgrade layout.
     address private _deprecatedVerifierSlot;
@@ -84,27 +89,18 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     // --- Constructor --- //
 
     /**
-     * @notice Constructor sets the immutable network prefixes and messenger.
+     * @notice Constructor sets immutable network prefixes.
      * @dev Equal prefixes would make decodeChecked classify every address as P2PKH,
      * silently producing the wrong script type for P2SH withdrawals.
      * @param _p2pkhPrefix The P2PKH version byte for this network.
      * @param _p2shPrefix The P2SH version byte for this network.
-     * @param _messenger The L2DogeOsMessenger (proxy) address this Moat is bound to.
      */
-    constructor(
-        bytes1 _p2pkhPrefix,
-        bytes1 _p2shPrefix,
-        address _messenger
-    ) {
+    constructor(bytes1 _p2pkhPrefix, bytes1 _p2shPrefix) {
         if (_p2pkhPrefix == _p2shPrefix) {
             revert ErrorEqualPrefixes();
         }
-        if (_messenger == address(0)) {
-            revert ErrorZeroAddress();
-        }
         P2PKH_PREFIX = _p2pkhPrefix;
         P2SH_PREFIX = _p2shPrefix;
-        MESSENGER = _messenger;
     }
 
     /**
@@ -116,18 +112,21 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         _transferOwnership(_initialOwner);
     }
 
-    // --- Views --- //
+    // --- Setters (Owner Restricted) --- //
 
     /**
-     * @notice The L2 messenger this Moat is bound to.
-     * @dev Kept for ABI compatibility with the former `messenger` storage getter.
-     * @return The {MESSENGER} address.
+     * @notice Update the L2 messenger contract address.
+     * @dev Can only be called by the owner. Emits a {MessengerUpdated} event.
+     * @param _newMessenger The new L2 messenger address.
      */
-    function messenger() external view returns (address) {
-        return MESSENGER;
+    function updateMessenger(address _newMessenger) external onlyOwner {
+        if (_newMessenger == address(0)) {
+            revert ErrorZeroAddress();
+        }
+        address oldMessenger = messenger;
+        messenger = _newMessenger;
+        emit MessengerUpdated(oldMessenger, _newMessenger);
     }
-
-    // --- Setters (Owner Restricted) --- //
 
     /**
      * @notice Update the withdrawal fee.
@@ -208,9 +207,13 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * @param _target The target receipient address on L2.
      */
     function handleL1Message(address _target, bytes32) external payable nonReentrant {
-        // Check 1: Caller must be the messenger this Moat is bound to.
-        if (msg.sender != MESSENGER) {
-            revert ErrorOnlyMessenger(msg.sender, MESSENGER);
+        // Check 1: Caller must be the messenger this Moat is configured for.
+        address _messenger = messenger;
+        if (_messenger == address(0)) {
+            revert ErrorZeroAddress();
+        }
+        if (msg.sender != _messenger) {
+            revert ErrorOnlyMessenger(msg.sender, _messenger);
         }
 
         // Apply deposit fee logic (cache state variables for gas optimization)
@@ -306,6 +309,12 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * @param _isP2SH True for P2SH, false for P2PKH.
      */
     function _processWithdrawal(address _target, bool _isP2SH) internal {
+        // Check 0: Messenger must be configured.
+        address _messenger = messenger;
+        if (_messenger == address(0)) {
+            revert ErrorZeroAddress();
+        }
+
         // Effective fee: exempt callers (e.g. the fee vault adapter) pay no base fee.
         uint256 fee = feeExemptCallers[msg.sender] ? 0 : withdrawalFee;
         uint256 minAmount = minWithdrawalAmount;
@@ -347,7 +356,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         bytes memory envelope = WithdrawalEnvelope.encode(_isP2SH);
 
         // Send the message via the L2 messenger.
-        IL2ScrollMessenger(MESSENGER).sendMessage{value: amountAfterFee}(_target, amountAfterFee, envelope, 0);
+        IL2ScrollMessenger(_messenger).sendMessage{value: amountAfterFee}(_target, amountAfterFee, envelope, 0);
 
         // Emit event.
         emit WithdrawalQueued(msg.sender, _target, amountAfterFee, fee);

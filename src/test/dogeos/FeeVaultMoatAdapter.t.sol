@@ -31,14 +31,13 @@ contract FeeVaultMoatAdapterTest is Test {
     function setUp() public {
         _mockMessenger = new MockScrollMessenger(_l1Counterpart);
 
-        _moat = new Moat(bytes1(0x1e), bytes1(0x16));
+        _moat = new Moat(bytes1(0x1e), bytes1(0x16), address(_mockMessenger));
         _moat.initialize(_owner);
 
         _vault = new L2TxFeeVault(_owner, _dogeRecipient, _VAULT_MIN_WITHDRAWAL);
         _adapter = new FeeVaultMoatAdapter(address(_vault), address(_moat));
 
         vm.startPrank(_owner);
-        _moat.updateMessenger(address(_mockMessenger));
         _moat.setFeeRecipient(_feeRecipient);
         _moat.setWithdrawalFee(_MOAT_FEE);
         _moat.setMinWithdrawal(_MOAT_MIN_WITHDRAWAL);

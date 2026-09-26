@@ -59,11 +59,13 @@ require_command cast
 L2_RPC_ENDPOINT=$(extract EXTERNAL_RPC_URI_L2 "$CONFIG")
 L2_PROXY_ADMIN_ADDR=$(extract L2_PROXY_ADMIN_ADDR "$CONFIG_CONTRACTS")
 L2_MOAT_PROXY_ADDR=$(extract L2_MOAT_PROXY_ADDR "$CONFIG_CONTRACTS")
+L2_DOGEOS_MESSENGER_PROXY_ADDR=$(extract L2_DOGEOS_MESSENGER_PROXY_ADDR "$CONFIG_CONTRACTS")
 CHAIN_ID_L1=$(extract_number CHAIN_ID_L1 "$CONFIG")
 
 require_non_empty "EXTERNAL_RPC_URI_L2 in $CONFIG" "$L2_RPC_ENDPOINT"
 require_non_empty "L2_PROXY_ADMIN_ADDR in $CONFIG_CONTRACTS" "$L2_PROXY_ADMIN_ADDR"
 require_non_empty "L2_MOAT_PROXY_ADDR in $CONFIG_CONTRACTS" "$L2_MOAT_PROXY_ADDR"
+require_non_empty "L2_DOGEOS_MESSENGER_PROXY_ADDR in $CONFIG_CONTRACTS" "$L2_DOGEOS_MESSENGER_PROXY_ADDR"
 require_non_empty "CHAIN_ID_L1 in $CONFIG" "$CHAIN_ID_L1"
 
 cd "$REPO_ROOT"
@@ -84,8 +86,10 @@ echo ""
 echo "running preflight checks"
 echo "ProxyAdmin: $L2_PROXY_ADMIN_ADDR"
 echo "Moat proxy: $L2_MOAT_PROXY_ADDR"
+echo "Messenger:  $L2_DOGEOS_MESSENGER_PROXY_ADDR (bound immutably as Moat.MESSENGER)"
 require_contract_code "$L2_PROXY_ADMIN_ADDR" "L2_PROXY_ADMIN_ADDR"
 require_contract_code "$L2_MOAT_PROXY_ADDR" "L2_MOAT_PROXY_ADDR"
+require_contract_code "$L2_DOGEOS_MESSENGER_PROXY_ADDR" "L2_DOGEOS_MESSENGER_PROXY_ADDR"
 IMPL_BEFORE=$(cast implementation "$L2_MOAT_PROXY_ADDR" --rpc-url "$L2_RPC_ENDPOINT") || exit 1
 echo "impl before: $IMPL_BEFORE"
 
@@ -96,8 +100,9 @@ echo "impl before: $IMPL_BEFORE"
 # proxy — the ProxyAdmin owner must submit the upgrade() call separately. The
 # simulate/broadcast output prints the exact calldata to submit.
 #
-# Addresses (L2_MOAT_PROXY_ADDR, L2_PROXY_ADMIN_ADDR) are read from
-# volume/config-contracts.toml. RPC and CHAIN_ID_L1 come from config.toml.
+# Addresses (L2_MOAT_PROXY_ADDR, L2_PROXY_ADMIN_ADDR, L2_DOGEOS_MESSENGER_PROXY_ADDR)
+# are read from volume/config-contracts.toml. The messenger is bound immutably into
+# the implementation and must equal the proxy's current messenger(). RPC and CHAIN_ID_L1 come from config.toml.
 # Dogecoin prefixes are auto-selected via _dogePrefixesFromL1ChainId().
 
 # Simulate first (always).

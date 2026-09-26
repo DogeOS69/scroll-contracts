@@ -66,11 +66,13 @@ L2_RPC_ENDPOINT=$(extract EXTERNAL_RPC_URI_L2 "$CONFIG")
 L2_PROXY_ADMIN_ADDR=$(extract L2_PROXY_ADMIN_ADDR "$CONFIG_CONTRACTS")
 L2_MOAT_PROXY_ADDR=$(extract L2_MOAT_PROXY_ADDR "$CONFIG_CONTRACTS")
 L2_MOAT_IMPLEMENTATION_ADDR=$(extract L2_MOAT_IMPLEMENTATION_ADDR "$CONFIG_CONTRACTS")
+L2_DOGEOS_MESSENGER_PROXY_ADDR=$(extract L2_DOGEOS_MESSENGER_PROXY_ADDR "$CONFIG_CONTRACTS")
 
 require_non_empty "EXTERNAL_RPC_URI_L2 in $CONFIG" "$L2_RPC_ENDPOINT"
 require_non_empty "L2_PROXY_ADMIN_ADDR in $CONFIG_CONTRACTS" "$L2_PROXY_ADMIN_ADDR"
 require_non_empty "L2_MOAT_PROXY_ADDR in $CONFIG_CONTRACTS" "$L2_MOAT_PROXY_ADDR"
 require_non_empty "L2_MOAT_IMPLEMENTATION_ADDR in $CONFIG_CONTRACTS" "$L2_MOAT_IMPLEMENTATION_ADDR"
+require_non_empty "L2_DOGEOS_MESSENGER_PROXY_ADDR in $CONFIG_CONTRACTS" "$L2_DOGEOS_MESSENGER_PROXY_ADDR"
 
 cd "$REPO_ROOT"
 
@@ -92,6 +94,19 @@ IMPL_BEFORE=$(cast implementation "$L2_MOAT_PROXY_ADDR" --rpc-url "$L2_RPC_ENDPO
 echo "impl before: $IMPL_BEFORE"
 if [ "$(printf '%s' "$IMPL_BEFORE" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$L2_MOAT_IMPLEMENTATION_ADDR" | tr '[:upper:]' '[:lower:]')" ]; then
     echo "warning: target implementation is already active on proxy"
+fi
+
+# The new implementation binds the messenger immutably (Moat.MESSENGER). It must equal
+# both the proxy's current messenger() and the configured messenger proxy.
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+CURRENT_MESSENGER=$(cast call "$L2_MOAT_PROXY_ADDR" 'messenger()(address)' --rpc-url "$L2_RPC_ENDPOINT") || exit 1
+BOUND_MESSENGER=$(cast call "$L2_MOAT_IMPLEMENTATION_ADDR" 'MESSENGER()(address)' --rpc-url "$L2_RPC_ENDPOINT") || exit 1
+echo "current messenger:  $CURRENT_MESSENGER"
+echo "new impl MESSENGER: $BOUND_MESSENGER"
+if [ "$(lower "$BOUND_MESSENGER")" != "$(lower "$CURRENT_MESSENGER")" ] \
+    || [ "$(lower "$BOUND_MESSENGER")" != "$(lower "$L2_DOGEOS_MESSENGER_PROXY_ADDR")" ]; then
+    echo "error: new implementation MESSENGER must equal the proxy's current messenger() and L2_DOGEOS_MESSENGER_PROXY_ADDR"
+    exit 1
 fi
 
 snapshot() {
