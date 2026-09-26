@@ -41,7 +41,7 @@ contract RejectingFeeRecipient {
 
 // Helper contract for testing DogeAddressLib (wraps internal functions for external calls)
 contract DogeAddressLibWrapper {
-    function decode(string calldata addr) external pure returns (bytes1 prefix, bytes20 payload) {
+    function decode(string calldata addr) external view returns (bytes1 prefix, bytes20 payload) {
         return DogeAddressLib.decode(addr);
     }
 
@@ -49,7 +49,7 @@ contract DogeAddressLibWrapper {
         string calldata addr,
         bytes1 p2pkhPrefix,
         bytes1 p2shPrefix
-    ) external pure returns (bool isP2SH, bytes20 payload) {
+    ) external view returns (bool isP2SH, bytes20 payload) {
         return DogeAddressLib.decodeChecked(addr, p2pkhPrefix, p2shPrefix);
     }
 }
@@ -1210,12 +1210,12 @@ contract MoatTest is Test {
 
     // Test vector: Mainnet P2PKH address
     // Prefix 0x1e, payload: 0x89abcdef89abcdef89abcdef89abcdef89abcdef
-    function testDecode_ValidMainnetP2PKH() external pure {
+    function testDecode_ValidMainnetP2PKH() external view {
         // This is a valid mainnet P2PKH address (prefix 0x1e)
         // Address: DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz
         // Payload: 0x89abcdef89abcdef89abcdef89abcdef89abcdef
         string memory addr = "DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz";
-        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+        (bytes1 prefix, bytes20 payload) = _libWrapper.decode(addr);
 
         assertEq(prefix, bytes1(0x1e), "Prefix should be 0x1e (mainnet P2PKH)");
         assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
@@ -1223,54 +1223,54 @@ contract MoatTest is Test {
 
     // Test vector: Mainnet P2SH address
     // Prefix 0x16
-    function testDecode_ValidMainnetP2SH() external pure {
+    function testDecode_ValidMainnetP2SH() external view {
         // This is a valid mainnet P2SH address (prefix 0x16)
         // Address: 9rYHbG7NUbMEX7jEGCXeHVZ7RiowPFZPPN
         // Payload: 0x0123456789012345678901234567890123456789
         string memory addr = "9rYHbG7NUbMEX7jEGCXeHVZ7RiowPFZPPN";
-        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+        (bytes1 prefix, bytes20 payload) = _libWrapper.decode(addr);
 
         assertEq(prefix, bytes1(0x16), "Prefix should be 0x16 (mainnet P2SH)");
         assertEq(payload, bytes20(0x0123456789012345678901234567890123456789), "Payload mismatch");
     }
 
-    function testDecode_ValidTestnetP2PKH() external pure {
+    function testDecode_ValidTestnetP2PKH() external view {
         // Valid testnet P2PKH address (prefix 0x71)
         // Payload: 0x89abcdef89abcdef89abcdef89abcdef89abcdef
         string memory addr = "ngk6ejVecZ9Y7aLGQhKUL7JPBUVVdeoBmd";
-        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+        (bytes1 prefix, bytes20 payload) = _libWrapper.decode(addr);
 
         assertEq(prefix, bytes1(0x71), "Prefix should be 0x71 (testnet P2PKH)");
         assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
     }
 
-    function testDecode_ValidTestnetP2SH_35Chars() external pure {
+    function testDecode_ValidTestnetP2SH_35Chars() external view {
         // Valid testnet/regtest P2SH address (prefix 0xc4). The 0xc4 version byte
         // pushes the Base58 encoding to 35 characters — the maximum length must
         // stay 35 to keep these canonical addresses accepted.
         string memory addr = "2N5oANkEZYXcFzYuTSWxvaWtgRLsngz5GBG";
         assertEq(bytes(addr).length, 35, "Test vector must be 35 chars");
-        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+        (bytes1 prefix, bytes20 payload) = _libWrapper.decode(addr);
 
         assertEq(prefix, bytes1(0xc4), "Prefix should be 0xc4 (testnet P2SH)");
         assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
     }
 
-    function testDecode_LeadingOneEncodesLeadingZeroByte() external pure {
+    function testDecode_LeadingOneEncodesLeadingZeroByte() external view {
         // Version byte 0x00 (Bitcoin-style) produces a leading '1' character,
         // exercising the leading-zero handling in the decoder.
         string memory addr = "1DYwPTp6PAnXhbaUeHgTXwYV4UNuN85ZJw";
-        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+        (bytes1 prefix, bytes20 payload) = _libWrapper.decode(addr);
 
         assertEq(prefix, bytes1(0x00), "Prefix should be 0x00");
         assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
     }
 
-    function testDecode_InteriorZeroPayload() external pure {
+    function testDecode_InteriorZeroPayload() external view {
         // Payload that is almost all zero bytes (mainnet P2PKH prefix) — exercises
         // the used-length tracking in the big-number conversion.
         string memory addr = "D596YFweJQuHY1BbjazZYmAbt8jJXaDhSF";
-        (bytes1 prefix, bytes20 payload) = DogeAddressLib.decode(addr);
+        (bytes1 prefix, bytes20 payload) = _libWrapper.decode(addr);
 
         assertEq(prefix, bytes1(0x1e), "Prefix should be 0x1e (mainnet P2PKH)");
         assertEq(payload, bytes20(0x0000000000000000000000000000000000000001), "Payload mismatch");
@@ -1349,10 +1349,10 @@ contract MoatTest is Test {
 
     // --- Tests: decodeChecked Prefix Validation --- //
 
-    function testDecodeChecked_AcceptMainnetP2PKH() external pure {
+    function testDecodeChecked_AcceptMainnetP2PKH() external view {
         string memory addr = "DHh2vikjgagpEbm5Nsg25hi5wc7CfwbFyz";
 
-        (bool isP2SH, bytes20 payload) = DogeAddressLib.decodeChecked(
+        (bool isP2SH, bytes20 payload) = _libWrapper.decodeChecked(
             addr,
             bytes1(0x1e), // mainnet P2PKH
             bytes1(0x16) // mainnet P2SH
@@ -1362,10 +1362,10 @@ contract MoatTest is Test {
         assertEq(payload, bytes20(0x89aBCDeF89ABCDEf89aBCDEF89aBcdEF89ABcdeF), "Payload mismatch");
     }
 
-    function testDecodeChecked_AcceptMainnetP2SH() external pure {
+    function testDecodeChecked_AcceptMainnetP2SH() external view {
         string memory addr = "9rYHbG7NUbMEX7jEGCXeHVZ7RiowPFZPPN";
 
-        (bool isP2SH, bytes20 payload) = DogeAddressLib.decodeChecked(
+        (bool isP2SH, bytes20 payload) = _libWrapper.decodeChecked(
             addr,
             bytes1(0x1e), // mainnet P2PKH
             bytes1(0x16) // mainnet P2SH
@@ -1475,5 +1475,4 @@ contract MoatTest is Test {
         vm.expectRevert(abi.encodeWithSelector(DogeAddressLib.ErrorUnrecognizedPrefix.selector, bytes1(0x71)));
         _moat.withdrawToDogeAddress{value: totalValue}(testnetAddr);
     }
-
 }
