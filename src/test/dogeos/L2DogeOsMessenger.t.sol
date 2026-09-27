@@ -220,6 +220,54 @@ contract L2DogeOsMessengerTest is MoatTestBase {
         assertEq(_l2MessageQueue.nextMessageIndex(), expectedNonce + 1, "Nonce mismatch");
     }
 
+    /// @dev The send path no longer writes messageSendTimestamp, but the withdrawal leaf must be
+    ///      exactly what the upstream implementation appended: keccak256 of the relayMessage
+    ///      calldata. Checked by feeding that hash to an independent queue and comparing roots.
+    function testSendMessage_LeafUnchangedAndTimestampNotWritten() external {
+        address targetL1 = address(0x111);
+        uint256 valueToSend = 1 ether;
+        bytes memory message = WithdrawalEnvelope.encode(true);
+        uint256 nonce = _l2MessageQueue.nextMessageIndex();
+
+        vm.deal(address(_moat), valueToSend);
+        vm.prank(address(_moat));
+        _l2Messenger.sendMessage{value: valueToSend}({
+            _to: targetL1,
+            _value: valueToSend,
+            _message: message,
+            _gasLimit: 0
+        });
+
+        bytes32 expectedLeaf = keccak256(
+            abi.encodeWithSignature(
+                "relayMessage(address,address,uint256,uint256,bytes)",
+                address(_moat),
+                targetL1,
+                valueToSend,
+                nonce,
+                message
+            )
+        );
+        L2MessageQueue referenceQueue = new L2MessageQueue(address(this));
+        referenceQueue.initialize(address(this));
+        referenceQueue.appendMessage(expectedLeaf);
+
+        assertEq(_l2MessageQueue.messageRoot(), referenceQueue.messageRoot(), "withdrawal leaf changed");
+        assertEq(_l2Messenger.messageSendTimestamp(expectedLeaf), 0, "timestamp must not be written");
+    }
+
+    function testSendMessage_Revert_ValueMismatch() external {
+        vm.deal(address(_moat), 1 ether);
+        vm.prank(address(_moat));
+        vm.expectRevert("msg.value mismatch");
+        _l2Messenger.sendMessage{value: 1 ether}({
+            _to: address(0x111),
+            _value: 2 ether,
+            _message: WithdrawalEnvelope.encode(false),
+            _gasLimit: 0
+        });
+    }
+
     // Test that the P2SH envelope is also accepted from the Moat.
     function testSendMessageFromMoatP2SHEnvelope() external {
         bytes memory message = WithdrawalEnvelope.encode(true);
