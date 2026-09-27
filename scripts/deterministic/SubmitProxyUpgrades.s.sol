@@ -8,6 +8,7 @@ import {stdToml} from "forge-std/StdToml.sol";
 
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {IMoat} from "../../src/dogeos/IMoat.sol";
+import {LegacyReplayCheck} from "./LegacyReplayCheck.sol";
 
 import {CONFIG_CONTRACTS_PATH} from "./Constants.sol";
 
@@ -123,14 +124,26 @@ contract SubmitDogeOsMessengerProxyUpgrade is ProxyUpgradeScriptBase {
         address adapter = contractsCfg.readAddress(".L2_FEE_VAULT_MOAT_ADAPTER_ADDR");
         _requireFeeVaultRewired(feeVault, adapter);
 
-        _runUpgrade(
-            "L2DogeOsMessenger proxy",
-            UpgradeInputs({
-                proxyAdmin: contractsCfg.readAddress(".L2_PROXY_ADMIN_ADDR"),
-                proxy: contractsCfg.readAddress(".L2_DOGEOS_MESSENGER_PROXY_ADDR"),
-                implementation: contractsCfg.readAddress(".L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR")
-            })
+        UpgradeInputs memory inputs = UpgradeInputs({
+            proxyAdmin: contractsCfg.readAddress(".L2_PROXY_ADMIN_ADDR"),
+            proxy: contractsCfg.readAddress(".L2_DOGEOS_MESSENGER_PROXY_ADDR"),
+            implementation: contractsCfg.readAddress(".L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR")
+        });
+        _validateUpgradeInputs(inputs);
+
+        // Replay protection must survive the upgrade: a messenger that relayed deposits under the
+        // per-hash mapping must keep checking it, and a rollback to a pre-bitmap implementation
+        // would drop protection for deposits relayed since (ALLOW_MESSENGER_ROLLBACK=1 overrides
+        // only the latter). The messenger's Initializable flag is the low byte of slot 0.
+        bool initialized = uint8(uint256(vm.load(inputs.proxy, bytes32(0)))) != 0;
+        LegacyReplayCheck.requireSafeUpgrade(
+            inputs.proxy,
+            initialized,
+            inputs.implementation,
+            vm.envOr("ALLOW_MESSENGER_ROLLBACK", uint256(0)) == 1
         );
+
+        _runUpgrade("L2DogeOsMessenger proxy", inputs);
     }
 
     function _requireFeeVaultRewired(address feeVault, address adapter) private view {

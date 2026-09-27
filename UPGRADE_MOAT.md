@@ -426,6 +426,27 @@ BROADCAST=1 scripts/deterministic/shell/deploy-dogeos-messenger-impl.sh
 Constructor args are read from `volume/config-contracts.toml`
 (`L1_SCROLL_MESSENGER_PROXY_ADDR`, `L2_MESSAGE_QUEUE_ADDR`,
 `L2_MOAT_PROXY_ADDR`) — the fee vault is no longer a constructor argument.
+
+The implementation also takes `LEGACY_REPLAY_CHECK`. Replay protection for
+relayed deposits moves from a per-message-hash mapping to a per-nonce bitmap
+(nonce = L1 queue index). Deposits relayed before the upgrade are recorded
+only in the old mapping, so a messenger upgraded in place keeps checking it
+(`LEGACY_REPLAY_CHECK = true`; one extra storage read per deposit). There is
+nothing to configure:
+
+- The deploy script derives the value from the live proxy
+  (`scripts/deterministic/LegacyReplayCheck.sol`). A pre-bitmap
+  implementation gives `true`; an implementation that already has the flag
+  keeps its value.
+- The broadcasting upgrade script refuses an implementation that would turn
+  the check off.
+- It also refuses to roll back to a pre-bitmap implementation, which would
+  only check the old mapping and drop replay protection for deposits relayed
+  since the upgrade. Set `ALLOW_MESSENGER_ROLLBACK=1` only if you accept that.
+
+Networks that start with the bitmap implementation (fresh deployments) use
+`false`.
+
 After broadcast, confirm `volume/config-contracts.toml` contains the new:
 
 ```toml
@@ -498,6 +519,7 @@ Check that key storage-backed values are preserved:
 ```bash
 cast call <L2_MOAT_PROXY_ADDR> 'messenger()(address)'           --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'MESSENGER()(address)'           --rpc-url "$L2_RPC"
+cast call <L2_DOGEOS_MESSENGER_PROXY_ADDR> 'LEGACY_REPLAY_CHECK()(bool)'            --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'withdrawalFee()(uint256)'       --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'minWithdrawalAmount()(uint256)' --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'owner()(address)'               --rpc-url "$L2_RPC"
