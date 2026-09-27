@@ -7,6 +7,7 @@ import {L2MessageQueue} from "../L2/predeploys/L2MessageQueue.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ScrollConstants} from "../libraries/constants/ScrollConstants.sol";
 
+import {TransientReentrancyGuard} from "./TransientReentrancyGuard.sol";
 import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
 
 // Potentially add import for Moat contract here
@@ -16,7 +17,7 @@ import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
  * @notice A custom L2 messenger for DogeOS, inheriting from L2ScrollMessenger.
  * It modifies the standard behavior to interact with the DogeOS Moat contract.
  */
-contract L2DogeOsMessenger is L2ScrollMessenger {
+contract L2DogeOsMessenger is L2ScrollMessenger, TransientReentrancyGuard {
     // --- Errors --- //
     error ErrorNotMoatAddress(address provided, address expected);
     error ErrorSenderNotMoat(address sender, address expected);
@@ -186,7 +187,7 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         uint256 _value,
         bytes memory _message,
         uint256 _gasLimit
-    ) internal virtual override nonReentrant {
+    ) internal virtual override nonReentrantTransient {
         // Require that the caller is the MOAT contract.
         if (msg.sender != MOAT) {
             revert ErrorSenderNotMoat(msg.sender, MOAT);

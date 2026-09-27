@@ -6,13 +6,17 @@ import {OwnableBase} from "../libraries/common/OwnableBase.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {IL2ScrollMessenger} from "../L2/IL2ScrollMessenger.sol";
 import {DogeAddressLib} from "./DogeAddressLib.sol";
+import {TransientReentrancyGuard} from "./TransientReentrancyGuard.sol";
 import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
 
 /**
  * @title Moat
  * @notice Handles verified L1->L2 message execution and L2->L1 withdrawals via the L2DogeOsMessenger.
  */
-contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
+/// @dev Entry points are guarded by {TransientReentrancyGuard}. ReentrancyGuardUpgradeable stays
+/// inherited only for its storage (the unused `_status` slot and gap), so the proxy layout is
+/// unchanged.
+contract Moat is OwnableBase, ReentrancyGuardUpgradeable, TransientReentrancyGuard {
     // --- Errors --- //
     error ErrorZeroAddress();
     error ErrorFeeNotCovered();
@@ -210,7 +214,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * Relays the call (and value) to the target address.
      * @param _target The target receipient address on L2.
      */
-    function handleL1Message(address _target, bytes32) external payable nonReentrant {
+    function handleL1Message(address _target, bytes32) external payable nonReentrantTransient {
         // Check 1: Caller must be the messenger this Moat is bound to.
         if (msg.sender != MESSENGER) {
             revert ErrorOnlyMessenger(msg.sender, MESSENGER);
@@ -261,7 +265,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * The amount after fee is floored to a satoshi multiple; the remainder joins the fee.
      * @param _target The recipient address (hash160 payload).
      */
-    function withdrawToL1(address _target) external payable nonReentrant {
+    function withdrawToL1(address _target) external payable nonReentrantTransient {
         _processWithdrawal(_target, false);
     }
 
@@ -271,7 +275,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * The amount after fee is floored to a satoshi multiple; the remainder joins the fee.
      * @param _target The 20-byte hash160 payload as an address type.
      */
-    function withdrawToP2PKH(address _target) external payable nonReentrant {
+    function withdrawToP2PKH(address _target) external payable nonReentrantTransient {
         _processWithdrawal(_target, false);
     }
 
@@ -281,7 +285,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * The amount after fee is floored to a satoshi multiple; the remainder joins the fee.
      * @param _target The 20-byte script hash as an address type.
      */
-    function withdrawToP2SH(address _target) external payable nonReentrant {
+    function withdrawToP2SH(address _target) external payable nonReentrantTransient {
         _processWithdrawal(_target, true);
     }
 
@@ -291,7 +295,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * The amount after fee is floored to a satoshi multiple; the remainder joins the fee.
      * @param _dogeAddress The full Base58Check-encoded Dogecoin address.
      */
-    function withdrawToDogeAddress(string calldata _dogeAddress) external payable nonReentrant {
+    function withdrawToDogeAddress(string calldata _dogeAddress) external payable nonReentrantTransient {
         (bool isP2SH, bytes20 payload) = DogeAddressLib.decodeChecked(_dogeAddress, P2PKH_PREFIX, P2SH_PREFIX);
         _processWithdrawal(address(payload), isP2SH);
     }
