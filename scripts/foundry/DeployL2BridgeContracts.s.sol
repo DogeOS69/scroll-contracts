@@ -48,6 +48,9 @@ contract DeployL2BridgeContracts is Script {
     address L2_DOGEOS_MESSENGER_PROXY_ADDR = vm.envAddress("L2_DOGEOS_MESSENGER_PROXY_ADDR");
     // The Moat proxy must exist beforehand: the messenger implementation binds it immutably.
     address L2_MOAT_PROXY_ADDR = vm.envAddress("L2_MOAT_PROXY_ADDR");
+    // L2DogeOsMessenger.LEGACY_REPLAY_CHECK: false for a fresh messenger (this manual path
+    // initializes the proxy); true if the implementation will replace a pre-bitmap one.
+    bool L2_LEGACY_REPLAY_CHECK = vm.envOr("L2_LEGACY_REPLAY_CHECK", false);
 
     address L1_SCROLL_MESSENGER_PROXY_ADDR = vm.envAddress("L1_SCROLL_MESSENGER_PROXY_ADDR");
     address L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR");
@@ -143,7 +146,8 @@ contract DeployL2BridgeContracts is Script {
         L2DogeOsMessenger impl = new L2DogeOsMessenger(
             L1_SCROLL_MESSENGER_PROXY_ADDR,
             address(queue),
-            L2_MOAT_PROXY_ADDR
+            L2_MOAT_PROXY_ADDR,
+            L2_LEGACY_REPLAY_CHECK
         );
 
         logAddress("L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR", address(impl));
