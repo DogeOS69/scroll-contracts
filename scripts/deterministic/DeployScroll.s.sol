@@ -1691,14 +1691,16 @@ contract DeployScroll is DeterministicDeployment {
             moat.initialize(DEPLOYER_ADDR);
 
             moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
-            moat.setWithdrawalFee(WITHDRAWAL_FEE);
-            moat.setDepositFee(DEPOSIT_FEE);
-            moat.setMinWithdrawal(MIN_WITHDRAWAL_AMOUNT);
+            // The fee recipient must be set before the fees: handleL1Message skips the
+            // deposit fee while no recipient is configured.
             if (L2_BRIDGE_FEE_RECIPIENT_ADDR != address(0)) {
                 moat.setFeeRecipient(L2_BRIDGE_FEE_RECIPIENT_ADDR);
             } else {
                 moat.setFeeRecipient(L2_TX_FEE_VAULT_ADDR);
             }
+            moat.setWithdrawalFee(WITHDRAWAL_FEE);
+            moat.setDepositFee(DEPOSIT_FEE);
+            moat.setMinWithdrawal(MIN_WITHDRAWAL_AMOUNT);
         }
 
         // Exempt the fee vault adapter from the withdrawal fee so the protocol does
