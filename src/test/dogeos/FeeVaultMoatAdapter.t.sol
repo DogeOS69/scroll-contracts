@@ -2,7 +2,7 @@
 
 pragma solidity =0.8.24;
 
-import {Test} from "forge-std/Test.sol";
+import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
 // Target contracts
 import {FeeVaultMoatAdapter} from "../../dogeos/FeeVaultMoatAdapter.sol";
@@ -11,8 +11,9 @@ import {L2TxFeeVault} from "../../L2/predeploys/L2TxFeeVault.sol";
 
 // Mocks
 import {MockScrollMessenger} from "./Moat.t.sol";
+import {MoatTestBase} from "./MoatTestBase.t.sol";
 
-contract FeeVaultMoatAdapterTest is Test {
+contract FeeVaultMoatAdapterTest is MoatTestBase {
     Moat internal _moat;
     L2TxFeeVault internal _vault;
     FeeVaultMoatAdapter internal _adapter;
@@ -31,19 +32,27 @@ contract FeeVaultMoatAdapterTest is Test {
     function setUp() public {
         _mockMessenger = new MockScrollMessenger(_l1Counterpart);
 
-        _moat = new Moat(bytes1(0x1e), bytes1(0x16), address(_mockMessenger));
-        _moat.initialize(_owner);
-
+        // Same order as DeployScroll: the Moat proxy exists first so the adapter can bind
+        // it, then the Moat is installed with the adapter's fee exemption.
+        (ProxyAdmin admin, address moatProxy) = _deployEmptyProxy();
         _vault = new L2TxFeeVault(_owner, _dogeRecipient, _VAULT_MIN_WITHDRAWAL);
-        _adapter = new FeeVaultMoatAdapter(address(_vault), address(_moat));
+        _adapter = new FeeVaultMoatAdapter(address(_vault), moatProxy);
+        _moat = _installMoat(
+            admin,
+            moatProxy,
+            address(_mockMessenger),
+            MoatConfig({
+                owner: _owner,
+                feeRecipient: _feeRecipient,
+                withdrawalFee: _MOAT_FEE,
+                depositFee: 0,
+                minWithdrawal: _MOAT_MIN_WITHDRAWAL,
+                feeExemptCaller: address(_adapter)
+            })
+        );
 
-        vm.startPrank(_owner);
-        _moat.setFeeRecipient(_feeRecipient);
-        _moat.setWithdrawalFee(_MOAT_FEE);
-        _moat.setMinWithdrawal(_MOAT_MIN_WITHDRAWAL);
-        _moat.setFeeExempt(address(_adapter), true);
+        vm.prank(_owner);
         _vault.updateMessenger(address(_adapter));
-        vm.stopPrank();
     }
 
     // --- Constructor --- //

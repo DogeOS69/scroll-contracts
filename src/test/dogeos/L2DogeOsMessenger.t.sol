@@ -3,7 +3,8 @@
 pragma solidity =0.8.24;
 
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
-import {Test} from "forge-std/Test.sol";
+import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {MoatTestBase} from "./MoatTestBase.t.sol";
 
 // DogeOS Contracts
 import {WithdrawalEnvelope} from "../../dogeos/WithdrawalEnvelope.sol";
@@ -27,7 +28,7 @@ contract RevertingReceiver {
     }
 }
 
-contract L2DogeOsMessengerTest is Test {
+contract L2DogeOsMessengerTest is MoatTestBase {
     L1ScrollMessenger internal _l1Messenger;
 
     // DogeOS Contracts Instances
@@ -44,27 +45,31 @@ contract L2DogeOsMessengerTest is Test {
         // Deploy L2 contracts
         _l2MessageQueue = new L2MessageQueue(address(this)); // Needs owner
 
-        // Moat and messenger each bind the other immutably, so predict the messenger's
-        // address (it is created right after the Moat) and bind the Moat to it.
-        address predictedMessenger = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
-        address moatOwner = address(this);
-        _moat = new Moat(bytes1(0x1e), bytes1(0x16), predictedMessenger); // mainnet P2PKH, P2SH prefixes
-        _moat.initialize(moatOwner);
-
-        // Messenger needs Moat address at deployment
+        // Moat and messenger each bind the other immutably. Same order as DeployScroll:
+        // the Moat proxy exists first, the messenger binds it, then the Moat implementation
+        // bound to the messenger is installed and configured.
+        (ProxyAdmin moatAdmin, address moatProxy) = _deployEmptyProxy();
         _l2Messenger = new L2DogeOsMessenger(
             address(_l1Messenger), // counterpart
             address(_l2MessageQueue), // messageQueue
-            address(_moat) // initialMoat
+            moatProxy // MOAT
         );
-        assertEq(address(_l2Messenger), predictedMessenger, "messenger address prediction");
+        _moat = _installMoat(
+            moatAdmin,
+            moatProxy,
+            address(_l2Messenger),
+            MoatConfig({
+                owner: address(this),
+                feeRecipient: address(0xfee),
+                withdrawalFee: 0,
+                depositFee: 0,
+                minWithdrawal: 0.01 ether,
+                feeExemptCaller: address(0)
+            })
+        );
 
         // Initialize L2MessageQueue to recognize our messenger
         _l2MessageQueue.initialize(address(_l2Messenger));
-
-        // Configure Moat (using owner = address(this))
-        _moat.setFeeRecipient(address(0xfee));
-        // Set other Moat params as needed
     }
 
     // Test that relayMessage reverts if the caller is not the aliased L1 messenger counterpart.

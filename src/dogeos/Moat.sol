@@ -105,6 +105,9 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
         P2PKH_PREFIX = _p2pkhPrefix;
         P2SH_PREFIX = _p2shPrefix;
         MESSENGER = _messenger;
+
+        // The implementation itself is never initialized; only proxies are.
+        _disableInitializers();
     }
 
     /**
