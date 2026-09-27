@@ -53,9 +53,12 @@ contract L2MessageQueueTest is DSTestPlus {
 
         queue.appendMessage(bytes32(uint256(3)));
         assertEq(queue.nextMessageIndex(), 3);
+        // Only the live frontier (the set bits of nextMessageIndex = 0b11) is maintained:
+        // the root of the incomplete tree is no longer mirrored into branches(2).
+        assertEq(queue.branches(0), bytes32(uint256(3)));
         assertEq(
-            queue.branches(2),
-            bytes32(uint256(0x222ff5e0b5877792c2bc1670e2ccd0c2c97cd7bb1672a57d598db05092d3d72c))
+            queue.branches(1),
+            bytes32(uint256(0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0))
         );
         assertEq(
             queue.messageRoot(),
@@ -64,6 +67,7 @@ contract L2MessageQueueTest is DSTestPlus {
 
         queue.appendMessage(bytes32(uint256(4)));
         assertEq(queue.nextMessageIndex(), 4);
+        // The tree of 4 leaves is complete, so its root is the next left sibling at height 2.
         assertEq(
             queue.branches(2),
             bytes32(uint256(0xa9bb8c3f1f12e9aa903a50c47f314b57610a3ab32f2d463293f58836def38d36))
