@@ -2,7 +2,16 @@
 
 pragma solidity =0.8.24;
 
-// solhint-disable no-inline-assembly
+// REFERENCE IMPLEMENTATION (test-only). Do not modify.
+//
+// Verbatim copy of src/dogeos/WithdrawalEnvelope.sol at commit 28f6ca9 (the
+// byte-by-byte envelope encoder/validator); only the library name differs. It is
+// the equivalence oracle for the single-word implementation: the tests require
+// both to agree on every input. To confirm the copy is verbatim:
+//   diff <(git show 28f6ca9:src/dogeos/WithdrawalEnvelope.sol) src/test/dogeos/reference/ReferenceWithdrawalEnvelope.sol
+//
+// Files under src/test/**/reference/ hold such pinned implementations. They are
+// compiled only by the test suite and never deployed.
 
 /**
  * @title WithdrawalEnvelope
@@ -17,7 +26,7 @@ pragma solidity =0.8.24;
  *      pre-v0.3.0 blank messages are NOT valid: the messenger rejects them, so downstream
  *      consumers never face two possible representations for the same recipient.
  */
-library WithdrawalEnvelope {
+library ReferenceWithdrawalEnvelope {
     /// @notice Envelope version byte.
     uint8 internal constant VERSION = 1;
 
@@ -27,18 +36,15 @@ library WithdrawalEnvelope {
     /// @notice Flags byte for a P2SH (script hash160) recipient.
     bytes1 internal constant FLAG_P2SH = 0x01;
 
-    /// @dev The two valid envelopes as 2-byte words: version byte, then flags byte.
-    bytes2 private constant ENVELOPE_P2PKH = bytes2((uint16(VERSION) << 8) | uint16(uint8(FLAG_P2PKH)));
-    bytes2 private constant ENVELOPE_P2SH = bytes2((uint16(VERSION) << 8) | uint16(uint8(FLAG_P2SH)));
-
     /**
      * @notice Encode the withdrawal envelope.
      * @param _isP2SH True for P2SH, false for P2PKH.
      * @return envelope The 2-byte envelope (version, flags).
      */
     function encode(bool _isP2SH) internal pure returns (bytes memory envelope) {
-        // One 2-byte write, instead of zero-filling a new array and two bounds-checked byte stores.
-        envelope = abi.encodePacked(_isP2SH ? ENVELOPE_P2SH : ENVELOPE_P2PKH);
+        envelope = new bytes(2);
+        envelope[0] = bytes1(VERSION);
+        envelope[1] = _isP2SH ? FLAG_P2SH : FLAG_P2PKH;
     }
 
     /**
@@ -49,14 +55,9 @@ library WithdrawalEnvelope {
      * @return True iff the message is a valid v1 envelope.
      */
     function isValid(bytes memory _message) internal pure returns (bool) {
-        if (_message.length != 2) {
-            return false;
-        }
-        // Compare both bytes with one word load instead of two bounds-checked byte reads.
-        bytes2 head;
-        assembly {
-            head := and(mload(add(_message, 0x20)), shl(240, 0xffff))
-        }
-        return head == ENVELOPE_P2PKH || head == ENVELOPE_P2SH;
+        return
+            _message.length == 2 &&
+            _message[0] == bytes1(VERSION) &&
+            (_message[1] == FLAG_P2PKH || _message[1] == FLAG_P2SH);
     }
 }
