@@ -1598,6 +1598,17 @@ contract DeployScroll is DeterministicDeployment {
                 notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
             );
         }
+
+        // Security assumption: DeployScroll runs before the L2 RPC is public. The proxy is
+        // upgraded in the 2nd pass and initialized above in a later transaction, so nobody
+        // else may be able to send transactions in between. The check below is a sanity
+        // check only: it stops the deploy here if someone else initialized the proxy and
+        // kept it, but not if they handed it back to this owner.
+        address messengerOwner = L2DogeOsMessenger(payable(L2_DOGEOS_MESSENGER_PROXY_ADDR)).owner();
+        require(
+            messengerOwner == DEPLOYER_ADDR || messengerOwner == OWNER_ADDR,
+            "L2DogeOsMessenger has an unexpected owner"
+        );
     }
 
     function initializeL2GatewayRouter() private {
