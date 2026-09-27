@@ -117,7 +117,9 @@ contract MoatUpgradeTest is Test {
         vm.prank(address(_messenger));
         moat.handleL1Message{value: 1 ether}(target, bytes32(0));
         assertEq(target.balance, 1 ether - DEPOSIT_FEE, "deposit credited");
-        assertEq(_feeRecipient.balance, DEPOSIT_FEE, "deposit fee collected");
+        assertEq(address(moat).balance, DEPOSIT_FEE, "deposit fee held by the Moat");
+        moat.sweepFees();
+        assertEq(_feeRecipient.balance, DEPOSIT_FEE, "deposit fee swept to the recipient");
 
         // Withdrawal sent through the bound messenger.
         vm.deal(_user, 1 ether);

@@ -72,6 +72,7 @@ contract FeeVaultMoatAdapterTest is MoatTestBase {
         uint256 dust = 12345; // sub-satoshi remainder
         vm.deal(address(_vault), amountAligned + dust);
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         _vault.withdraw();
@@ -87,6 +88,7 @@ contract FeeVaultMoatAdapterTest is MoatTestBase {
         assertEq(_mockMessenger.lastMessage()[1], bytes1(uint8(0)), "Envelope flags should be 0 (P2PKH)");
 
         // The adapter is fee-exempt: only the dust goes to the fee recipient.
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + dust, "Only dust should be collected as fee");
     }
 
@@ -97,11 +99,13 @@ contract FeeVaultMoatAdapterTest is MoatTestBase {
         uint256 amount = 2 ether;
         vm.deal(address(_vault), amount);
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         _vault.withdraw();
 
         assertEq(_mockMessenger.lastValue(), amount - _MOAT_FEE, "Value should be reduced by the base fee");
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + _MOAT_FEE, "Base fee should be collected");
     }
 

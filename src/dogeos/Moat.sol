@@ -22,6 +22,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     error ErrorFeeTransferFailed();
     error ErrorInvalidMinWithdrawal();
     error ErrorEqualPrefixes();
+    error ErrorFeeRecipientNotSet();
 
     // --- Constants --- //
 
@@ -54,6 +55,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     event FeeExemptionUpdated(address indexed account, bool exempt);
 
     event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
+    event FeesSwept(address indexed recipient, uint256 amount);
 
     // --- State Variables --- //
 
@@ -71,7 +73,8 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /// @notice The minimum amount (after fee) allowed for withdrawals.
     uint256 public minWithdrawalAmount;
 
-    /// @notice The recipient address for withdrawal and deposit fees.
+    /// @notice The recipient of withdrawal and deposit fees. Fees are held by this contract and
+    /// paid to the current recipient by {sweepFees}.
     address public feeRecipient;
 
     /// @notice The fee required for L1->L2 deposits.
@@ -172,8 +175,10 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     }
 
     /**
-     * @notice Update the withdrawal fee recipient address.
+     * @notice Update the fee recipient address.
      * @dev Can only be called by the owner. Emits a {FeeRecipientUpdated} event.
+     * Fees held by this contract at the time of the change go to the new recipient on the
+     * next {sweepFees}; call {sweepFees} first to pay the outgoing recipient.
      * @param _newRecip The new fee recipient address.
      */
     function setFeeRecipient(address _newRecip) external onlyOwner {
@@ -216,29 +221,20 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             revert ErrorOnlyMessenger(msg.sender, MESSENGER);
         }
 
-        // Apply deposit fee logic (cache state variables for gas optimization)
+        // The deposit fee is kept in this contract until {sweepFees} pays it to feeRecipient,
+        // so a deposit makes no call to the recipient.
         uint256 _depositFee = depositFee;
-        address _feeRecipient = feeRecipient;
         uint256 feeCollected = 0;
         uint256 amountToTarget = msg.value;
 
-        if (_depositFee > 0 && _feeRecipient != address(0)) {
+        if (_depositFee > 0) {
             if (msg.value <= _depositFee) {
-                // All funds go to fee recipient, no target call
-                (bool success, ) = _feeRecipient.call{value: msg.value}("");
-                if (!success) revert ErrorFeeTransferFailed();
-                feeCollected = msg.value;
-                amountToTarget = 0;
-                emit DepositReceived(msg.sender, _target, msg.value, feeCollected);
-                return; // Early return, skip target call
-            } else {
-                // Deduct fee and continue to target
-                amountToTarget = msg.value - _depositFee;
-                feeCollected = _depositFee;
-                // Transfer fee to recipient
-                (bool success, ) = _feeRecipient.call{value: _depositFee}("");
-                if (!success) revert ErrorFeeTransferFailed();
+                // The whole deposit is the fee; no target call.
+                emit DepositReceived(msg.sender, _target, msg.value, msg.value);
+                return;
             }
+            amountToTarget = msg.value - _depositFee;
+            feeCollected = _depositFee;
         }
 
         // Emit DepositReceived event with fee information
@@ -251,6 +247,34 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
                 revert ErrorTargetRevert();
             }
         }
+    }
+
+    /**
+     * @notice Pays every fee held by this contract to the current {feeRecipient}.
+     * @dev Permissionless. Deposits and withdrawals keep their fee here instead of paying the
+     * recipient in the same transaction, which saves a call to a cold account per operation
+     * and means a recipient that rejects payment can no longer block deposits or withdrawals.
+     * This contract has no receive or fallback function and forwards everything but the fee,
+     * so its balance is exactly the unswept fees (plus any value force-sent to it, which is
+     * swept the same way). Fees held when the owner changes {feeRecipient} go to the new
+     * recipient; run a sweep first to pay the outgoing one.
+     * @return amount The amount paid.
+     */
+    function sweepFees() external nonReentrant returns (uint256 amount) {
+        address recipient = feeRecipient;
+        if (recipient == address(0)) {
+            revert ErrorFeeRecipientNotSet();
+        }
+        amount = address(this).balance;
+        if (amount == 0) {
+            return 0;
+        }
+        // slither-disable-next-line arbitrary-send-eth
+        (bool success, ) = recipient.call{value: amount}("");
+        if (!success) {
+            revert ErrorFeeTransferFailed();
+        }
+        emit FeesSwept(recipient, amount);
     }
 
     // --- Withdrawal Entry Points --- //
@@ -302,9 +326,8 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      * @dev Internal function to process withdrawals with envelope encoding.
      * The amount after fee is floored to a multiple of {SATOSHI_TO_WEI} so it is
      * exactly representable on Dogecoin (8 decimals); the sub-satoshi remainder
-     * is added to the fee. Callers in {feeExemptCallers} pay no base fee.
-     * Whenever any fee (including dust) is due, `feeRecipient` must be configured
-     * or the withdrawal reverts — fees are never left in this contract.
+     * is added to the fee. Callers in {feeExemptCallers} pay no base fee. The fee
+     * (including dust) stays in this contract until {sweepFees} pays it to feeRecipient.
      * @param _target The 20-byte hash160/script-hash payload.
      * @param _isP2SH True for P2SH, false for P2PKH.
      */
@@ -333,17 +356,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
             revert ErrorBelowMinimumWithdrawal();
         }
 
-        // Transfer fee to the recipient. Fail closed when a fee (or dust) is due but
-        // no recipient is configured — otherwise the value would be stranded in this
-        // contract, which has no sweep path, while the event reports it as collected.
-        if (fee > 0) {
-            address payable feeRecip = payable(feeRecipient);
-            if (feeRecip == address(0)) revert ErrorFeeTransferFailed();
-            // Use call to avoid potential gas stipend issues with transfer()
-            // slither-disable-next-line arbitrary-send-eth
-            (bool success, ) = feeRecip.call{value: fee}("");
-            if (!success) revert ErrorFeeTransferFailed();
-        }
+        // The fee (base fee plus dust) stays in this contract until {sweepFees}.
 
         // Encode the message envelope (shared with the messenger's validation, so the
         // producer and the enforcer cannot drift).
