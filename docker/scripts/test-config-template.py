@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """Compare shared TOML templates using local contract deployment and CLI commands.
 
+The candidate is docker/templates/config.toml from this checkout; the baseline
+is the same file read from --baseline-ref (default: HEAD, i.e. this checkout,
+which exercises the tooling end-to-end with an empty template diff; pass e.g.
+origin/dogeos-v0.3.0-develop when auditing a template change). Typical local run:
+
+    python3 docker/scripts/test-config-template.py \
+        --baseline-ref origin/dogeos-v0.3.0-develop
+
 Requires Python 3.11+, forge, anvil, cast, jq, Node.js, installed repository
-node_modules/lib dependencies, and a built sibling scroll-sdk-cli.
-Only ephemeral Anvil receives transactions. Verification requests are mocked.
+node_modules/lib dependencies, and a built sibling scroll-sdk-cli (or pass
+--cli-repo). Only ephemeral Anvil receives transactions. Verification requests
+are mocked.
 """
 
 import argparse
@@ -430,9 +439,15 @@ def flatten(config, prefix=""):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cli-repo", type=Path)
+    parser.add_argument("--cli-repo", type=Path,
+                        help="Path to a built scroll-sdk-cli checkout"
+                             " (default: a scroll-sdk-cli sibling of this repository)")
     parser.add_argument(
-        "--baseline-ref", default="56a4cacda6046c9445af023aefee15a42fda2fdd"
+        "--baseline-ref",
+        default="HEAD",
+        help="Git revision supplying the baseline docker/templates/config.toml"
+             " (default: HEAD, the current checkout; pass e.g."
+             " origin/dogeos-v0.3.0-develop to audit a template change)",
     )
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--previous-evidence", type=Path,
