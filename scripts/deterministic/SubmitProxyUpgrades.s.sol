@@ -7,6 +7,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {stdToml} from "forge-std/StdToml.sol";
 
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
+import {IMoat} from "../../src/dogeos/IMoat.sol";
 
 import {CONFIG_CONTRACTS_PATH} from "./Constants.sol";
 
@@ -53,7 +54,7 @@ abstract contract ProxyUpgradeScriptBase is Script {
         vm.stopBroadcast();
     }
 
-    function _validateUpgradeInputs(UpgradeInputs memory inputs) private view {
+    function _validateUpgradeInputs(UpgradeInputs memory inputs) internal view {
         require(inputs.proxyAdmin != address(0), "L2_PROXY_ADMIN_ADDR is zero");
         require(inputs.proxy != address(0), "proxy address is zero");
         require(inputs.implementation != address(0), "implementation address is zero");
@@ -73,13 +74,41 @@ contract SubmitMoatProxyUpgrade is ProxyUpgradeScriptBase {
     function run() external {
         string memory contractsCfg = _contractsCfg();
 
-        _runUpgrade(
-            "Moat proxy",
-            UpgradeInputs({
-                proxyAdmin: contractsCfg.readAddress(".L2_PROXY_ADMIN_ADDR"),
-                proxy: contractsCfg.readAddress(".L2_MOAT_PROXY_ADDR"),
-                implementation: contractsCfg.readAddress(".L2_MOAT_IMPLEMENTATION_ADDR")
-            })
+        UpgradeInputs memory inputs = UpgradeInputs({
+            proxyAdmin: contractsCfg.readAddress(".L2_PROXY_ADMIN_ADDR"),
+            proxy: contractsCfg.readAddress(".L2_MOAT_PROXY_ADDR"),
+            implementation: contractsCfg.readAddress(".L2_MOAT_IMPLEMENTATION_ADDR")
+        });
+        _validateUpgradeInputs(inputs);
+        _requireMessengerBinding(
+            inputs.proxy,
+            inputs.implementation,
+            contractsCfg.readAddress(".L2_DOGEOS_MESSENGER_PROXY_ADDR")
+        );
+
+        _runUpgrade("Moat proxy", inputs);
+    }
+
+    /// @dev The new implementation binds the messenger immutably (Moat.MESSENGER). It must be
+    ///      the messenger the live proxy already uses and the configured messenger proxy, or
+    ///      every deposit and withdrawal would break after the upgrade. Not bypassable.
+    function _requireMessengerBinding(
+        address proxy,
+        address implementation,
+        address configuredMessenger
+    ) private view {
+        require(configuredMessenger != address(0), "L2_DOGEOS_MESSENGER_PROXY_ADDR is zero");
+
+        address currentMessenger = IMoat(proxy).messenger();
+        address boundMessenger = IMoat(implementation).MESSENGER();
+        console.log("current messenger:", currentMessenger);
+        console.log("new impl MESSENGER:", boundMessenger);
+
+        require(currentMessenger != address(0), "Moat proxy messenger() is zero");
+        require(boundMessenger == currentMessenger, "new implementation MESSENGER != proxy's current messenger()");
+        require(
+            boundMessenger == configuredMessenger,
+            "new implementation MESSENGER != L2_DOGEOS_MESSENGER_PROXY_ADDR"
         );
     }
 }

@@ -169,23 +169,20 @@ contract MoatTest is Test {
         // Deploy Mocks & Dependencies
         // _l2MessageQueue = new L2MessageQueue(_owner); // No longer needed
 
-        // Deploy Moat (owned by _owner) with mainnet prefixes
-        vm.prank(_owner);
-        _moat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
-        _moat.initialize(_owner);
-
         // Deploy Mock Messenger (simpler constructor)
         _mockMessenger = new MockScrollMessenger(
             _l1Counterpart
             // No longer needs message queue or moat address
         );
 
+        // Deploy Moat (owned by _owner) with mainnet prefixes, bound to the mock messenger
+        _moat = _deployFreshMoat();
+
         // Deploy library wrapper for revert testing
         _libWrapper = new DogeAddressLibWrapper();
 
         // Configure Moat (as owner)
         vm.startPrank(_owner);
-        _moat.updateMessenger(address(_mockMessenger));
         _moat.setFeeRecipient(_feeRecipient);
         _moat.setWithdrawalFee(_INITIAL_FEE);
         _moat.setMinWithdrawal(_INITIAL_MIN_WITHDRAWAL);
@@ -195,32 +192,32 @@ contract MoatTest is Test {
         vm.deal(_user, 10 ether);
     }
 
+    /// @dev A fresh, unconfigured Moat with mainnet prefixes, bound to the mock
+    ///      messenger and owned by `_owner`.
+    function _deployFreshMoat() internal returns (Moat freshMoat) {
+        freshMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX, address(_mockMessenger));
+        freshMoat.initialize(_owner);
+    }
+
     // --- Tests: Setters --- //
 
-    function testUpdateMessenger_Success() external {
-        address newMessenger = address(0xabcd);
-        address oldMessenger = address(_mockMessenger);
-
-        vm.prank(_owner);
-        vm.expectEmit(true, true, false, false); // oldMessenger, newMessenger are indexed
-        emit Moat.MessengerUpdated(oldMessenger, newMessenger);
-        _moat.updateMessenger(newMessenger);
-
-        assertEq(_moat.messenger(), newMessenger, "Messenger address should be updated");
+    function testMessenger_BoundAtConstruction() external view {
+        assertEq(_moat.MESSENGER(), address(_mockMessenger), "MESSENGER should be the constructor argument");
+        assertEq(_moat.messenger(), address(_mockMessenger), "messenger() should return MESSENGER");
     }
 
-    function testUpdateMessenger_Revert_NotOwner() external {
-        address newMessenger = address(0xabcd);
-        vm.prank(_user); // Non-owner
-        vm.expectRevert(bytes("caller is not the owner"));
-        _moat.updateMessenger(newMessenger);
-    }
-
-    function testUpdateMessenger_Revert_ZeroAddress() external {
-        address newMessenger = address(0);
-        vm.prank(_owner);
+    function testConstructor_Revert_ZeroMessenger() external {
         vm.expectRevert(Moat.ErrorZeroAddress.selector);
-        _moat.updateMessenger(newMessenger);
+        new Moat(_P2PKH_PREFIX, _P2SH_PREFIX, address(0));
+    }
+
+    /// @dev The messenger can only change through an implementation upgrade: the
+    ///      former owner setter no longer exists.
+    function testUpdateMessenger_Removed() external {
+        vm.prank(_owner);
+        (bool success, ) = address(_moat).call(abi.encodeWithSignature("updateMessenger(address)", address(0xabcd)));
+        assertFalse(success, "updateMessenger must not exist");
+        assertEq(_moat.messenger(), address(_mockMessenger), "Messenger must be unchanged");
     }
 
     function testSetWithdrawalFee_Success() external {
@@ -417,12 +414,6 @@ contract MoatTest is Test {
             uint256 notEnoughValue = barelyEnoughValue - 1; // This should fail
 
             // Sanity check: ensure barelyEnoughValue works
-            // Need to reset mock state if we call it twice
-            vm.startPrank(_owner);
-            _mockMessenger = new MockScrollMessenger(_l1Counterpart);
-            _moat.updateMessenger(address(_mockMessenger));
-            vm.stopPrank();
-
             vm.prank(_user);
             // No revert expected here
             _moat.withdrawToL1{value: barelyEnoughValue}(targetL1);
@@ -906,47 +897,6 @@ contract MoatTest is Test {
         _moat.withdrawToP2SH{value: fee}(targetL1);
     }
 
-    // --- Tests: Messenger Not Configured --- //
-
-    function testWithdrawToP2PKH_Revert_MessengerNotConfigured() external {
-        // Deploy a new Moat without configuring the messenger
-        Moat unconfiguredMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
-        unconfiguredMoat.initialize(_owner);
-
-        address targetL1 = address(0x1111);
-        uint256 totalValue = 1 ether;
-
-        vm.prank(_user);
-        vm.expectRevert(Moat.ErrorZeroAddress.selector);
-        unconfiguredMoat.withdrawToP2PKH{value: totalValue}(targetL1);
-    }
-
-    function testWithdrawToP2SH_Revert_MessengerNotConfigured() external {
-        // Deploy a new Moat without configuring the messenger
-        Moat unconfiguredMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
-        unconfiguredMoat.initialize(_owner);
-
-        address targetL1 = address(0x2222);
-        uint256 totalValue = 1 ether;
-
-        vm.prank(_user);
-        vm.expectRevert(Moat.ErrorZeroAddress.selector);
-        unconfiguredMoat.withdrawToP2SH{value: totalValue}(targetL1);
-    }
-
-    function testWithdrawToL1_Revert_MessengerNotConfigured() external {
-        // Deploy a new Moat without configuring the messenger
-        Moat unconfiguredMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
-        unconfiguredMoat.initialize(_owner);
-
-        address targetL1 = address(0x3333);
-        uint256 totalValue = 1 ether;
-
-        vm.prank(_user);
-        vm.expectRevert(Moat.ErrorZeroAddress.selector);
-        unconfiguredMoat.withdrawToL1{value: totalValue}(targetL1);
-    }
-
     // --- Tests: Satoshi Flooring --- //
 
     function testWithdrawToL1_FloorsDustIntoFee() external {
@@ -1017,10 +967,7 @@ contract MoatTest is Test {
 
     function testWithdrawToL1_Revert_FloorsToZero() external {
         // Fresh Moat: fee and min both unset (0), so only the zero guard can catch this.
-        Moat freshMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
-        freshMoat.initialize(_owner);
-        vm.prank(_owner);
-        freshMoat.updateMessenger(address(_mockMessenger));
+        Moat freshMoat = _deployFreshMoat();
 
         address targetL1 = address(0x1111);
         uint256 subSatoshiValue = _moat.SATOSHI_TO_WEI() - 1;
@@ -1173,17 +1120,14 @@ contract MoatTest is Test {
 
     function testConstructor_Revert_EqualPrefixes() external {
         vm.expectRevert(Moat.ErrorEqualPrefixes.selector);
-        new Moat(bytes1(0x1e), bytes1(0x1e));
+        new Moat(bytes1(0x1e), bytes1(0x1e), address(_mockMessenger));
     }
 
     function testWithdrawToL1_Revert_FeeDueButNoRecipient() external {
         // Fresh Moat with no feeRecipient configured. Any withdrawal that owes a fee
         // (here: flooring dust with a zero base fee) must fail closed instead of
         // stranding the fee in the contract.
-        Moat freshMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX);
-        freshMoat.initialize(_owner);
-        vm.prank(_owner);
-        freshMoat.updateMessenger(address(_mockMessenger));
+        Moat freshMoat = _deployFreshMoat();
 
         vm.prank(_user);
         vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);

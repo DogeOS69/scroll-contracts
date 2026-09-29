@@ -231,13 +231,25 @@ contract DeployScroll is DeterministicDeployment {
         // existing proxy/admin addresses have to be pulled from config-contracts.toml.
         L2_PROXY_ADMIN_ADDR = notnull(contractsCfg.readAddress(".L2_PROXY_ADMIN_ADDR"));
         L2_MOAT_PROXY_ADDR = notnull(contractsCfg.readAddress(".L2_MOAT_PROXY_ADDR"));
+        L2_DOGEOS_MESSENGER_PROXY_ADDR = notnull(contractsCfg.readAddress(".L2_DOGEOS_MESSENGER_PROXY_ADDR"));
+
+        // The implementation binds the messenger immutably (Moat.MESSENGER), so it must be
+        // the messenger the live proxy already uses. A mismatch would break every deposit
+        // and withdrawal once the proxy is upgraded.
+        require(L2_DOGEOS_MESSENGER_PROXY_ADDR.code.length != 0, "L2_DOGEOS_MESSENGER_PROXY_ADDR has no code");
+        address currentMessenger = Moat(L2_MOAT_PROXY_ADDR).messenger();
+        require(
+            currentMessenger == L2_DOGEOS_MESSENGER_PROXY_ADDR,
+            "L2_DOGEOS_MESSENGER_PROXY_ADDR does not match the Moat proxy's current messenger()"
+        );
 
         (bytes1 p2pkh, bytes1 p2sh) = _dogePrefixesFromL1ChainId();
         console.log("Deploying Moat with Dogecoin prefixes:");
         console.logBytes1(p2pkh);
         console.logBytes1(p2sh);
+        console.log("Bound to messenger:", L2_DOGEOS_MESSENGER_PROXY_ADDR);
 
-        bytes memory args = abi.encode(p2pkh, p2sh);
+        bytes memory args = abi.encode(p2pkh, p2sh, L2_DOGEOS_MESSENGER_PROXY_ADDR);
         L2_MOAT_IMPLEMENTATION_ADDR = deploy("L2_MOAT_IMPLEMENTATION", type(Moat).creationCode, args);
 
         bytes memory callData = abi.encodeWithSignature(
@@ -1313,7 +1325,7 @@ contract DeployScroll is DeterministicDeployment {
         console.logBytes1(p2pkh);
         console.logBytes1(p2sh);
 
-        bytes memory args = abi.encode(p2pkh, p2sh);
+        bytes memory args = abi.encode(p2pkh, p2sh, notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR));
         L2_MOAT_IMPLEMENTATION_ADDR = deploy("L2_MOAT_IMPLEMENTATION", type(Moat).creationCode, args);
 
         upgrade(L2_PROXY_ADMIN_ADDR, L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR);
@@ -1682,11 +1694,13 @@ contract DeployScroll is DeterministicDeployment {
     function initializeL2Moat() private {
         Moat moat = Moat(L2_MOAT_PROXY_ADDR);
 
+        // The messenger is bound immutably by the implementation (see deployL2Moat).
+        require(moat.messenger() == notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR), "Moat is bound to the wrong messenger");
+
         if (moat.owner() == address(0)) {
             //must initialize first, the following calls will revert if owner is not current caller
             moat.initialize(DEPLOYER_ADDR);
 
-            moat.updateMessenger(L2_DOGEOS_MESSENGER_PROXY_ADDR);
             // The fee recipient must be set before the fees: handleL1Message skips the
             // deposit fee while no recipient is configured.
             if (L2_BRIDGE_FEE_RECIPIENT_ADDR != address(0)) {

@@ -44,9 +44,11 @@ contract L2DogeOsMessengerTest is Test {
         // Deploy L2 contracts
         _l2MessageQueue = new L2MessageQueue(address(this)); // Needs owner
 
-        // Moat needs owner at deployment (with mainnet prefixes)
+        // Moat and messenger each bind the other immutably, so predict the messenger's
+        // address (it is created right after the Moat) and bind the Moat to it.
+        address predictedMessenger = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
         address moatOwner = address(this);
-        _moat = new Moat(bytes1(0x1e), bytes1(0x16)); // mainnet P2PKH, P2SH prefixes
+        _moat = new Moat(bytes1(0x1e), bytes1(0x16), predictedMessenger); // mainnet P2PKH, P2SH prefixes
         _moat.initialize(moatOwner);
 
         // Messenger needs Moat address at deployment
@@ -55,9 +57,7 @@ contract L2DogeOsMessengerTest is Test {
             address(_l2MessageQueue), // messageQueue
             address(_moat) // initialMoat
         );
-
-        // Link Moat back to Messenger (requires owner call)
-        _moat.updateMessenger(address(_l2Messenger));
+        assertEq(address(_l2Messenger), predictedMessenger, "messenger address prediction");
 
         // Initialize L2MessageQueue to recognize our messenger
         _l2MessageQueue.initialize(address(_l2Messenger));

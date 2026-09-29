@@ -25,7 +25,6 @@ interface IMoat {
     event MinWithdrawalUpdated(uint256 oldMin, uint256 newMin);
     event FeeRecipientUpdated(address indexed oldRecip, address indexed newRecip);
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
-    event MessengerUpdated(address indexed oldMessenger, address indexed newMessenger);
     event FeeExemptionUpdated(address indexed account, bool exempt);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner); // From OwnableBase inheritance
 
@@ -49,8 +48,6 @@ interface IMoat {
     function owner() external view returns (address); // From OwnableBase inheritance
 
     // Setters
-    function updateMessenger(address _newMessenger) external;
-
     function setWithdrawalFee(uint256 _newFee) external;
 
     function setDepositFee(uint256 _newFee) external;
@@ -65,6 +62,8 @@ interface IMoat {
     function P2PKH_PREFIX() external view returns (bytes1);
 
     function P2SH_PREFIX() external view returns (bytes1);
+
+    function MESSENGER() external view returns (address);
 
     function SATOSHI_TO_WEI() external view returns (uint256);
 
