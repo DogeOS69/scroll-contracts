@@ -14,7 +14,6 @@ import {L2ERC1155Gateway} from "../../src/L2/gateways/L2ERC1155Gateway.sol";
 import {L2ERC721Gateway} from "../../src/L2/gateways/L2ERC721Gateway.sol";
 import {L2ETHGateway} from "../../src/L2/gateways/L2ETHGateway.sol";
 import {L2GatewayRouter} from "../../src/L2/gateways/L2GatewayRouter.sol";
-import {L2ScrollMessenger} from "../../src/L2/L2ScrollMessenger.sol";
 import {L2StandardERC20Gateway} from "../../src/L2/gateways/L2StandardERC20Gateway.sol";
 import {L2WETHGateway} from "../../src/L2/gateways/L2WETHGateway.sol";
 import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
@@ -23,6 +22,7 @@ import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
 import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20.sol";
 import {ScrollStandardERC20Factory} from "../../src/libraries/token/ScrollStandardERC20Factory.sol";
+import {L2DogeOsMessenger} from "../../src/dogeos/L2DogeOsMessenger.sol";
 
 // solhint-disable max-states-count
 // solhint-disable state-visibility
@@ -46,6 +46,8 @@ contract DeployL2BridgeContracts is Script {
     ScrollStandardERC20Factory factory;
 
     address L2_DOGEOS_MESSENGER_PROXY_ADDR = vm.envAddress("L2_DOGEOS_MESSENGER_PROXY_ADDR");
+    // The Moat proxy must exist beforehand: the messenger implementation binds it immutably.
+    address L2_MOAT_PROXY_ADDR = vm.envAddress("L2_MOAT_PROXY_ADDR");
 
     address L1_SCROLL_MESSENGER_PROXY_ADDR = vm.envAddress("L1_SCROLL_MESSENGER_PROXY_ADDR");
     address L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = vm.envAddress("L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR");
@@ -74,7 +76,7 @@ contract DeployL2BridgeContracts is Script {
         deployL2Whitelist();
 
         // upgradable
-        deployL2ScrollMessenger();
+        deployL2DogeOsMessenger();
         deployL2GatewayRouter();
         deployScrollStandardERC20Factory();
         deployL2StandardERC20Gateway();
@@ -137,8 +139,12 @@ contract DeployL2BridgeContracts is Script {
         logAddress("L2_WHITELIST_ADDR", address(whitelist));
     }
 
-    function deployL2ScrollMessenger() internal {
-        L2ScrollMessenger impl = new L2ScrollMessenger(L1_SCROLL_MESSENGER_PROXY_ADDR, address(queue));
+    function deployL2DogeOsMessenger() internal {
+        L2DogeOsMessenger impl = new L2DogeOsMessenger(
+            L1_SCROLL_MESSENGER_PROXY_ADDR,
+            address(queue),
+            L2_MOAT_PROXY_ADDR
+        );
 
         logAddress("L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR", address(impl));
     }
