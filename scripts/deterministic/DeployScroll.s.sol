@@ -42,7 +42,6 @@ import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
 import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
 import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20.sol";
 import {ScrollStandardERC20FactorySetOwner} from "./contracts/ScrollStandardERC20FactorySetOwner.sol";
-import {ScrollChainMockFinalize} from "../../src/mocks/ScrollChainMockFinalize.sol";
 import {Moat} from "../../src/dogeos/Moat.sol";
 
 import "./Constants.sol";
@@ -774,13 +773,11 @@ contract DeployScroll is DeterministicDeployment {
             notnull(SYSTEM_CONFIG_PROXY_ADDR)
         );
 
-        bytes memory creationCode = type(ScrollChain).creationCode;
-
-        if (TEST_ENV_MOCK_FINALIZE_ENABLED) {
-            creationCode = type(ScrollChainMockFinalize).creationCode;
-        }
-
-        L1_SCROLL_CHAIN_IMPLEMENTATION_ADDR = deploy("L1_SCROLL_CHAIN_IMPLEMENTATION", creationCode, args);
+        L1_SCROLL_CHAIN_IMPLEMENTATION_ADDR = deploy(
+            "L1_SCROLL_CHAIN_IMPLEMENTATION",
+            type(ScrollChain).creationCode,
+            args
+        );
 
         upgrade(L1_PROXY_ADMIN_ADDR, L1_SCROLL_CHAIN_PROXY_ADDR, L1_SCROLL_CHAIN_IMPLEMENTATION_ADDR);
     }
@@ -1352,30 +1349,26 @@ contract DeployScroll is DeterministicDeployment {
             ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).initialize(
                 notnull(L1_MESSAGE_QUEUE_V2_PROXY_ADDR),
                 notnull(L1_MULTIPLE_VERSION_ROLLUP_VERIFIER_ADDR),
-                MAX_TX_IN_CHUNK
+                0 // Deprecated maxNumTxInChunk initializer argument; never read by ScrollChain.
             );
-        }
-
-        if (!ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).isSequencer(L1_COMMIT_SENDER_ADDR)) {
-            ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).addSequencer(L1_COMMIT_SENDER_ADDR);
-        }
-
-        if (!ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).isProver(L1_FINALIZE_SENDER_ADDR)) {
-            ScrollChain(L1_SCROLL_CHAIN_PROXY_ADDR).addProver(L1_FINALIZE_SENDER_ADDR);
         }
     }
 
+    // DogeOS uses Dogecoin as its actual L1; Ethereum/Scroll L1 contracts are simulated.
+    // This initializer is only for an explicit legacy Ethereum/Scroll L1 deployment.
+    // Its environment inputs match InitializeL1BridgeContracts and are independent of
+    // the L2 client (Reth/Geth); DogeOS L2 generation/deployment never reads them.
     function initializeSystemConfig() private {
         address owner = L1_PROXY_ADMIN_ADDR;
         address signer = L2GETH_SIGNER_ADDRESS;
         SystemConfig.MessageQueueParameters memory messageQueueParameters = SystemConfig.MessageQueueParameters({
-            maxGasLimit: uint32(MAX_L1_MESSAGE_GAS_LIMIT),
+            maxGasLimit: uint32(vm.envUint("MAX_L1_MESSAGE_GAS_LIMIT")),
             baseFeeOverhead: 1000000000,
             baseFeeScalar: 1000000000
         });
         SystemConfig.EnforcedBatchParameters memory enforcedBatchParameters = SystemConfig.EnforcedBatchParameters({
-            maxDelayEnterEnforcedMode: uint24(FINALIZE_BATCH_DEADLINE_SEC),
-            maxDelayMessageQueue: uint24(RELAY_MESSAGE_DEADLINE_SEC)
+            maxDelayEnterEnforcedMode: uint24(vm.envUint("FINALIZE_BATCH_DEADLINE_SEC")),
+            maxDelayMessageQueue: uint24(vm.envUint("RELAY_MESSAGE_DEADLINE_SEC"))
         });
 
         if (getInitializeCount(SYSTEM_CONFIG_PROXY_ADDR) == 0) {
@@ -1496,6 +1489,9 @@ contract DeployScroll is DeterministicDeployment {
     }
 
     function initializeL1Whitelist() private {
+        // The legacy L1 gas-oracle sender is disabled; do not whitelist address(0).
+        if (L1_GAS_ORACLE_SENDER_ADDR == address(0)) return;
+
         address[] memory accounts = new address[](1);
         accounts[0] = L1_GAS_ORACLE_SENDER_ADDR;
 

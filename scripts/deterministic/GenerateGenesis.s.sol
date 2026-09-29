@@ -23,7 +23,7 @@ contract GenerateGenesis is DeployScroll {
         predictAllContracts();
 
         generateGenesisAlloc();
-        generateGenesisJson();
+        generateGenesisJson(GENESIS_ALLOC_JSON_PATH, GENESIS_JSON_PATH);
 
         // clean up temporary files
         vm.removeFile(GENESIS_ALLOC_JSON_PATH);
@@ -242,71 +242,56 @@ contract GenerateGenesis is DeployScroll {
         vm.deal(DEPLOYER_ADDR, L2_DEPLOYER_INITIAL_BALANCE);
     }
 
-    function generateGenesisJson() private {
-        // initialize template file
-        if (vm.exists(GENESIS_JSON_PATH)) {
-            vm.removeFile(GENESIS_JSON_PATH);
-        }
+    function generateGenesisJson(string memory allocPath, string memory outputPath) internal {
+        // The Docker entrypoint wraps this JSON in YAML for the Kubernetes ConfigMap.
+        vm.writeFile(outputPath, vm.readFile(GENESIS_JSON_TEMPLATE_PATH));
 
-        string memory template = vm.readFile(GENESIS_JSON_TEMPLATE_PATH);
-        vm.writeFile(GENESIS_JSON_PATH, template);
+        // Chain IDs and L1 block/message counts are JSON numbers. Addresses and
+        // header quantities are explicitly quoted JSON strings, avoiding writeJson's
+        // implicit value parsing.
+        vm.writeJson(vm.toString(CHAIN_ID_L2), outputPath, ".config.chainId");
+        writeGenesisString(vm.toString(bytes32(vm.unixTime() / 1000)), outputPath, ".timestamp");
+        writeGenesisString(vm.toString(bytes32(BASE_FEE_PER_GAS)), outputPath, ".baseFeePerGas");
 
-        // general config
-        vm.writeJson(vm.toString(CHAIN_ID_L2), GENESIS_JSON_PATH, ".config.chainId");
-
-        uint256 timestamp = vm.unixTime() / 1000;
-        vm.writeJson(vm.toString(bytes32(timestamp)), GENESIS_JSON_PATH, ".timestamp");
-
-        string memory extraData = string(
-            abi.encodePacked(
-                "0x0000000000000000000000000000000000000000000000000000000000000000",
-                vm.replace(vm.toString(L2GETH_SIGNER_ADDRESS), "0x", ""),
-                "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            )
-        );
-
-        vm.writeJson(extraData, GENESIS_JSON_PATH, ".extraData");
-
-        // scroll-specific config
-        vm.writeJson(vm.toString(MAX_TX_IN_CHUNK), GENESIS_JSON_PATH, ".config.scroll.maxTxPerBlock");
-        vm.writeJson(vm.toString(L2_TX_FEE_VAULT_ADDR), GENESIS_JSON_PATH, ".config.scroll.feeVaultAddress");
-
-        // serialize explicitly as string, otherwise foundry will serialize it as number
-        string memory l1ChainId = string(abi.encodePacked('"', vm.toString(CHAIN_ID_L1), '"'));
-        vm.writeJson(l1ChainId, GENESIS_JSON_PATH, ".config.scroll.l1Config.l1ChainId");
-
-        vm.writeJson(
+        writeGenesisString(vm.toString(L2_TX_FEE_VAULT_ADDR), outputPath, ".config.scroll.feeVaultAddress");
+        vm.writeJson(vm.toString(CHAIN_ID_L1), outputPath, ".config.scroll.l1Config.l1ChainId");
+        writeGenesisString(
             vm.toString(SYSTEM_CONFIG_PROXY_ADDR),
-            GENESIS_JSON_PATH,
-            ".config.systemContract.system_contract_address"
+            outputPath,
+            ".config.scroll.l1Config.systemContractAddress"
         );
-
-        vm.writeJson(
+        writeGenesisString(
             vm.toString(L1_MESSAGE_QUEUE_V1_PROXY_ADDR),
-            GENESIS_JSON_PATH,
+            outputPath,
             ".config.scroll.l1Config.l1MessageQueueAddress"
         );
-
-        vm.writeJson(
+        writeGenesisString(
             vm.toString(L1_MESSAGE_QUEUE_V2_PROXY_ADDR),
-            GENESIS_JSON_PATH,
+            outputPath,
             ".config.scroll.l1Config.l1MessageQueueV2Address"
         );
-
-        vm.writeJson(
+        writeGenesisString(
             vm.toString(L1_SCROLL_CHAIN_PROXY_ADDR),
-            GENESIS_JSON_PATH,
+            outputPath,
             ".config.scroll.l1Config.scrollChainAddress"
         );
-        vm.writeJson(vm.toString(bytes32(BASE_FEE_PER_GAS)), GENESIS_JSON_PATH, ".baseFeePerGas");
-        // predeploys and prefunded accounts
-        string memory alloc = vm.readFile(GENESIS_ALLOC_JSON_PATH);
-        vm.writeJson(alloc, GENESIS_JSON_PATH, ".alloc");
-        vm.writeJson(
+        writeGenesisString(
             vm.toString(L2_SYSTEM_CONFIG_PROXY_ADDR),
-            GENESIS_JSON_PATH,
+            outputPath,
             ".config.scroll.l1Config.l2SystemConfigAddress"
         );
+
+        // Preserve the state dump's balances, bytecode and storage without re-encoding.
+        vm.writeJson(vm.readFile(allocPath), outputPath, ".alloc");
+    }
+
+    function writeGenesisString(
+        string memory value,
+        string memory outputPath,
+        string memory key
+    ) private {
+        // Callers only pass hex-encoded addresses/quantities, which need no JSON escaping.
+        vm.writeJson(string.concat('"', value, '"'), outputPath, key);
     }
 
     /// @notice Sorts the allocs by address
