@@ -3,6 +3,7 @@
 pragma solidity =0.8.24;
 
 import {L2ScrollMessenger} from "../L2/L2ScrollMessenger.sol";
+import {L2MessageQueue} from "../L2/predeploys/L2MessageQueue.sol";
 
 import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
 
@@ -101,7 +102,7 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         uint256 _value,
         bytes memory _message,
         uint256 _gasLimit
-    ) internal virtual override {
+    ) internal virtual override nonReentrant {
         // Require that the caller is the MOAT contract.
         if (msg.sender != MOAT) {
             revert ErrorSenderNotMoat(msg.sender, MOAT);
@@ -112,7 +113,19 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
             revert ErrorInvalidWithdrawalEnvelope(_message);
         }
 
-        // Call the original logic
-        super._sendMessage(_to, _value, _message, _gasLimit);
+        // Same as L2ScrollMessenger._sendMessage, except that `messageSendTimestamp` is no
+        // longer written: a fresh 22.1k-gas SSTORE per withdrawal that nothing reads, on L2 or
+        // off-chain. Its only use was the "Duplicated message" check, which cannot fire: the
+        // hash commits to `_nonce`, a fresh L2MessageQueue index per message. The mapping and
+        // its getter stay for storage-layout compatibility and keep the timestamps of
+        // messages sent before this upgrade; for newer messages the getter returns 0.
+        require(msg.value == _value, "msg.value mismatch");
+
+        uint256 _nonce = L2MessageQueue(messageQueue).nextMessageIndex();
+        bytes32 _xDomainCalldataHash = keccak256(_encodeXDomainCalldata(_msgSender(), _to, _value, _nonce, _message));
+
+        L2MessageQueue(messageQueue).appendMessage(_xDomainCalldataHash);
+
+        emit SentMessage(_msgSender(), _to, _value, _nonce, _gasLimit, _message);
     }
 }
