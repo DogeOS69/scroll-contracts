@@ -6,10 +6,12 @@ on:
       - dogeos-v0.3.0-develop
     paths:
       - "docker/scripts/**"
+      - "docker/templates/**"
       - ".github/workflows/docker-scripts.yml"
   pull_request:
     paths:
       - "docker/scripts/**"
+      - "docker/templates/**"
       - ".github/workflows/docker-scripts.yml"
 
 permissions: {}
