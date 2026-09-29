@@ -1740,8 +1740,7 @@ contract DeployScroll is DeterministicDeployment {
         // minimum marks a deploy that stopped partway, and a rerun completes it. Networks
         // that finished configuring keep their owner-tuned values.
         if (moat.minWithdrawalAmount() == 0) {
-            // The fee recipient must be set before the fees: handleL1Message skips the
-            // deposit fee while no recipient is configured.
+            // Recipient first. Fees are held in the Moat until sweepFees() pays them to it.
             if (L2_BRIDGE_FEE_RECIPIENT_ADDR != address(0)) {
                 moat.setFeeRecipient(L2_BRIDGE_FEE_RECIPIENT_ADDR);
             } else {

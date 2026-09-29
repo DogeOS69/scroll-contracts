@@ -402,7 +402,8 @@ The script performs four owner calls, in order, skipping any that are already
 in the desired state (safe to rerun):
 
 1. `Moat.setFeeExempt(adapter, true)` — fee vault withdrawals pay no base
-   withdrawal fee (only sub-satoshi dust goes to the Moat `feeRecipient`).
+   withdrawal fee (only sub-satoshi dust is charged, held for the Moat
+   `feeRecipient`).
 2. `L2TxFeeVault.updateRecipient(FEE_VAULT_DOGE_RECIPIENT_ADDR)` — the vault's
    recipient is reinterpreted by the adapter as the Dogecoin P2PKH hash160; the
    old EVM-style recipient must not be left in place.
@@ -560,8 +561,8 @@ correctly:
 - `withdrawToP2PKH`, `withdrawToP2SH`, `withdrawToDogeAddress` — including one
   with a **sub-satoshi dust amount** (e.g. value ending in `...123` wei):
   confirm the `WithdrawalQueued` amount is a multiple of `1e10` wei, the dust
-  landed with the fee recipient, and the Dogecoin UTXO matches the floored
-  amount exactly.
+  is held in the Moat (and reaches the fee recipient on `sweepFees()`), and the
+  Dogecoin UTXO matches the floored amount exactly.
 - One fee vault withdrawal (`L2TxFeeVault.withdraw()` once the balance exceeds
   its minimum): confirm the resulting L2->L1 message is sent **by the Moat**
   with a `version=1, flags=0` envelope, the value is satoshi-aligned, and no
@@ -650,7 +651,8 @@ All four entry points use the common `_processWithdrawal(target, isP2SH)` path:
 2. Floor the post-fee amount to a multiple of `SATOSHI_TO_WEI` (`1e10` wei);
    the sub-satoshi remainder is added to the fee.
 3. Validate the floored amount against the minimum (and against zero).
-4. Transfer the fee (base fee + dust) to `feeRecipient`.
+4. Keep the fee (base fee + dust) in the Moat until `sweepFees()` pays it to
+   `feeRecipient` (see "Fees held by the Moat").
 5. Call `IL2ScrollMessenger.sendMessage` with the versioned envelope.
 
 Invariants: `amount + fee == msg.value` and `amount % 1e10 == 0` in every
@@ -679,6 +681,24 @@ Moat withdrawals.
 The new `Moat.setFeeExempt(address,bool)` (owner-only) exempts the adapter from
 the base withdrawal fee so the protocol does not pay its own fee; flooring and
 the minimum still apply.
+
+#### Fees held by the Moat
+
+Deposit and withdrawal fees (including satoshi-flooring dust) are no longer
+sent to `feeRecipient` in the same transaction. They stay in the Moat until
+someone calls the permissionless `sweepFees()`, which pays the Moat's whole
+balance to the current `feeRecipient` and emits `FeesSwept(recipient, amount)`.
+This saves a call to a cold account per deposit and per withdrawal. A
+recipient that rejects payment also no longer blocks deposits (which can't be
+retried) or withdrawals: only the sweep fails.
+
+- `DepositReceived` and `WithdrawalQueued` still report the fee, which is now
+  the amount charged and held rather than paid.
+- Fees held when `setFeeRecipient` is called go to the new recipient on the
+  next sweep. Call `sweepFees()` first to pay the outgoing recipient.
+- Operations: schedule `sweepFees()` (for example daily, or before fee-vault
+  withdrawals); anyone can call it. Check the pending amount with
+  `cast balance <L2_MOAT_PROXY_ADDR>`.
 
 #### Messenger sender restriction
 

@@ -359,6 +359,54 @@ contract MoatTest is MoatTestBase {
         _moat.setDepositFee(newFee);
     }
 
+    /// @dev A configured deposit fee is charged, held, and paid to the recipient on sweep.
+    function testHandleL1Message_ChargesConfiguredDepositFee() external {
+        uint256 depositFee = 0.05 ether;
+        uint256 depositValue = 1 ether;
+        address target = address(0xdead);
+
+        vm.prank(_owner);
+        _moat.setDepositFee(depositFee);
+
+        _moat.sweepFees();
+        uint256 recipientBefore = _feeRecipient.balance;
+        vm.deal(address(_mockMessenger), depositValue);
+        vm.prank(address(_mockMessenger));
+        _moat.handleL1Message{value: depositValue}(target, bytes32(0));
+
+        _moat.sweepFees();
+        assertEq(_feeRecipient.balance - recipientBefore, depositFee, "Fee recipient should receive the deposit fee");
+        assertEq(target.balance, depositValue - depositFee, "Target should receive the remainder");
+    }
+
+    /// @dev Regression for AuditAgent scan #2 finding 6: before fees were held, a deposit fee
+    ///      configured while no recipient was set was silently skipped. It is now charged and
+    ///      held regardless, and paid out once a recipient is set.
+    function testHandleL1Message_ChargesDepositFeeWithoutRecipient() external {
+        Moat freshMoat = _deployUnconfiguredMoat();
+        uint256 depositFee = 0.05 ether;
+        address target = address(0xdead);
+
+        vm.prank(_owner);
+        freshMoat.setDepositFee(depositFee);
+        assertEq(freshMoat.feeRecipient(), address(0), "no recipient yet");
+
+        vm.deal(address(_mockMessenger), 1 ether);
+        vm.prank(address(_mockMessenger));
+        freshMoat.handleL1Message{value: 1 ether}(target, bytes32(0));
+        assertEq(target.balance, 1 ether - depositFee, "target gets the deposit minus the fee");
+        assertEq(address(freshMoat).balance, depositFee, "fee held");
+
+        vm.expectRevert(Moat.ErrorFeeRecipientNotSet.selector);
+        freshMoat.sweepFees();
+
+        vm.prank(_owner);
+        freshMoat.setFeeRecipient(_feeRecipient);
+        uint256 recipientBefore = _feeRecipient.balance;
+        freshMoat.sweepFees();
+        assertEq(_feeRecipient.balance - recipientBefore, depositFee, "held fee paid once a recipient is set");
+    }
+
     // --- Tests: withdrawToL1 ---
 
     function testWithdrawToL1_Success() external {
@@ -368,6 +416,7 @@ contract MoatTest is MoatTestBase {
         uint256 totalValue = amountToSend + fee;
 
         // Pre-state checks
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
         assertTrue(fee > 0, "Test requires non-zero fee");
         assertTrue(_feeRecipient != address(0), "Test requires non-zero fee recipient");
@@ -399,6 +448,7 @@ contract MoatTest is MoatTestBase {
 
         // Post-state checks
         // Check fee recipient balance
+        _moat.sweepFees();
         uint256 feeRecipBalanceAfter = _feeRecipient.balance;
         assertEq(feeRecipBalanceAfter, feeRecipBalanceBefore + fee, "Fee recipient balance mismatch");
 
@@ -520,6 +570,7 @@ contract MoatTest is MoatTestBase {
         uint256 fee = 0;
         uint256 totalValue = amountToSend; // No fee
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
         assertTrue(_feeRecipient != address(0), "Test requires non-zero fee recipient");
         assertTrue(amountToSend >= _moat.minWithdrawalAmount(), "Amount must meet minimum");
@@ -544,6 +595,7 @@ contract MoatTest is MoatTestBase {
         _moat.withdrawToL1{value: totalValue}(targetL1);
 
         // Post-state checks
+        _moat.sweepFees();
         uint256 feeRecipBalanceAfter = _feeRecipient.balance;
         assertEq(feeRecipBalanceAfter, feeRecipBalanceBefore, "Fee recipient balance should not change");
 
@@ -663,6 +715,7 @@ contract MoatTest is MoatTestBase {
         SimpleTarget target = new SimpleTarget();
         bytes32 depositIDValue = bytes32(uint256(0x1111));
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
         uint256 expectedAmountToTarget = depositAmount - depositFee;
 
@@ -681,6 +734,7 @@ contract MoatTest is MoatTestBase {
         vm.stopPrank();
 
         // Verify fee collection
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + depositFee, "Fee recipient should receive deposit fee");
     }
 
@@ -696,6 +750,7 @@ contract MoatTest is MoatTestBase {
         SimpleTarget target = new SimpleTarget();
         bytes32 depositIDValue = bytes32(uint256(0x1111));
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         // Call from the mock messenger
@@ -712,6 +767,7 @@ contract MoatTest is MoatTestBase {
         vm.stopPrank();
 
         // Verify all funds went to fee recipient
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + depositAmount, "All funds should go to fee recipient");
     }
 
@@ -743,7 +799,7 @@ contract MoatTest is MoatTestBase {
 
     // --- Tests: Fee Transfer Failure Handling --- //
 
-    function testHandleL1Message_Revert_DepositFeeTransferFailed() external {
+    function testHandleL1Message_RejectingRecipientDoesNotBlockDeposit() external {
         // Setup: Configure deposit fee with rejecting recipient
         uint256 depositFee = 0.01 ether;
         uint256 depositAmount = 1 ether;
@@ -762,13 +818,23 @@ contract MoatTest is MoatTestBase {
         vm.startPrank(address(_mockMessenger));
         vm.deal(address(_mockMessenger), depositAmount);
 
-        // Expect revert due to fee transfer failure
-        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        // The deposit succeeds: the fee is held by the Moat, so a recipient that rejects
+        // payment no longer blocks deposits (which could not be retried).
         _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
         vm.stopPrank();
+        assertEq(address(_moat).balance, depositFee, "fee held by the Moat");
+
+        // Only the sweep fails, and the fee stays until a working recipient is set.
+        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        _moat.sweepFees();
+        vm.prank(_owner);
+        _moat.setFeeRecipient(_feeRecipient);
+        uint256 recipientBefore = _feeRecipient.balance;
+        _moat.sweepFees();
+        assertEq(_feeRecipient.balance - recipientBefore, depositFee, "swept to the new recipient");
     }
 
-    function testHandleL1Message_Revert_FullDepositFeeTransferFailed() external {
+    function testHandleL1Message_RejectingRecipientDoesNotBlockFullFeeDeposit() external {
         // Setup: Configure deposit fee higher than deposit amount with rejecting recipient
         uint256 depositFee = 1 ether;
         uint256 depositAmount = 0.5 ether; // Less than fee
@@ -787,13 +853,16 @@ contract MoatTest is MoatTestBase {
         vm.startPrank(address(_mockMessenger));
         vm.deal(address(_mockMessenger), depositAmount);
 
-        // Expect revert due to fee transfer failure (full amount to fee)
-        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        // The whole deposit is the fee and is held by the Moat; the rejecting recipient
+        // does not block the deposit, only the sweep.
         _moat.handleL1Message{value: depositAmount}(address(target), depositIDValue);
         vm.stopPrank();
+        assertEq(address(_moat).balance, depositAmount, "whole deposit held as fee");
+        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        _moat.sweepFees();
     }
 
-    function testWithdrawToL1_Revert_WithdrawalFeeTransferFailed() external {
+    function testWithdrawToL1_RejectingRecipientDoesNotBlockWithdrawal() external {
         // Setup: Configure withdrawal with rejecting fee recipient
         address targetL1 = address(0x1111);
         uint256 amountToSend = 0.5 ether;
@@ -806,10 +875,15 @@ contract MoatTest is MoatTestBase {
         _moat.setFeeRecipient(address(rejectingRecipient));
         vm.stopPrank();
 
-        // Attempt withdrawal - should fail on fee transfer
+        // The withdrawal succeeds: the fee is held by the Moat.
         vm.prank(_user);
-        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
         _moat.withdrawToL1{value: totalValue}(targetL1);
+        assertEq(address(_moat).balance, fee, "fee held by the Moat");
+        assertEq(_mockMessenger.lastValue(), amountToSend, "withdrawal amount");
+
+        // Only the sweep fails.
+        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
+        _moat.sweepFees();
     }
 
     // --- Tests: P2SH/P2PKH Envelope Encoding --- //
@@ -877,12 +951,14 @@ contract MoatTest is MoatTestBase {
         uint256 fee = _moat.withdrawalFee();
         uint256 totalValue = amountToSend + fee;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.prank(_user);
         _moat.withdrawToP2PKH{value: totalValue}(targetL1);
 
         // Verify fee was transferred
+        _moat.sweepFees();
         uint256 feeRecipBalanceAfter = _feeRecipient.balance;
         assertEq(feeRecipBalanceAfter, feeRecipBalanceBefore + fee, "Fee recipient balance mismatch");
 
@@ -922,12 +998,14 @@ contract MoatTest is MoatTestBase {
         uint256 fee = _moat.withdrawalFee();
         uint256 totalValue = amountToSend + fee;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.prank(_user);
         _moat.withdrawToP2SH{value: totalValue}(targetL1);
 
         // Verify fee was transferred
+        _moat.sweepFees();
         uint256 feeRecipBalanceAfter = _feeRecipient.balance;
         assertEq(feeRecipBalanceAfter, feeRecipBalanceBefore + fee, "Fee recipient balance mismatch");
 
@@ -955,6 +1033,7 @@ contract MoatTest is MoatTestBase {
         assertTrue(dust < satoshi, "dust must be sub-satoshi");
         uint256 totalValue = amountAligned + dust + fee;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         // WithdrawalQueued must carry the floored amount and the dust-inclusive fee.
@@ -966,6 +1045,7 @@ contract MoatTest is MoatTestBase {
 
         assertEq(_mockMessenger.lastValue(), amountAligned, "Messenger value should be floored");
         assertEq(_mockMessenger.lastMsgValue(), amountAligned, "Messenger msg.value should be floored");
+        _moat.sweepFees();
         assertEq(
             _feeRecipient.balance,
             feeRecipBalanceBefore + fee + dust,
@@ -979,6 +1059,7 @@ contract MoatTest is MoatTestBase {
         uint256 amountAligned = 0.5 ether;
         uint256 totalValue = amountAligned + fee;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.expectEmit(true, true, false, true);
@@ -988,6 +1069,7 @@ contract MoatTest is MoatTestBase {
         _moat.withdrawToL1{value: totalValue}(targetL1);
 
         assertEq(_mockMessenger.lastValue(), amountAligned, "Messenger value should be unchanged");
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + fee, "Fee recipient should receive base fee only");
     }
 
@@ -1000,6 +1082,7 @@ contract MoatTest is MoatTestBase {
         uint256 dust = 123;
         uint256 totalValue = amountAligned + dust;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.expectEmit(true, true, false, true);
@@ -1009,6 +1092,7 @@ contract MoatTest is MoatTestBase {
         _moat.withdrawToL1{value: totalValue}(targetL1);
 
         assertEq(_mockMessenger.lastValue(), amountAligned, "Messenger value should be floored");
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + dust, "Fee recipient should receive only dust");
     }
 
@@ -1047,12 +1131,14 @@ contract MoatTest is MoatTestBase {
         uint256 minAmount = _moat.minWithdrawalAmount();
         uint256 totalValue = bound(rawValue, fee + minAmount + satoshi, 10 ether);
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.prank(_user);
         _moat.withdrawToL1{value: totalValue}(address(0x1111));
 
         uint256 sentAmount = _mockMessenger.lastValue();
+        _moat.sweepFees();
         uint256 feeCollected = _feeRecipient.balance - feeRecipBalanceBefore;
 
         assertEq(sentAmount % satoshi, 0, "Withdrawal amount must be satoshi-aligned");
@@ -1098,6 +1184,7 @@ contract MoatTest is MoatTestBase {
         address targetL1 = address(0x1111);
         uint256 amountAligned = 0.5 ether;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.expectEmit(true, true, false, true);
@@ -1107,6 +1194,7 @@ contract MoatTest is MoatTestBase {
         _moat.withdrawToL1{value: amountAligned}(targetL1);
 
         assertEq(_mockMessenger.lastValue(), amountAligned, "Full amount should be withdrawn");
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore, "No fee should be collected");
     }
 
@@ -1118,12 +1206,14 @@ contract MoatTest is MoatTestBase {
         uint256 amountAligned = 0.5 ether;
         uint256 dust = 42;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.prank(_user);
         _moat.withdrawToL1{value: amountAligned + dust}(targetL1);
 
         assertEq(_mockMessenger.lastValue(), amountAligned, "Amount should be floored even when exempt");
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + dust, "Dust should still go to the fee recipient");
     }
 
@@ -1137,12 +1227,14 @@ contract MoatTest is MoatTestBase {
         uint256 fee = _moat.withdrawalFee();
         uint256 amountAligned = 0.5 ether;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.prank(_user);
         _moat.withdrawToL1{value: amountAligned + fee}(targetL1);
 
         assertEq(_mockMessenger.lastValue(), amountAligned, "Amount mismatch");
+        _moat.sweepFees();
         assertEq(_feeRecipient.balance, feeRecipBalanceBefore + fee, "Base fee should be charged again");
     }
 
@@ -1170,15 +1262,24 @@ contract MoatTest is MoatTestBase {
         new Moat(bytes1(0x1e), bytes1(0x1e), address(_mockMessenger));
     }
 
-    function testWithdrawToL1_Revert_FeeDueButNoRecipient() external {
-        // Fresh Moat with no feeRecipient configured. Any withdrawal that owes a fee
-        // (here: flooring dust with a zero base fee) must fail closed instead of
-        // stranding the fee in the contract.
+    function testWithdrawToL1_FeeDueButNoRecipient_HeldUntilRecipientSet() external {
+        // Moat with no feeRecipient configured (legacy-initialized). A withdrawal that owes a
+        // fee (here: flooring dust with a zero base fee) succeeds and the fee is held; it is not
+        // stranded, because sweepFees pays it once a recipient is set.
         Moat freshMoat = _deployUnconfiguredMoat();
 
         vm.prank(_user);
-        vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
         freshMoat.withdrawToL1{value: 0.5 ether + 42}(address(0x1111));
+        assertEq(address(freshMoat).balance, 42, "dust held");
+
+        vm.expectRevert(Moat.ErrorFeeRecipientNotSet.selector);
+        freshMoat.sweepFees();
+
+        vm.prank(_owner);
+        freshMoat.setFeeRecipient(_feeRecipient);
+        uint256 recipientBefore = _feeRecipient.balance;
+        assertEq(freshMoat.sweepFees(), 42);
+        assertEq(_feeRecipient.balance - recipientBefore, 42, "dust swept");
     }
 
     function testFeeExemptCallersStorageSlot() external {
@@ -1432,12 +1533,14 @@ contract MoatTest is MoatTestBase {
         uint256 fee = _moat.withdrawalFee();
         uint256 totalValue = amountToSend + fee;
 
+        _moat.sweepFees();
         uint256 feeRecipBalanceBefore = _feeRecipient.balance;
 
         vm.prank(_user);
         _moat.withdrawToDogeAddress{value: totalValue}(dogeAddr);
 
         // Verify fee was transferred
+        _moat.sweepFees();
         uint256 feeRecipBalanceAfter = _feeRecipient.balance;
         assertEq(feeRecipBalanceAfter, feeRecipBalanceBefore + fee, "Fee recipient balance mismatch");
 

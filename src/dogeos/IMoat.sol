@@ -17,6 +17,7 @@ interface IMoat {
     error ErrorFeeTransferFailed();
     error ErrorInvalidMinWithdrawal();
     error ErrorEqualPrefixes();
+    error ErrorFeeRecipientNotSet();
 
     // --- Events --- //
 
@@ -29,6 +30,7 @@ interface IMoat {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner); // From OwnableBase inheritance
 
     event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
+    event FeesSwept(address indexed recipient, uint256 amount);
 
     // --- Functions --- //
 
@@ -77,6 +79,8 @@ interface IMoat {
     function withdrawToP2SH(address _target) external payable;
 
     function withdrawToDogeAddress(string calldata _dogeAddress) external payable;
+
+    function sweepFees() external returns (uint256 amount);
 
     // OwnableBase functions
     function transferOwnership(address newOwner) external;
