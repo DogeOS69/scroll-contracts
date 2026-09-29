@@ -1328,7 +1328,23 @@ contract DeployScroll is DeterministicDeployment {
         bytes memory args = abi.encode(p2pkh, p2sh, notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR));
         L2_MOAT_IMPLEMENTATION_ADDR = deploy("L2_MOAT_IMPLEMENTATION", type(Moat).creationCode, args);
 
+        if (_isMoatInitialized(L2_MOAT_PROXY_ADDR)) {
+            // Existing network: the new implementation binds MESSENGER immutably, so the live
+            // proxy must already use that messenger (same check as SubmitMoatProxyUpgrade).
+            require(
+                Moat(L2_MOAT_PROXY_ADDR).messenger() == L2_DOGEOS_MESSENGER_PROXY_ADDR,
+                "L2_DOGEOS_MESSENGER_PROXY_ADDR does not match the Moat proxy's current messenger()"
+            );
+        }
+
         upgrade(L2_PROXY_ADMIN_ADDR, L2_MOAT_PROXY_ADDR, L2_MOAT_IMPLEMENTATION_ADDR);
+    }
+
+    /// @dev Moat's Initializable `_initialized` byte is packed into slot 0 right after
+    ///      OwnableBase's 20-byte owner (pinned by testInitializedFlagPackedAfterOwnerInSlot0),
+    ///      so the generic getInitializeCount (low byte of slot 0) does not apply.
+    function _isMoatInitialized(address moatProxy) private view returns (bool) {
+        return uint8(uint256(vm.load(moatProxy, bytes32(0))) >> 160) != 0;
     }
 
     function deployL2SystemConfig() private {
@@ -1708,10 +1724,22 @@ contract DeployScroll is DeterministicDeployment {
         // The messenger is bound immutably by the implementation (see deployL2Moat).
         require(moat.messenger() == notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR), "Moat is bound to the wrong messenger");
 
+        // Security assumption: DeployScroll runs before the L2 RPC is public. The proxy is
+        // upgraded in the 2nd pass and initialized here in a later transaction, so nobody else
+        // may be able to send transactions in between.
         if (moat.owner() == address(0)) {
-            //must initialize first, the following calls will revert if owner is not current caller
             moat.initialize(DEPLOYER_ADDR);
+        }
+        // Sanity check only: it stops the deploy if someone else initialized the proxy and kept
+        // it, but not if they handed it back to this owner.
+        address moatOwner = moat.owner();
+        require(moatOwner == DEPLOYER_ADDR || moatOwner == OWNER_ADDR, "Moat has an unexpected owner");
 
+        // Each setter below is its own transaction, with setMinWithdrawal last. The minimum
+        // has a 0.01 ether floor, so a configured Moat never has a zero minimum: a zero
+        // minimum marks a deploy that stopped partway, and a rerun completes it. Networks
+        // that finished configuring keep their owner-tuned values.
+        if (moat.minWithdrawalAmount() == 0) {
             // The fee recipient must be set before the fees: handleL1Message skips the
             // deposit fee while no recipient is configured.
             if (L2_BRIDGE_FEE_RECIPIENT_ADDR != address(0)) {

@@ -3,9 +3,12 @@
 pragma solidity =0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 // Target contract
 import {Moat} from "../../dogeos/Moat.sol";
+import {MoatTestBase} from "./MoatTestBase.t.sol";
 import {DogeAddressLib} from "../../dogeos/DogeAddressLib.sol";
 
 // Interfaces & Mocks
@@ -144,7 +147,7 @@ contract MockScrollMessenger is ScrollMessengerBase {
     }
 }
 
-contract MoatTest is Test {
+contract MoatTest is MoatTestBase {
     // Contracts
     Moat internal _moat;
     MockScrollMessenger internal _mockMessenger; // Changed type
@@ -175,28 +178,72 @@ contract MoatTest is Test {
             // No longer needs message queue or moat address
         );
 
-        // Deploy Moat (owned by _owner) with mainnet prefixes, bound to the mock messenger
-        _moat = _deployFreshMoat();
+        // Deploy Moat (owned by _owner) with mainnet prefixes, bound to the mock messenger,
+        // and configured through the owner setters
+        _moat = _deployMoat(address(_mockMessenger), _defaultConfig());
 
         // Deploy library wrapper for revert testing
         _libWrapper = new DogeAddressLibWrapper();
-
-        // Configure Moat (as owner)
-        vm.startPrank(_owner);
-        _moat.setFeeRecipient(_feeRecipient);
-        _moat.setWithdrawalFee(_INITIAL_FEE);
-        _moat.setMinWithdrawal(_INITIAL_MIN_WITHDRAWAL);
-        vm.stopPrank();
 
         // Deal initial balances if needed for specific tests later
         vm.deal(_user, 10 ether);
     }
 
-    /// @dev A fresh, unconfigured Moat with mainnet prefixes, bound to the mock
-    ///      messenger and owned by `_owner`.
-    function _deployFreshMoat() internal returns (Moat freshMoat) {
-        freshMoat = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX, address(_mockMessenger));
-        freshMoat.initialize(_owner);
+    function _defaultConfig() internal view returns (MoatConfig memory) {
+        return
+            MoatConfig({
+                owner: _owner,
+                feeRecipient: _feeRecipient,
+                withdrawalFee: _INITIAL_FEE,
+                depositFee: 0,
+                minWithdrawal: _INITIAL_MIN_WITHDRAWAL,
+                feeExemptCaller: address(0)
+            });
+    }
+
+    /// @dev A Moat with an owner but no configuration (no fee recipient, zero fees and
+    ///      minimum), bound to the mock messenger: the state between DeployScroll's
+    ///      initialize and its setter calls.
+    function _deployUnconfiguredMoat() internal returns (Moat) {
+        (ProxyAdmin admin, address proxy) = _deployEmptyProxy();
+        admin.upgradeAndCall(
+            ITransparentUpgradeableProxy(proxy),
+            address(new Moat(_P2PKH_PREFIX, _P2SH_PREFIX, address(_mockMessenger))),
+            abi.encodeCall(Moat.initialize, (_owner))
+        );
+        return Moat(proxy);
+    }
+
+    // --- Tests: Initialization --- //
+
+    /// @dev Once initialized, nobody can initialize again.
+    function testInitialize_Revert_SecondCall() external {
+        MoatConfig memory attackerCfg = _defaultConfig();
+        attackerCfg.owner = _user;
+
+        vm.prank(_user);
+        vm.expectRevert("Initializable: contract is already initialized");
+        _callInitialize(_moat, attackerCfg);
+        assertEq(_moat.owner(), _owner, "owner unchanged");
+    }
+
+    function testInitialize_Revert_OnImplementation() external {
+        Moat impl = new Moat(_P2PKH_PREFIX, _P2SH_PREFIX, address(_mockMessenger));
+
+        vm.expectRevert("Initializable: contract is already initialized");
+        _callInitialize(impl, _defaultConfig());
+    }
+
+    /// @dev Pins the layout DeployScroll._isMoatInitialized relies on: Initializable's
+    ///      `_initialized` byte sits in slot 0 right after OwnableBase's 20-byte owner.
+    function testInitializedFlagPackedAfterOwnerInSlot0() external {
+        (ProxyAdmin admin, address proxy) = _deployEmptyProxy();
+        assertEq(uint8(uint256(vm.load(proxy, bytes32(0))) >> 160), 0, "empty proxy is not initialized");
+
+        _installMoat(admin, proxy, address(_mockMessenger), _defaultConfig());
+        bytes32 slot0 = vm.load(proxy, bytes32(0));
+        assertEq(uint8(uint256(slot0) >> 160), 1, "_initialized byte after owner");
+        assertEq(address(uint160(uint256(slot0))), _owner, "owner in the low 20 bytes");
     }
 
     // --- Tests: Setters --- //
@@ -967,7 +1014,7 @@ contract MoatTest is Test {
 
     function testWithdrawToL1_Revert_FloorsToZero() external {
         // Fresh Moat: fee and min both unset (0), so only the zero guard can catch this.
-        Moat freshMoat = _deployFreshMoat();
+        Moat freshMoat = _deployUnconfiguredMoat();
 
         address targetL1 = address(0x1111);
         uint256 subSatoshiValue = _moat.SATOSHI_TO_WEI() - 1;
@@ -1127,7 +1174,7 @@ contract MoatTest is Test {
         // Fresh Moat with no feeRecipient configured. Any withdrawal that owes a fee
         // (here: flooring dust with a zero base fee) must fail closed instead of
         // stranding the fee in the contract.
-        Moat freshMoat = _deployFreshMoat();
+        Moat freshMoat = _deployUnconfiguredMoat();
 
         vm.prank(_user);
         vm.expectRevert(Moat.ErrorFeeTransferFailed.selector);
@@ -1419,5 +1466,4 @@ contract MoatTest is Test {
         vm.expectRevert(abi.encodeWithSelector(DogeAddressLib.ErrorUnrecognizedPrefix.selector, bytes1(0x71)));
         _moat.withdrawToDogeAddress{value: totalValue}(testnetAddr);
     }
-
 }
