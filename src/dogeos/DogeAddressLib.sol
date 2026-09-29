@@ -2,11 +2,17 @@
 
 pragma solidity =0.8.24;
 
+// solhint-disable no-inline-assembly, no-empty-blocks
+
 /**
  * @title DogeAddressLib
  * @notice Library for decoding Base58Check-encoded Dogecoin addresses.
- * @dev Pure functions for decoding and validating Dogecoin P2PKH and P2SH addresses.
- *      This library is designed to be linked/inlined into contracts, not deployed separately.
+ * @dev Internal functions only, so the compiler inlines them into the calling contract:
+ *      there is no separate library deployment and no DELEGATECALL.
+ *
+ *      A valid address decodes to exactly 25 bytes (1 prefix + 20 payload + 4 checksum),
+ *      which is a 200-bit integer. The whole Base58 value is therefore accumulated in a
+ *      single uint256 word instead of a byte array, in one pass over the calldata.
  */
 library DogeAddressLib {
     // --- Errors --- //
@@ -19,109 +25,139 @@ library DogeAddressLib {
     // Base58 alphabet: 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
     // Excludes: 0, O, I, l (zero, capital o, capital i, lowercase L)
 
+    /// @dev Base58 digit lookup table for ASCII 0x20-0x7f, one byte per character: the digit
+    ///      value (0-57), or 0xff for a character outside the alphabet. ASCII 0x00-0x1f is
+    ///      all 0xff and is written as not(0); bytes >= 0x80 are rejected by their high bit.
+    uint256 private constant TABLE_20 = 0xffffffffffffffffffffffffffffffffff000102030405060708ffffffffffff;
+    uint256 private constant TABLE_40 = 0xff090a0b0c0d0e0f10ff1112131415ff161718191a1b1c1d1e1f20ffffffffff;
+    uint256 private constant TABLE_60 = 0xff2122232425262728292a2bff2c2d2e2f30313233343536373839ffffffffff;
+
+    /// @dev Sentinel for "no invalid character seen" (outside the uint8 range).
+    uint256 private constant NO_BAD_CHAR = 0x100;
+
     /**
      * @notice Decode a Base58Check-encoded Dogecoin address.
+     * @dev Checks, in this order: length within [25, 35]; every character in the Base58
+     *      alphabet (the first invalid one is reported); value fits in 25 bytes (otherwise a
+     *      non-canonical alias, reported as decoded length 26); total decoded length (leading
+     *      '1's plus value bytes) exactly 25; double-SHA256 checksum. Accepts and rejects
+     *      exactly the same inputs, with the same errors, as the previous byte-array decoder,
+     *      which is pinned in src/test/dogeos/reference/ and differentially tested in
+     *      src/test/dogeos/DogeAddressLib.t.sol.
      * @param addr The Base58Check-encoded address string.
      * @return prefix The version/prefix byte (e.g., 0x1e for mainnet P2PKH).
      * @return payload The 20-byte hash160 payload.
      */
-    function decode(string memory addr) internal pure returns (bytes1 prefix, bytes20 payload) {
-        bytes memory addrBytes = bytes(addr);
-        uint256 len = addrBytes.length;
+    function decode(string calldata addr) internal view returns (bytes1 prefix, bytes20 payload) {
+        uint256 len = bytes(addr).length;
 
         // Dogecoin addresses are typically 34 characters but can vary (25-35)
-        // Decoded output must be exactly 25 bytes (1 prefix + 20 payload + 4 checksum)
         if (len < 25 || len > 35) {
             revert ErrorInvalidInputLength(25, 35, len);
         }
 
-        // Count leading '1' characters (represent leading zero bytes in output)
-        uint256 leadingZeros = 0;
-        for (uint256 i = 0; i < len; i++) {
-            if (addrBytes[i] == 0x31) {
-                // '1' = ASCII 49 = 0x31
-                leadingZeros++;
-            } else {
-                break;
+        uint256 leadingZeros;
+        uint256 value;
+        uint256 badChar = NO_BAD_CHAR;
+
+        assembly {
+            let start := addr.offset
+            let end := add(start, len)
+            let ptr := start
+
+            // Leading '1' characters (0x31) each encode one leading zero byte.
+            for {
+
+            } and(lt(ptr, end), eq(byte(0, calldataload(ptr)), 0x31)) {
+                ptr := add(ptr, 1)
+            } {
+
             }
-        }
+            leadingZeros := sub(ptr, start)
 
-        // Convert Base58 to bytes using big-number arithmetic
-        // Maximum output is 25 bytes for a valid address
-        bytes memory result = new bytes(25);
-        uint256 resultLen = 0;
+            // Place the lookup table in unallocated memory at the free memory pointer. It is
+            // only read inside this block, so the free memory pointer is left unchanged.
+            let table := mload(0x40)
+            mstore(table, not(0))
+            mstore(add(table, 0x20), TABLE_20)
+            mstore(add(table, 0x40), TABLE_40)
+            mstore(add(table, 0x60), TABLE_60)
 
-        for (uint256 i = leadingZeros; i < len; i++) {
-            uint8 charValue = _base58CharToValue(uint8(addrBytes[i]));
-            if (charValue == 255) {
-                revert ErrorInvalidBase58Character(uint8(addrBytes[i]));
+            // Branch-free main loop. Valid characters are <= 0x7a and valid digits <= 57,
+            // so or(c, digit) stays below 0x80 for them. An 0xff table entry or a byte
+            // >= 0x80 sets bit 7 of `bad`. Once bit 7 is set, `value` is garbage and is
+            // never used.
+            let bad := 0
+            for {
+
+            } lt(ptr, end) {
+                ptr := add(ptr, 1)
+            } {
+                let c := byte(0, calldataload(ptr))
+                let digit := byte(0, mload(add(table, c)))
+                bad := or(bad, or(c, digit))
+                value := add(mul(value, 58), digit)
             }
 
-            // Multiply result by 58 and add charValue (big-endian, stored right-aligned)
-            uint256 carry = charValue;
-            for (uint256 j = 0; j < 25; j++) {
-                uint256 idx = 24 - j;
-                uint256 value = uint256(uint8(result[idx])) * 58 + carry;
-                result[idx] = bytes1(uint8(value & 0xFF));
-                carry = value >> 8;
-            }
-
-            // A leftover carry means the value exceeds 25 bytes. Truncating it would
-            // accept non-canonical aliases of valid addresses (same low 25 bytes,
-            // valid checksum), so reject instead.
-            if (carry != 0) {
-                revert ErrorInvalidDecodedLength(25, 26);
-            }
-
-            // Track how many bytes are actually used
-            for (uint256 j = 0; j < 25; j++) {
-                if (result[j] != 0) {
-                    resultLen = 25 - j;
-                    break;
+            // Error path only: report the first invalid character, as a sequential decoder would.
+            if and(bad, 0x80) {
+                for {
+                    ptr := start
+                } lt(ptr, end) {
+                    ptr := add(ptr, 1)
+                } {
+                    let c := byte(0, calldataload(ptr))
+                    if or(gt(c, 0x7f), eq(byte(0, mload(add(table, c))), 0xff)) {
+                        badChar := c
+                        break
+                    }
                 }
             }
         }
 
-        // Add leading zeros from '1' characters
-        uint256 totalLen = leadingZeros + resultLen;
+        if (badChar != NO_BAD_CHAR) {
+            revert ErrorInvalidBase58Character(uint8(badChar));
+        }
+
+        // A value that no longer fits in 25 bytes would, if truncated, alias a valid address
+        // (same low 25 bytes, valid checksum), so reject it. Since 58^34 < 2^200, only the
+        // 35th Base58 digit can cross the bound, so a single check after the loop matches a
+        // per-digit check. With at most 35 digits, value < 58^35 < 2^206, so the uint256
+        // accumulator cannot wrap for valid input.
+        if (value >> 200 != 0) {
+            revert ErrorInvalidDecodedLength(25, 26);
+        }
+
+        // Decoded output must be exactly 25 bytes (1 prefix + 20 payload + 4 checksum)
+        uint256 totalLen = leadingZeros + _byteLength(value);
         if (totalLen != 25) {
             revert ErrorInvalidDecodedLength(25, totalLen);
         }
 
-        // Build the final 25-byte output with leading zeros prepended
-        bytes memory decoded = new bytes(25);
-        // Leading zeros are already 0x00 in the new bytes array
-        // Copy the computed result, right-aligned
-        for (uint256 i = 0; i < resultLen; i++) {
-            decoded[leadingZeros + i] = result[25 - resultLen + i];
+        // value is now the 25 decoded bytes as a big-endian integer:
+        // prefix (bits 192..199) || payload (bits 32..191) || checksum (bits 0..31).
+        // Verify checksum: sha256(sha256(prefix + payload)) first 4 bytes. The precompile is
+        // called directly in scratch space (about 850 gas cheaper than the sha256 builtin, which
+        // allocates memory), which is why this library is `view` rather than `pure`.
+        bool checksumOk;
+        assembly {
+            // prefix || payload (21 bytes), left-aligned in the scratch word.
+            mstore(0x00, shl(88, shr(32, value)))
+            // The sha256 precompile (0x02) only fails when out of gas.
+            if iszero(staticcall(gas(), 0x02, 0x00, 21, 0x00, 0x20)) {
+                revert(0, 0)
+            }
+            if iszero(staticcall(gas(), 0x02, 0x00, 0x20, 0x00, 0x20)) {
+                revert(0, 0)
+            }
+            checksumOk := eq(shr(224, mload(0x00)), and(value, 0xffffffff))
         }
-
-        // Verify checksum: sha256(sha256(prefix + payload)) first 4 bytes
-        bytes memory dataToHash = new bytes(21);
-        for (uint256 i = 0; i < 21; i++) {
-            dataToHash[i] = decoded[i];
-        }
-
-        bytes32 hash1 = sha256(dataToHash);
-        bytes32 hash2 = sha256(abi.encodePacked(hash1));
-
-        // Compare checksum (last 4 bytes of decoded vs first 4 bytes of hash2)
-        if (decoded[21] != hash2[0] || decoded[22] != hash2[1] || decoded[23] != hash2[2] || decoded[24] != hash2[3]) {
+        if (!checksumOk) {
             revert ErrorInvalidChecksum();
         }
 
-        // Extract prefix and payload
-        prefix = bytes1(decoded[0]);
-
-        // Extract 20-byte payload
-        bytes20 payloadBytes;
-        assembly {
-            // decoded is at position `decoded` in memory
-            // bytes memory layout: first 32 bytes = length, then data
-            // payload starts at offset 1 (after prefix), so decoded + 32 + 1 = decoded + 33
-            payloadBytes := mload(add(decoded, 33))
-        }
-        payload = payloadBytes;
+        prefix = bytes1(uint8(value >> 192));
+        payload = bytes20(uint160(value >> 32));
     }
 
     /**
@@ -133,10 +169,10 @@ library DogeAddressLib {
      * @return payload The 20-byte hash160 payload.
      */
     function decodeChecked(
-        string memory addr,
+        string calldata addr,
         bytes1 p2pkhPrefix,
         bytes1 p2shPrefix
-    ) internal pure returns (bool isP2SH, bytes20 payload) {
+    ) internal view returns (bool isP2SH, bytes20 payload) {
         bytes1 prefix;
         (prefix, payload) = decode(addr);
 
@@ -150,24 +186,33 @@ library DogeAddressLib {
     }
 
     /**
-     * @dev Convert a Base58 character to its numeric value (0-57).
-     * @param c The ASCII value of the character.
-     * @return The numeric value, or 255 if invalid.
+     * @dev Number of significant bytes in `x` (0 for x == 0).
+     * @param x The value to measure.
+     * @return n The byte length of `x`.
      */
-    function _base58CharToValue(uint8 c) private pure returns (uint8) {
-        // '1'-'9' (ASCII 49-57) -> 0-8
-        if (c >= 49 && c <= 57) return c - 49;
-        // 'A'-'H' (ASCII 65-72) -> 9-16
-        if (c >= 65 && c <= 72) return c - 56;
-        // 'J'-'N' (ASCII 74-78) -> 17-21 (skip 'I' at 73)
-        if (c >= 74 && c <= 78) return c - 57;
-        // 'P'-'Z' (ASCII 80-90) -> 22-32 (skip 'O' at 79)
-        if (c >= 80 && c <= 90) return c - 58;
-        // 'a'-'k' (ASCII 97-107) -> 33-43
-        if (c >= 97 && c <= 107) return c - 64;
-        // 'm'-'z' (ASCII 109-122) -> 44-57 (skip 'l' at 108)
-        if (c >= 109 && c <= 122) return c - 65;
-        // Invalid character
-        return 255;
+    function _byteLength(uint256 x) private pure returns (uint256 n) {
+        if (x >> 128 != 0) {
+            x >>= 128;
+            n = 16;
+        }
+        if (x >> 64 != 0) {
+            x >>= 64;
+            n += 8;
+        }
+        if (x >> 32 != 0) {
+            x >>= 32;
+            n += 4;
+        }
+        if (x >> 16 != 0) {
+            x >>= 16;
+            n += 2;
+        }
+        if (x >> 8 != 0) {
+            x >>= 8;
+            n += 1;
+        }
+        if (x != 0) {
+            n += 1;
+        }
     }
 }
