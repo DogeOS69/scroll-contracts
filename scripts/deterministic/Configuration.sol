@@ -46,6 +46,8 @@ abstract contract Configuration is NativeDogeSupplyConfig {
     uint256 internal L2_SCROLL_MESSENGER_INITIAL_BALANCE;
     uint256 internal L2_DOGEOS_MESSENGER_INITIAL_BALANCE;
     uint256 internal BASE_FEE_PER_GAS;
+    uint256 internal GENESIS_GAS_LIMIT;
+    uint256 internal L2_BASE_FEE_OVERHEAD;
 
     // contracts
     string internal DEPLOYMENT_SALT;
@@ -104,6 +106,15 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         L2_MAX_NATIVE_DOGE_SUPPLY = readL2MaxNativeDogeSupply(cfg);
         L2_DEPLOYER_INITIAL_BALANCE = cfg.readUint(".genesis.L2_DEPLOYER_INITIAL_BALANCE");
         BASE_FEE_PER_GAS = cfg.readUint(".genesis.BASE_FEE_PER_GAS");
+        // Older configs retain the JSON template's gas limit. New deployments
+        // should set it explicitly in their shared config.toml.
+        if (vm.keyExistsToml(cfg, ".genesis.GAS_LIMIT")) {
+            GENESIS_GAS_LIMIT = cfg.readUint(".genesis.GAS_LIMIT");
+            require(GENESIS_GAS_LIMIT >= 5000 && GENESIS_GAS_LIMIT <= type(uint64).max, "invalid genesis.GAS_LIMIT");
+        }
+        if (vm.keyExistsToml(cfg, ".contracts.L2_BASE_FEE_OVERHEAD")) {
+            L2_BASE_FEE_OVERHEAD = cfg.readUint(".contracts.L2_BASE_FEE_OVERHEAD");
+        }
 
         L2_DOGEOS_MESSENGER_INITIAL_BALANCE = L2_MAX_NATIVE_DOGE_SUPPLY - L2_DEPLOYER_INITIAL_BALANCE;
         L2_SCROLL_MESSENGER_INITIAL_BALANCE = L2_DOGEOS_MESSENGER_INITIAL_BALANCE;

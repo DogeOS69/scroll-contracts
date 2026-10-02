@@ -83,7 +83,7 @@ CLI 同步取消这些连接及 Scroll、Rollup Explorer、Admin System DSN 别�
   模板零值仅为占位，真实初始化必须设置为非零值。
 - `L2_BRIDGE_FEE_RECIPIENT_ADDR`：零值表示使用 L2 fee vault 作为 Moat 的手续费接收者。
 - `SCALAR`：虽然属于旧公式，配置读取和 `setScalar` 仍存在，不能只删除 TOML 项。
-- 三个 genesis 参数和六个 predeploy overrides：仍由脚本读取或决定预部署结果。
+- genesis 参数和六个 predeploy overrides：仍由脚本读取或决定预部署结果。
 - L2 verification 配置：当前验证命令的配置入口；API key 可为空。
 
 `setup generate-from-spec` 已同步改为生成原生 Reth values，不再投影根配置的旧
@@ -170,3 +170,26 @@ python docker/scripts/test-config-template.py \
 
 模板依赖的合约读取逻辑需要随模板一起发布并构建到新镜像；不能只替换模板后
 继续使用尚未包含这些修改的旧镜像。
+
+## 2026-09-29 fee targets for fresh deployments
+
+`scroll-sdk/examples/config.toml.example` and `docker/templates/config.toml`
+carry the same launch fee inputs. `genesis.GAS_LIMIT = 30000000` is consumed by
+`Configuration` / `GenerateGenesis` and written into the genesis header;
+configs without this optional key retain the JSON template's legacy gas limit.
+Commit scalar `600000000`, blob scalar `7400000000` and penalty factor `10000`
+are written into the oracle predeploy's genesis storage.
+
+`contracts.L2_BASE_FEE_OVERHEAD = 420000000000` is consumed by
+`DeployScroll.initializeL2SystemConfig`, after the proxy is deployed and before
+ownership transfer. This is a bootstrap transaction, not genesis predeploy
+storage. The script applies the value only when the key is supplied and the
+current value differs. `genesis.BASE_FEE_PER_GAS` remains a separate initial
+header value. The L1 interface also consumes that header-fee input.
+
+Build both gen-configs and deploy images with these script changes for mainnet;
+old released images do not consume the new keys. CLI config rewriting preserves
+these native TOML inputs without adding defaults or service-policy fields.
+A rollup-node binary supporting the selected D48/E10 and 420,000 gwei cap is
+still required. The earlier template-equivalence audit above predates these
+intentional genesis and initial-state changes.
