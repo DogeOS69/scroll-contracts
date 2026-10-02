@@ -9,6 +9,7 @@ contract RethGenesisHarness is GenerateGenesis {
         CHAIN_ID_L1 = 111111;
         CHAIN_ID_L2 = 938471;
         BASE_FEE_PER_GAS = 1000000000;
+        GENESIS_GAS_LIMIT = 30000000;
         SYSTEM_CONFIG_PROXY_ADDR = address(0x1234);
         L1_MESSAGE_QUEUE_V1_PROXY_ADDR = address(0x1111);
         L1_MESSAGE_QUEUE_V2_PROXY_ADDR = address(0x2222);
@@ -49,7 +50,7 @@ contract GenerateGenesisTest is Test {
         assertEq(vm.parseJsonAddress(genesis, ".config.scroll.l1Config.scrollChainAddress"), address(0x3333));
         assertEq(vm.parseJsonAddress(genesis, ".config.scroll.l1Config.l2SystemConfigAddress"), address(0x4444));
         assertEq(vm.parseJsonUint(genesis, ".baseFeePerGas"), 1000000000);
-        assertEq(vm.parseJsonUint(genesis, ".gasLimit"), 10000000);
+        assertEq(vm.parseJsonUint(genesis, ".gasLimit"), 30000000);
         assertEq(vm.parseJsonBytes(genesis, ".extraData").length, 0);
         assertEq(vm.parseJson(genesis, ".alloc"), vm.parseJson(vm.readFile(allocPath)));
 

@@ -252,6 +252,9 @@ contract GenerateGenesis is DeployScroll {
         vm.writeJson(vm.toString(CHAIN_ID_L2), outputPath, ".config.chainId");
         writeGenesisString(vm.toString(bytes32(vm.unixTime() / 1000)), outputPath, ".timestamp");
         writeGenesisString(vm.toString(bytes32(BASE_FEE_PER_GAS)), outputPath, ".baseFeePerGas");
+        if (GENESIS_GAS_LIMIT != 0) {
+            writeGenesisString(vm.toString(bytes32(GENESIS_GAS_LIMIT)), outputPath, ".gasLimit");
+        }
 
         writeGenesisString(vm.toString(L2_TX_FEE_VAULT_ADDR), outputPath, ".config.scroll.feeVaultAddress");
         vm.writeJson(vm.toString(CHAIN_ID_L1), outputPath, ".config.scroll.l1Config.l1ChainId");

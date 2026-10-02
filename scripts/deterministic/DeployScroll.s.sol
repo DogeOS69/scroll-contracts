@@ -1596,12 +1596,13 @@ contract DeployScroll is DeterministicDeployment {
         if (address(L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).whitelist()) != notnull(L2_WHITELIST_ADDR)) {
             L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).updateWhitelist(L2_WHITELIST_ADDR);
         }
+        // Galileo divides by penaltyFactor; set the divisor before its scalars.
+        L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setPenaltyFactor(PENALTY_FACTOR);
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setCommitScalar(COMMIT_SCALAR);
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setBlobScalar(BLOB_SCALAR);
         // Deprecated before-Galileo scalar. Keep it configured for compatibility
         // with non-Galileo local deployments, but Galileo sizing uses commitScalar.
         L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setScalar(SCALAR);
-        L1GasPriceOracle(L1_GAS_PRICE_ORACLE_ADDR).setPenaltyFactor(PENALTY_FACTOR);
     }
 
     function initializeL2DogeOsMessenger() private {
@@ -1763,6 +1764,14 @@ contract DeployScroll is DeterministicDeployment {
     function initializeL2SystemConfig() private {
         if (getInitializeCount(L2_SYSTEM_CONFIG_PROXY_ADDR) == 0) {
             L2SystemConfig(L2_SYSTEM_CONFIG_PROXY_ADDR).initialize(DEPLOYER_ADDR);
+        }
+        // This proxy is deployed after genesis. Apply the configured floor
+        // during bootstrap, while the deployer still owns it, before launch.
+        if (
+            vm.keyExistsToml(cfg, ".contracts.L2_BASE_FEE_OVERHEAD") &&
+            L2SystemConfig(L2_SYSTEM_CONFIG_PROXY_ADDR).baseFeeOverhead() != L2_BASE_FEE_OVERHEAD
+        ) {
+            L2SystemConfig(L2_SYSTEM_CONFIG_PROXY_ADDR).updateBaseFeeOverhead(L2_BASE_FEE_OVERHEAD);
         }
     }
 
