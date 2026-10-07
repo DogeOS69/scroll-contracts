@@ -627,6 +627,26 @@ Rolling back to an implementation from before the messenger became immutable
 is safe: the old `messenger` storage slot is never cleared, so the old code
 reads the same messenger address it used before the upgrade.
 
+### 1.8 Messenger pause semantics (RG-97)
+
+As of the v0.3.0 `L2DogeOsMessenger` implementation, a messenger pause
+(`ScrollMessengerBase.setPause`) freezes **withdrawals only**:
+
+- **Withdrawals freeze.** Both `sendMessage` overloads keep the
+  `whenNotPaused` guard, so no new L2->L1 messages can be initiated while
+  paused. Already-queued withdrawals are unaffected.
+- **Deposits keep crediting.** `relayMessage` is deliberately not guarded
+  (RG-97: a relay sequenced while paused used to revert atomically and leave
+  no record, and with no replay path the deposit was lost). A deposit relayed
+  during a pause credits its recipient exactly once; a replay of the same
+  message is still rejected.
+- **To stop deposits, hold deposit sequencing** (pause deposit ingestion
+  upstream of the sequencer). The messenger pause is not a deposit stop.
+
+The old behavior returns if the proxy is rolled back to a pre-v0.3.0
+implementation that still guards `relayMessage`: while such an implementation
+is paused, relays revert and in-flight deposits are lost with no replay path.
+
 ---
 
 ## 2. Explanation

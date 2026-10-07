@@ -88,13 +88,18 @@ contract L2ScrollMessenger is ScrollMessengerBase, IL2ScrollMessenger {
     }
 
     /// @inheritdoc IL2ScrollMessenger
+    /// @dev Deliberately NOT `whenNotPaused` (RG-97). A relay sequenced while paused
+    ///      used to revert atomically and leave no record; with no replay path, the
+    ///      deposit was lost until someone re-sent identical calldata after unpause.
+    ///      A messenger pause now freezes withdrawals only (both `sendMessage`
+    ///      overloads keep the guard); to stop deposits, hold deposit sequencing.
     function relayMessage(
         address _from,
         address _to,
         uint256 _value,
         uint256 _nonce,
         bytes memory _message
-    ) external override whenNotPaused {
+    ) external override {
         // It is impossible to deploy a contract with the same address, reentrance is prevented in nature.
         require(AddressAliasHelper.undoL1ToL2Alias(_msgSender()) == counterpart, "Caller is not L1ScrollMessenger");
 
