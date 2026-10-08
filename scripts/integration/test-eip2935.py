@@ -25,7 +25,12 @@ HISTORY_CODE = (
 
 
 def verify_genesis(genesis_path):
-    genesis = json.loads(genesis_path.read_text())
+    # Match the externally consumed artifact, including the Docker entrypoint's
+    # ConfigMap/YAML wrapping. The intermediate Forge output alone is not enough.
+    lines = genesis_path.read_text().splitlines()
+    if not lines or lines[0] != "scrollConfig: |" or any(not line.startswith("  ") for line in lines[1:]):
+        raise RuntimeError("gen-configs entrypoint did not produce the expected genesis.yaml wrapper")
+    genesis = json.loads("\n".join(line[2:] for line in lines[1:]))
     if genesis["config"].get("feynmanTime") != 0:
         raise RuntimeError("expected the Feynman-at-genesis fork configuration")
     account = genesis["alloc"].get(HISTORY_ADDRESS)
@@ -38,6 +43,7 @@ def verify_genesis(genesis_path):
     if account["storage"] != {}:
         raise RuntimeError("generated genesis history storage must be empty")
     print("Generated genesis: canonical EIP-2935 runtime, nonce 1, balance 0, empty storage", flush=True)
+    return genesis
 
 
 def main():
@@ -68,19 +74,20 @@ def main():
             config = config.replace(f'{name} = ""', f'{name} = "{value}"')
         (stage / "volume/config.toml").write_text(config)
         env = dict(os.environ, DEPLOYER_PRIVATE_KEY=TEST_KEY)
-        for script, arguments in [
-            ("DeployScroll", ["--sig", "run(string,string)", "none", "write-config"]),
-            ("GenerateGenesis", ["--sig", "run()"]),
-        ]:
-            subprocess.run(
-                ["forge", "script", f"scripts/deterministic/{script}.s.sol:{script}", *arguments],
-                cwd=stage, env=env, check=True,
-            )
+        # Run exactly the gen-configs image ENTRYPOINT, including frontend output.
+        subprocess.run(["bash", "docker/scripts/gen-configs.sh"], cwd=stage, env=env, check=True)
         genesis_path = stage / "volume/genesis.yaml"
-        verify_genesis(genesis_path)
+        genesis = verify_genesis(genesis_path)
+        if not (stage / "volume/config-contracts.toml").is_file():
+            raise RuntimeError("gen-configs entrypoint did not export contract addresses")
+        if not (stage / "volume/frontend-config.yaml").read_text().startswith("scrollConfig: |\n"):
+            raise RuntimeError("gen-configs entrypoint did not export wrapped frontend configuration")
         if not geth:
             return
-        env["GENESIS_PATH"] = str(genesis_path)
+        # geth accepts the JSON payload, not the Kubernetes ConfigMap wrapper.
+        json_path = stage / "volume/genesis.json"
+        json_path.write_text(json.dumps(genesis))
+        env["GENESIS_PATH"] = str(json_path)
         subprocess.run(
             ["go", "test", str(root / "scripts/integration/eip2935_geth_test.go"), "-v", "-count=1"],
             cwd=geth, env=env, check=True,
