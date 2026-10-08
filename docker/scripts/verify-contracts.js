@@ -7,6 +7,35 @@ const toml = require("toml");
 // that predate the NativeDogeToken genesis/hardfork export scripts.
 const nativeDogeTokenAddress = "0x530000000000000000000000000000000000d09e";
 
+// Canonical EIP-2935 runtime (not the compiled BlockHashHistory constants library).
+// This account has no Solidity source or genesis creation transaction to verify.
+const blockHashHistoryAddress = "0x0000f90827f1c53a10cb7a02335b175320002935";
+const blockHashHistoryCode =
+  "0x3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f35600143038111604257611fff81430311604257611fff9006545f5260205ff35b5f5ffd5b5f35611fff60014303065500";
+
+function verifyBlockHashHistory(rpc) {
+  function readCast(args) {
+    const result = spawnSync("cast", [...args, "--rpc-url", rpc], { encoding: "utf8", timeout: 30000 });
+    // RPC diagnostics can contain credentials from the URL. Keep them out of logs.
+    if (result.error || result.signal || result.status !== 0) {
+      throw new Error(`cast ${args[0]} failed; check the L2 RPC and Foundry installation`);
+    }
+    return result.stdout.trim();
+  }
+
+  console.log(`Checking EIP-2935 history runtime and nonce at ${blockHashHistoryAddress} on L2`);
+  // Bind both reads to the same block even if the head advances or reorganizes.
+  const blockHash = readCast(["block", "latest", "--field", "hash"]);
+  if (!/^0x[0-9a-fA-F]{64}$/.test(blockHash)) throw new Error("Invalid L2 block hash returned by cast");
+  const code = readCast(["code", blockHashHistoryAddress, "--block", blockHash]);
+  if (code.toLowerCase() !== blockHashHistoryCode) {
+    throw new Error("EIP-2935 history runtime is missing or does not match the canonical bytecode");
+  }
+  const nonce = readCast(["nonce", blockHashHistoryAddress, "--block", blockHash]);
+  if (nonce !== "1") throw new Error("EIP-2935 history account nonce must be 1");
+  console.log(`EIP-2935 history: runtime and nonce verified at block ${blockHash} (no Solidity source verification)`);
+}
+
 // Only contracts used on L2 belong in this list. The unused ERC20/ERC721/ERC1155
 // gateways and ERC20 factory/template intentionally remain excluded.
 // L1GasPriceOracle is an L2 predeploy despite its L1_ configuration key.
@@ -132,9 +161,17 @@ function main() {
       verified++;
     }
   }
-  console.log(`L2 verification: ${verified} succeeded, ${failed.length} failed, ${skipped.length} unconfigured`);
+  console.log(`L2 source verification: ${verified} succeeded, ${failed.length} failed, ${skipped.length} unconfigured`);
   if (failed.length) {
     console.error(`Failed contracts: ${failed.join(", ")}`);
+    process.exitCode = 1;
+  }
+  // Always check the protocol address, including configs created before this
+  // predeploy was added. A missing account must not be silently skipped.
+  try {
+    verifyBlockHashHistory(rpc);
+  } catch (error) {
+    console.error(`Verification failed for EIP-2935 history: ${error.message}`);
     process.exitCode = 1;
   }
 }
