@@ -37,6 +37,39 @@ contract SenderProbe {
     }
 }
 
+/// @dev Installed at the aliased L1 sender to roll back the whole relay call frame.
+contract RevertingRelayFrame {
+    function relayThenRevert(address messenger, bytes calldata data) external {
+        (bool ok, ) = messenger.call(data);
+        require(ok, "relay failed");
+        revert("outer frame revert");
+    }
+}
+
+/// @dev Rejected nested relay calls must not corrupt the active sender context.
+contract NestedRelayProbe {
+    IScrollMessenger private immutable _messenger;
+    address public beforeSender;
+    address public afterSender;
+
+    constructor(IScrollMessenger messenger_) {
+        _messenger = messenger_;
+    }
+
+    receive() external payable {
+        beforeSender = _messenger.xDomainMessageSender();
+        (bool ok, bytes memory reason) = address(_messenger).call(
+            abi.encodeCall(L2ScrollMessenger.relayMessage, (address(0), address(this), 0, 999, bytes("")))
+        );
+        require(!ok, "unauthorized nested relay succeeded");
+        require(
+            keccak256(reason) == keccak256(abi.encodeWithSignature("Error(string)", "Caller is not L1ScrollMessenger")),
+            "unexpected rejection"
+        );
+        afterSender = _messenger.xDomainMessageSender();
+    }
+}
+
 /// @dev Exposes the deploy/upgrade scripts' replay-check rules for testing.
 contract LegacyReplayCheckHarness {
     function required(address proxy, bool initialized) external view returns (bool) {
@@ -166,6 +199,95 @@ contract L2DogeOsMessengerUpgradeTest is MoatTestBase {
         _upgradeToBitmap(true);
         vm.expectRevert("Invalid message sender");
         _relayFrom(ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER, address(0xcafe), 4);
+    }
+
+    // --- Transient sender context --- //
+
+    function testFuzz_SenderRoundTrip(address from) external {
+        vm.assume(from != ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER);
+        _upgradeToBitmap(true);
+        IScrollMessenger messenger = IScrollMessenger(_messengerProxy);
+        SenderProbe probe = new SenderProbe(messenger);
+        _relayFrom(from, address(probe), 100);
+        assertEq(probe.seenSender(), from);
+        assertEq(messenger.xDomainMessageSender(), ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER);
+    }
+
+    function test_MaxAddressSenderDoesNotOverflowEncoding() external {
+        _upgradeToBitmap(true);
+        SenderProbe probe = new SenderProbe(IScrollMessenger(_messengerProxy));
+        _relayFrom(address(type(uint160).max), address(probe), 101);
+        assertEq(probe.seenSender(), address(type(uint160).max));
+    }
+
+    function test_SequentialRelaysClearContextAfterSuccessAndFailure() external {
+        _upgradeToBitmap(true);
+        IScrollMessenger messenger = IScrollMessenger(_messengerProxy);
+        SenderProbe probe = new SenderProbe(messenger);
+        _relayFrom(L1_SENDER, address(probe), 102);
+        probe.setRevertAfterRead(true);
+        _relayFrom(address(0), address(probe), 103);
+        assertFalse(L2DogeOsMessenger(payable(_messengerProxy)).isL1MessageNonceExecuted(103));
+        assertEq(messenger.xDomainMessageSender(), ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER);
+        probe.setRevertAfterRead(false);
+        _relayFrom(address(0), address(probe), 103);
+        assertEq(probe.seenSender(), address(0));
+        assertTrue(L2DogeOsMessenger(payable(_messengerProxy)).isL1MessageNonceExecuted(103));
+        _relayFrom(L1_SENDER, address(probe), 104);
+        assertEq(probe.seenSender(), L1_SENDER);
+        assertEq(messenger.xDomainMessageSender(), ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER);
+    }
+
+    function test_RelayNeverReadsOrWritesLegacySenderSlot() external {
+        _upgradeToBitmap(true);
+        // The pre-bitmap and bitmap implementations both put the sender at slot 201.
+        bytes32 senderSlot = bytes32(uint256(201));
+        bytes32 beforeValue = vm.load(_messengerProxy, senderSlot);
+        assertEq(beforeValue, bytes32(uint256(uint160(ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER))));
+        SenderProbe probe = new SenderProbe(IScrollMessenger(_messengerProxy));
+        vm.record();
+        _relayFrom(L1_SENDER, address(probe), 105);
+        (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(_messengerProxy);
+        for (uint256 i; i < reads.length; ++i) assertTrue(reads[i] != senderSlot, "legacy sender read");
+        for (uint256 i; i < writes.length; ++i) assertTrue(writes[i] != senderSlot, "legacy sender write");
+        assertEq(vm.load(_messengerProxy, senderSlot), beforeValue);
+    }
+
+    function test_ContextRollsBackWithOuterFrame() external {
+        _upgradeToBitmap(true);
+        address aliasSender = AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER);
+        vm.etch(aliasSender, type(RevertingRelayFrame).runtimeCode);
+        bytes memory data = abi.encodeCall(
+            L2ScrollMessenger.relayMessage,
+            (L1_SENDER, address(_moat), VALUE, 106, _message(106))
+        );
+        vm.expectRevert("outer frame revert");
+        RevertingRelayFrame(aliasSender).relayThenRevert(_messengerProxy, data);
+        assertFalse(L2DogeOsMessenger(payable(_messengerProxy)).isL1MessageNonceExecuted(106));
+        assertEq(
+            IScrollMessenger(_messengerProxy).xDomainMessageSender(),
+            ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER
+        );
+        _relay(106, _message(106));
+        assertEq(address(0xcafe).balance, VALUE);
+    }
+
+    function test_RejectedNestedRelayPreservesSender() external {
+        _upgradeToBitmap(true);
+        NestedRelayProbe probe = new NestedRelayProbe(IScrollMessenger(_messengerProxy));
+        _relayFrom(L1_SENDER, address(probe), 107);
+        assertEq(probe.beforeSender(), L1_SENDER);
+        assertEq(probe.afterSender(), L1_SENDER);
+        assertEq(address(probe).balance, VALUE);
+        assertEq(
+            IScrollMessenger(_messengerProxy).xDomainMessageSender(),
+            ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER
+        );
+    }
+
+    function test_UninitializedGetterStillReturnsZero() external {
+        L2DogeOsMessenger impl = new L2DogeOsMessenger(L1_MESSENGER, address(_queue), _moatProxy, true);
+        assertEq(impl.xDomainMessageSender(), address(0));
     }
 
     // --- Upgrade from the pre-bitmap implementation --- //
