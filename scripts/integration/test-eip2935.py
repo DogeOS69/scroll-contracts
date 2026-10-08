@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Generate a disposable genesis and test it with the audited DogeOS geth executor.
+"""Check actual generated genesis; optionally test it with the DogeOS geth executor.
 
-Requires forge, jq, Go, installed repo dependencies, and a DogeOS geth checkout.
+Requires forge, jq, and installed repo dependencies. The geth execution test
+additionally requires Go and a DogeOS geth checkout.
 No running network or user volume/config.toml is accessed.
 """
 
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -14,17 +16,42 @@ import tempfile
 GETH_REVISION = "33c46866196da34484bf1bfbaab20aa4929b3fcc"
 TEST_KEY = "0x" + "0" * 63 + "1"
 TEST_ADDRESS = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+HISTORY_ADDRESS = "0x0000f90827f1c53a10cb7a02335b175320002935"
+HISTORY_CODE = (
+    "0x3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f"
+    "35600143038111604257611fff81430311604257611fff9006545f5260205ff35b5f"
+    "5ffd5b5f35611fff60014303065500"
+)
+
+
+def verify_genesis(genesis_path):
+    genesis = json.loads(genesis_path.read_text())
+    if genesis["config"].get("feynmanTime") != 0:
+        raise RuntimeError("expected the Feynman-at-genesis fork configuration")
+    account = genesis["alloc"].get(HISTORY_ADDRESS)
+    if account is None:
+        raise RuntimeError("generated genesis is missing the EIP-2935 history account")
+    if account["code"].lower() != HISTORY_CODE:
+        raise RuntimeError("generated genesis history runtime is not canonical")
+    if int(str(account["nonce"]), 0) != 1 or int(str(account["balance"]), 0) != 0:
+        raise RuntimeError("generated genesis history account must have nonce 1 and balance 0")
+    if account["storage"] != {}:
+        raise RuntimeError("generated genesis history storage must be empty")
+    print("Generated genesis: canonical EIP-2935 runtime, nonce 1, balance 0, empty storage", flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--geth-repo", type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--genesis-only", action="store_true", help="check generated alloc without a client checkout")
+    mode.add_argument("--geth-repo", type=Path, help="also run the pinned geth execution test")
     args = parser.parse_args()
-    geth = args.geth_repo.resolve()
-    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=geth, text=True).strip()
-    if revision != GETH_REVISION:
-        parser.error(f"expected DogeOS geth revision {GETH_REVISION}; found {revision}")
-    subprocess.run(["git", "diff", "--exit-code", "HEAD", "--", "*.go", "go.mod", "go.sum"], cwd=geth, check=True)
+    geth = args.geth_repo.resolve() if args.geth_repo else None
+    if geth:
+        revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=geth, text=True).strip()
+        if revision != GETH_REVISION:
+            parser.error(f"expected DogeOS geth revision {GETH_REVISION}; found {revision}")
+        subprocess.run(["git", "diff", "--exit-code", "HEAD", "--", "*.go", "go.mod", "go.sum"], cwd=geth, check=True)
     root = Path(__file__).resolve().parents[2]
     with tempfile.TemporaryDirectory(prefix="eip2935-genesis-") as directory:
         stage = Path(directory)
@@ -49,7 +76,11 @@ def main():
                 ["forge", "script", f"scripts/deterministic/{script}.s.sol:{script}", *arguments],
                 cwd=stage, env=env, check=True,
             )
-        env["GENESIS_PATH"] = str(stage / "volume/genesis.yaml")
+        genesis_path = stage / "volume/genesis.yaml"
+        verify_genesis(genesis_path)
+        if not geth:
+            return
+        env["GENESIS_PATH"] = str(genesis_path)
         subprocess.run(
             ["go", "test", str(root / "scripts/integration/eip2935_geth_test.go"), "-v", "-count=1"],
             cwd=geth, env=env, check=True,

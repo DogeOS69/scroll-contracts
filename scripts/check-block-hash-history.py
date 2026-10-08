@@ -33,9 +33,12 @@ def rpc(url, method, params):
 def check(url, height, activation):
     tag = hex(height)
     block = rpc(url, "eth_getBlockByNumber", [tag, False])
-    if rpc(url, "eth_getCode", [ADDRESS, tag]).lower() != CODE:
+    # EIP-1898: every state read must refer to this exact canonical block.
+    # Never fall back to a block number if the RPC does not support this form.
+    snapshot = {"blockHash": block["hash"], "requireCanonical": True}
+    if rpc(url, "eth_getCode", [ADDRESS, snapshot]).lower() != CODE:
         raise RuntimeError(f"block {height}: noncanonical or missing history runtime")
-    if int(rpc(url, "eth_getTransactionCount", [ADDRESS, tag]), 16) != 1:
+    if int(rpc(url, "eth_getTransactionCount", [ADDRESS, snapshot]), 16) != 1:
         raise RuntimeError(f"block {height}: history account nonce is not 1")
     # Check newest, oldest retained, and the unfilled slot before activation.
     numbers = {height - 1, max(0, height - WINDOW)}
@@ -43,13 +46,20 @@ def check(url, height, activation):
         numbers.add(activation - 2)
     for number in sorted(numbers):
         expected = ZERO
-        if number >= activation - 1:
+        if number == height - 1:
+            expected = block["parentHash"].lower()
+        elif number >= activation - 1:
             expected = rpc(url, "eth_getBlockByNumber", [hex(number), False])["hash"].lower()
         data = "0x" + number.to_bytes(32, "big").hex()
-        actual = rpc(url, "eth_call", [{"to": ADDRESS, "data": data}, tag]).lower()
-        storage = rpc(url, "eth_getStorageAt", [ADDRESS, hex(number % WINDOW), tag]).lower()
+        actual = rpc(url, "eth_call", [{"to": ADDRESS, "data": data}, snapshot]).lower()
+        storage = rpc(url, "eth_getStorageAt", [ADDRESS, hex(number % WINDOW), snapshot]).lower()
         if actual != expected or storage != expected:
             raise RuntimeError(f"block {height}, query {number}: history does not match L2 block hash")
+    # Older expected hashes are read from the canonical chain by height. If the
+    # selected block was replaced during those reads, do not report success.
+    current = rpc(url, "eth_getBlockByNumber", [tag, False])
+    if (current["hash"], current["stateRoot"]) != (block["hash"], block["stateRoot"]):
+        raise RuntimeError(f"block {height}: canonical block changed during verification; retry")
     return block["hash"], block["stateRoot"]
 
 
