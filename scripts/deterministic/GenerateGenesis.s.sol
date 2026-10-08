@@ -8,6 +8,7 @@ import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
 import {NativeDogeToken} from "../../src/dogeos/NativeDogeToken.sol";
 import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
 import {DogeOSPredeploy} from "../../src/libraries/constants/DogeOSPredeploy.sol";
+import {BlockHashHistory} from "../../src/libraries/constants/BlockHashHistory.sol";
 
 import {DETERMINISTIC_DEPLOYMENT_PROXY_ADDR, FEE_VAULT_MIN_WITHDRAW_AMOUNT, GENESIS_ALLOC_JSON_PATH, GENESIS_JSON_PATH, GENESIS_JSON_TEMPLATE_PATH} from "./Constants.sol";
 import {DeployScroll} from "./DeployScroll.s.sol";
@@ -48,6 +49,7 @@ contract GenerateGenesis is DeployScroll {
 
         // other predeploys
         setDeterministicDeploymentProxy();
+        setBlockHashHistory();
 
         // reset sender
         vm.resetNonce(msg.sender);
@@ -226,6 +228,14 @@ contract GenerateGenesis is DeployScroll {
 
         vm.etch(address(token), "");
         vm.resetNonce(address(token));
+    }
+
+    /// @dev The genesis template enables Feynman at timestamp zero. Both DogeOS
+    /// clients call this account before transactions from block 1 onward.
+    /// Install the canonical runtime directly, with no proxy or initial history.
+    function setBlockHashHistory() internal {
+        vm.etch(BlockHashHistory.ADDRESS, BlockHashHistory.RUNTIME_CODE);
+        vm.setNonce(BlockHashHistory.ADDRESS, 1);
     }
 
     function setDeterministicDeploymentProxy() internal {

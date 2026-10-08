@@ -90,6 +90,8 @@ repository's [configuration and migration guide](../scroll-sdk-cli/docs/config-c
 explains the removed prompts, supported inputs and local artifact cleanup.
 
 The Docker generator produces contract addresses, genesis, and frontend config.
+Fresh genesis also installs the canonical EIP-2935 L2 history account for the
+Feynman-at-genesis schedule. See [activation dependencies and RPC checks](docs/eip-2935.md).
 The legacy standalone `GenerateCoordinatorConfig` generator reads its own
 `coordinator.*_COLLECTION_TIME_SEC` settings and `general.L2_RPC_ENDPOINT` only
 when invoked explicitly; callers of that generator must supply those fields.
