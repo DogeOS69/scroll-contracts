@@ -200,14 +200,14 @@ contract L1ScrollMessenger is ScrollMessengerBase, IL1ScrollMessenger {
         _validateTargetAddress(_to);
 
         // @note This usually will never happen, just in case.
-        require(_from != xDomainMessageSender, "Invalid message sender");
+        require(_from != _xDomainMessageSender, "Invalid message sender");
 
-        xDomainMessageSender = _from;
+        _xDomainMessageSender = _from;
         // xDomainMessageSender serves as reentrancy guard (notInExecution modifier).
         // slither-disable-next-line reentrancy-eth
         (bool success, ) = _to.call{value: _value}(_message);
         // reset value to refund gas.
-        xDomainMessageSender = ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER;
+        _xDomainMessageSender = ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER;
 
         if (success) {
             isL2MessageExecuted[_xDomainCalldataHash] = true;
