@@ -12,10 +12,12 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 
 GETH_REVISION = "33c46866196da34484bf1bfbaab20aa4929b3fcc"
 TEST_KEY = "0x" + "0" * 63 + "1"
 TEST_ADDRESS = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+TEST_TIMESTAMP = 1760027426
 HISTORY_ADDRESS = "0x0000f90827f1c53a10cb7a02335b175320002935"
 HISTORY_CODE = (
     "0x3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f"
@@ -31,6 +33,8 @@ def verify_genesis(genesis_path):
     if not lines or lines[0] != "scrollConfig: |" or any(not line.startswith("  ") for line in lines[1:]):
         raise RuntimeError("gen-configs entrypoint did not produce the expected genesis.yaml wrapper")
     genesis = json.loads("\n".join(line[2:] for line in lines[1:]))
+    if int(str(genesis["timestamp"]), 0) != TEST_TIMESTAMP:
+        raise RuntimeError("generated genesis timestamp does not match genesis.TIMESTAMP")
     if genesis["config"].get("feynmanTime") != 0:
         raise RuntimeError("expected the Feynman-at-genesis fork configuration")
     account = genesis["alloc"].get(HISTORY_ADDRESS)
@@ -69,6 +73,7 @@ def main():
             (stage / name).symlink_to(root / name, target_is_directory=True)
         (stage / "volume").mkdir()
         config = (root / "docker/templates/config.toml").read_text()
+        config = config.replace("TIMESTAMP = 0", f"TIMESTAMP = {TEST_TIMESTAMP}")
         for name, value in {
             "DEPLOYER_PRIVATE_KEY": TEST_KEY,
             "DEPLOYER_ADDR": TEST_ADDRESS,
@@ -87,6 +92,14 @@ def main():
         if not (stage / "volume/frontend-config.yaml").read_text().startswith("scrollConfig: |\n"):
             raise RuntimeError("gen-configs entrypoint did not export wrapped frontend configuration")
         if not geth:
+            # Repeat the real entrypoint in a later wall-clock second. Compare the
+            # complete artifact, including alloc, rather than only its timestamp.
+            first_genesis = genesis_path.read_bytes()
+            time.sleep(1.1)
+            subprocess.run(["bash", "docker/scripts/gen-configs.sh"], cwd=stage, env=env, check=True)
+            if genesis_path.read_bytes() != first_genesis:
+                raise RuntimeError("generated genesis changed between identical runs")
+            print("Generated genesis: identical across repeated runs with a fixed timestamp", flush=True)
             return
         # geth accepts the JSON payload, not the Kubernetes ConfigMap wrapper.
         json_path = stage / "volume/genesis.json"

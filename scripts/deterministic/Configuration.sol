@@ -47,6 +47,7 @@ abstract contract Configuration is NativeDogeSupplyConfig {
     uint256 internal L2_DOGEOS_MESSENGER_INITIAL_BALANCE;
     uint256 internal BASE_FEE_PER_GAS;
     uint256 internal GENESIS_GAS_LIMIT;
+    uint256 internal GENESIS_TIMESTAMP;
     uint256 internal L2_BASE_FEE_OVERHEAD;
 
     // contracts
@@ -106,6 +107,7 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         L2_MAX_NATIVE_DOGE_SUPPLY = readL2MaxNativeDogeSupply(cfg);
         L2_DEPLOYER_INITIAL_BALANCE = cfg.readUint(".genesis.L2_DEPLOYER_INITIAL_BALANCE");
         BASE_FEE_PER_GAS = cfg.readUint(".genesis.BASE_FEE_PER_GAS");
+        GENESIS_TIMESTAMP = readGenesisTimestamp();
         // Older configs retain the JSON template's gas limit. New deployments
         // should set it explicitly in their shared config.toml.
         if (vm.keyExistsToml(cfg, ".genesis.GAS_LIMIT")) {
@@ -147,6 +149,16 @@ abstract contract Configuration is NativeDogeSupplyConfig {
         GRAFANA_URI = cfg.readString(".frontend.GRAFANA_URI");
 
         runSanityCheck();
+    }
+
+    /// @dev Older configs default to the Unix epoch, never the generation time.
+    function readGenesisTimestamp() internal view returns (uint256) {
+        if (!vm.keyExistsToml(cfg, ".genesis.TIMESTAMP")) {
+            return 0;
+        }
+        uint256 timestamp = cfg.readUint(".genesis.TIMESTAMP");
+        require(timestamp <= type(uint64).max, "invalid genesis.TIMESTAMP");
+        return timestamp;
     }
 
     /// @dev Ensure that `addr` is not the zero address.

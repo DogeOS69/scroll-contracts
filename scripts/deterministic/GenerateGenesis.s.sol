@@ -260,7 +260,7 @@ contract GenerateGenesis is DeployScroll {
         // header quantities are explicitly quoted JSON strings, avoiding writeJson's
         // implicit value parsing.
         vm.writeJson(vm.toString(CHAIN_ID_L2), outputPath, ".config.chainId");
-        writeGenesisString(vm.toString(bytes32(vm.unixTime() / 1000)), outputPath, ".timestamp");
+        writeGenesisString(vm.toString(bytes32(GENESIS_TIMESTAMP)), outputPath, ".timestamp");
         writeGenesisString(vm.toString(bytes32(BASE_FEE_PER_GAS)), outputPath, ".baseFeePerGas");
         if (GENESIS_GAS_LIMIT != 0) {
             writeGenesisString(vm.toString(bytes32(GENESIS_GAS_LIMIT)), outputPath, ".gasLimit");
