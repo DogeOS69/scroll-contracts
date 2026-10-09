@@ -19,6 +19,9 @@ v0.2.0. It covers, in one upgrade window:
    new `FeeVaultMoatAdapter` (fee-exempt via `Moat.setFeeExempt`), and the
    `FEE_VAULT` exemption is removed from `L2DogeOsMessenger`, making the Moat
    the only possible L2->L1 sender (same PR).
+4. **Deposits relay while the messenger is paused** — from
+   `dogeos-v0.3.0-rc.4` (`f185d9f`) the `L2DogeOsMessenger` pause freezes
+   withdrawals only; see section 1.8.
 
 No predeploy bytecode changes: the fee vault keeps its v0.2.0 code and is
 reconfigured purely through its owner setters. The only implementation swaps
@@ -627,6 +630,42 @@ Rolling back to an implementation from before the messenger became immutable
 is safe: the old `messenger` storage slot is never cleared, so the old code
 reads the same messenger address it used before the upgrade.
 
+### 1.8 Messenger pause semantics
+
+From `dogeos-v0.3.0-rc.4` (`f185d9f`), a messenger pause
+(`ScrollMessengerBase.setPause`) freezes **withdrawals only**. Earlier
+implementations, including rc.1 to rc.3, still guard `relayMessage`.
+
+- **Withdrawals freeze.** Both `sendMessage` overloads keep the
+  `whenNotPaused` guard, so no new L2->L1 messages can be initiated while
+  the L2 messenger is paused. This covers every Moat withdrawal entry point
+  and fee-vault withdrawals through the adapter. Withdrawals already queued
+  are not affected by the L2 pause.
+- **Deposits keep relaying.** `relayMessage` is deliberately not guarded.
+  The sequencer consumes an L1 message even if its relay reverts, so a relay
+  sequenced while paused used to revert with no on-chain state or event, and
+  recovery needed the node to re-inject identical calldata. A relay during a
+  pause now runs as usual, and each message executes at most once: a
+  successful relay is marked executed and a replay is rejected.
+- **To stop deposits, stop the sequencer from including L1 messages.** The
+  messenger pause is not a deposit stop. In `dogeos-rollup-node`:
+  - `rollupNodeAdmin_disableAutomaticSequencing` (needs
+    `--rpc.rollup-node-admin`) disables automatic sequencing without a
+    restart and cancels the pending build. It is not an immediate halt: one
+    more block can still land, and manual block builds still work, so also
+    make sure nothing triggers a manual build.
+    `rollupNodeAdmin_enableAutomaticSequencing` resumes it.
+  - Restarting the sequencer with `--sequencer.max-l1-messages 0` builds
+    blocks with no L1 messages while L2 transactions continue. Queued
+    deposits wait, in order, until the sequencer is restarted without the
+    flag. Keep `--sequencer.auto-start` on the restart.
+
+The old behavior returns if the messenger proxy
+(`L2_DOGEOS_MESSENGER_PROXY_ADDR`) is rolled back to an implementation before
+rc.4: while that implementation is paused, relays revert and in-flight
+deposits are lost unless re-injected. Before such a rollback, unpause, or
+stop L1-message inclusion and confirm block production has settled.
+
 ---
 
 ## 2. Explanation
@@ -712,6 +751,12 @@ messages are rejected outright: there is exactly ONE message representation per
 Dogecoin recipient type, so the message bytes (and the message hash) are
 deterministically reconstructable from the Dogecoin address used in the
 withdrawal alone.
+
+#### Messenger pause no longer blocks deposits
+
+`relayMessage` no longer has `whenNotPaused`; both `sendMessage` overloads
+keep it. A messenger pause now freezes withdrawals only, and deposits are
+stopped at the sequencer instead. See section 1.8.
 
 #### Message envelope format
 

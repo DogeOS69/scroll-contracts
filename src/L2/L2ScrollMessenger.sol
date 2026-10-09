@@ -88,13 +88,17 @@ contract L2ScrollMessenger is ScrollMessengerBase, IL2ScrollMessenger {
     }
 
     /// @inheritdoc IL2ScrollMessenger
+    /// @dev Deliberately not `whenNotPaused`: the sequencer consumes an L1 message even if
+    ///      its relay reverts, so a paused relay left no on-chain state or event, and
+    ///      recovery needed the node to re-inject identical calldata. A pause gates only
+    ///      L2->L1 sends (both `sendMessage` overloads).
     function relayMessage(
         address _from,
         address _to,
         uint256 _value,
         uint256 _nonce,
         bytes memory _message
-    ) external override whenNotPaused {
+    ) external override {
         // It is impossible to deploy a contract with the same address, reentrance is prevented in nature.
         require(AddressAliasHelper.undoL1ToL2Alias(_msgSender()) == counterpart, "Caller is not L1ScrollMessenger");
 
