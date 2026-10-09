@@ -19,6 +19,9 @@ v0.2.0. It covers, in one upgrade window:
    new `FeeVaultMoatAdapter` (fee-exempt via `Moat.setFeeExempt`), and the
    `FEE_VAULT` exemption is removed from `L2DogeOsMessenger`, making the Moat
    the only possible L2->L1 sender (same PR).
+4. **Deposits relay while the messenger is paused (RG-97)** — from
+   `dogeos-v0.3.0-rc.4` (`f185d9f`) the `L2DogeOsMessenger` pause freezes
+   withdrawals only; see section 1.8.
 
 No predeploy bytecode changes: the fee vault keeps its v0.2.0 code and is
 reconfigured purely through its owner setters. The only implementation swaps
@@ -629,23 +632,36 @@ reads the same messenger address it used before the upgrade.
 
 ### 1.8 Messenger pause semantics (RG-97)
 
-As of the v0.3.0 `L2DogeOsMessenger` implementation, a messenger pause
-(`ScrollMessengerBase.setPause`) freezes **withdrawals only**:
+From `dogeos-v0.3.0-rc.4` (`f185d9f`), a messenger pause
+(`ScrollMessengerBase.setPause`) freezes **withdrawals only**. Earlier
+implementations, including rc.1 to rc.3, still guard `relayMessage`.
 
 - **Withdrawals freeze.** Both `sendMessage` overloads keep the
   `whenNotPaused` guard, so no new L2->L1 messages can be initiated while
-  paused. Already-queued withdrawals are unaffected.
-- **Deposits keep crediting.** `relayMessage` is deliberately not guarded
-  (RG-97: a relay sequenced while paused used to revert atomically and leave
-  no record, and with no replay path the deposit was lost). A deposit relayed
-  during a pause credits its recipient exactly once; a replay of the same
-  message is still rejected.
-- **To stop deposits, hold deposit sequencing** (pause deposit ingestion
-  upstream of the sequencer). The messenger pause is not a deposit stop.
+  the L2 messenger is paused. This covers every Moat withdrawal entry point
+  and fee-vault withdrawals through the adapter. Withdrawals already queued
+  are not affected by the L2 pause.
+- **Deposits keep relaying.** `relayMessage` is deliberately not guarded.
+  The sequencer consumes an L1 message even if its relay reverts, so a relay
+  sequenced while paused used to revert with no on-chain state or event, and
+  recovery needed the node to re-inject identical calldata. A relay during a
+  pause now runs as usual, and each message executes at most once: a
+  successful relay is marked executed and a replay is rejected.
+- **To stop deposits, stop the sequencer from including L1 messages.** The
+  messenger pause is not a deposit stop. In `dogeos-rollup-node`:
+  - `rollupNodeAdmin_disableAutomaticSequencing` (needs
+    `--rpc.rollup-node-admin`) stops all block production at once, without a
+    restart. `rollupNodeAdmin_enableAutomaticSequencing` resumes it.
+  - Restarting the sequencer with `--sequencer.max-l1-messages 0` builds
+    blocks with no L1 messages while L2 transactions continue. Queued
+    deposits wait, in order, until the sequencer is restarted without the
+    flag. Keep `--sequencer.auto-start` on the restart.
 
-The old behavior returns if the proxy is rolled back to a pre-v0.3.0
-implementation that still guards `relayMessage`: while such an implementation
-is paused, relays revert and in-flight deposits are lost with no replay path.
+The old behavior returns if the messenger proxy
+(`L2_DOGEOS_MESSENGER_PROXY_ADDR`) is rolled back to an implementation before
+rc.4: while that implementation is paused, relays revert and in-flight
+deposits are lost unless re-injected. Unpause, or stop L1-message inclusion,
+before such a rollback.
 
 ---
 
@@ -732,6 +748,12 @@ messages are rejected outright: there is exactly ONE message representation per
 Dogecoin recipient type, so the message bytes (and the message hash) are
 deterministically reconstructable from the Dogecoin address used in the
 withdrawal alone.
+
+#### Messenger pause no longer blocks deposits (RG-97)
+
+`relayMessage` no longer has `whenNotPaused`; both `sendMessage` overloads
+keep it. A messenger pause now freezes withdrawals only, and deposits are
+stopped at the sequencer instead. See section 1.8.
 
 #### Message envelope format
 

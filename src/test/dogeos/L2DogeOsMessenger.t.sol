@@ -18,6 +18,7 @@ import {L1ScrollMessenger} from "../../L1/L1ScrollMessenger.sol";
 
 // Scroll Libraries
 import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol";
+import {ScrollConstants} from "../../libraries/constants/ScrollConstants.sol";
 import {IScrollMessenger} from "../../libraries/IScrollMessenger.sol";
 
 // Helper contract that always reverts
@@ -26,6 +27,21 @@ contract RevertingReceiver {
 
     fallback() external payable {
         revert AlwaysRevert();
+    }
+}
+
+// Helper contract that rejects value until it is switched to accept it
+contract ToggleReceiver {
+    error Rejected();
+
+    bool public accepting;
+
+    function setAccepting(bool _accepting) external {
+        accepting = _accepting;
+    }
+
+    receive() external payable {
+        if (!accepting) revert Rejected();
     }
 }
 
@@ -392,12 +408,13 @@ contract L2DogeOsMessengerTest is MoatTestBase {
     // RG-97: deposits relay while the L2 messenger is paused.
     //
     // `whenNotPaused` was removed from `relayMessage` only; both
-    // `sendMessage` overloads keep it. A relay sequenced while paused used
-    // to revert as a whole and leave no record, and with no replay path the
-    // deposit was lost until someone re-sent identical calldata after
-    // unpause. Now the deposit credits during a pause; a pause still
-    // freezes withdrawals, and stopping deposits means holding deposit
-    // sequencing. The two fee pins at the end are unchanged: the unbounded
+    // `sendMessage` overloads keep it. The sequencer consumes an L1 message
+    // even if its relay reverts, so a relay sequenced while paused left no
+    // on-chain state or event, and recovery needed the node to re-inject
+    // identical calldata. Now a deposit relays during a pause and executes
+    // at most once; a pause still freezes withdrawals, and stopping deposits
+    // means stopping L1-message inclusion at the sequencer. The last two
+    // tests pin fee behavior this change does not touch; the unbounded
     // deposit fee, the other half of RG-97, is still open.
     // ------------------------------------------------------------------
 
@@ -465,7 +482,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
     }
 
     // A relay sequenced while the messenger is paused now executes: the
-    // recipient is credited exactly once and the message is marked executed.
+    // recipient is credited and the message is marked executed.
     function testRG97_PausedRelaySucceedsAndCreditsRecipient() external {
         (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
         address l1Sender = address(0xabc);
@@ -494,7 +511,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
     }
 
     // A replay of the same message is rejected while paused and after unpause:
-    // the deposit credits exactly once even if the sequencer path races a pause.
+    // the deposit executes at most once even if the sequencer path races a pause.
     function testRG97_PausedRelayReplayRejected() external {
         (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
         address l1Sender = address(0xabc);
@@ -526,14 +543,15 @@ contract L2DogeOsMessengerTest is MoatTestBase {
         assertEq(recipient.balance, value, "the recipient is still credited exactly once");
     }
 
-    // A pause still freezes withdrawals: sendMessage from the Moat reverts and
-    // nothing enters the message queue.
+    // A pause still freezes withdrawals: both sendMessage overloads revert for
+    // the Moat and nothing enters the message queue.
     function testRG97_WithdrawalStillRevertsWhilePaused() external {
         (L2DogeOsMessenger messenger, Moat moat, L2MessageQueue queue) = _deployPausableStack();
         messenger.setPause(true);
 
         vm.deal(address(moat), 1 ether);
         uint256 nonceBefore = queue.nextMessageIndex();
+        uint256 messengerBalanceBefore = address(messenger).balance;
         vm.startPrank(address(moat));
         vm.expectRevert("Pausable: paused");
         messenger.sendMessage{value: 1 ether}({
@@ -542,10 +560,19 @@ contract L2DogeOsMessengerTest is MoatTestBase {
             _message: WithdrawalEnvelope.encode(false),
             _gasLimit: 0
         });
+        vm.expectRevert("Pausable: paused");
+        messenger.sendMessage{value: 1 ether}(
+            address(0x111),
+            1 ether,
+            WithdrawalEnvelope.encode(false),
+            0,
+            address(moat)
+        );
         vm.stopPrank();
 
         assertEq(queue.nextMessageIndex(), nonceBefore, "a paused withdrawal must not enter the queue");
-        assertEq(address(0x111).balance, 0, "no value left the L2");
+        assertEq(address(moat).balance, 1 ether, "the Moat keeps the withdrawal value");
+        assertEq(address(messenger).balance, messengerBalanceBefore, "the messenger received nothing");
     }
 
     // After unpause everything behaves as before: deposits relay and
@@ -598,11 +625,67 @@ contract L2DogeOsMessengerTest is MoatTestBase {
         assertEq(queue.nextMessageIndex(), nonceBefore + 1, "the withdrawal enters the queue after unpause");
     }
 
-    // `setDepositFee` has no upper bound (fee half of RG-97, still open). With
-    // a fee at or above the deposit, the relay succeeds and marks the message
-    // executed, but the whole deposit is held as Moat fee and the target is
-    // never called; `sweepFees` later pays it all to the fee recipient.
-    function testRG97_AnUnboundedDepositFeeSwallowsTheWholeDeposit() external {
+    // A relay that fails while paused stays retryable: the target rejects
+    // value, so the relay emits FailedRelayedMessage, is not marked executed
+    // and keeps the value in the messenger. A retry with the same hash, still
+    // while paused, then succeeds, and a further replay is rejected.
+    function testRG97_PausedFailedRelayCanBeRetriedWhilePaused() external {
+        (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
+        ToggleReceiver recipient = new ToggleReceiver();
+        address l1Sender = address(0xabc);
+        address l1Alias = AddressAliasHelper.applyL1ToL2Alias(address(_l1Messenger));
+        uint256 value = 1 ether;
+        uint256 nonce = 13;
+        bytes memory message = abi.encodeWithSignature(
+            "handleL1Message(address,bytes32)",
+            address(recipient),
+            bytes32(uint256(0x9d))
+        );
+        bytes32 relayHash = _relayHash(l1Sender, address(moat), value, nonce, message);
+
+        messenger.setPause(true);
+        vm.deal(address(messenger), value);
+
+        // The target rejects value: the relay fails but does not revert.
+        vm.prank(l1Alias);
+        vm.expectEmit(true, false, false, false, address(messenger));
+        emit IScrollMessenger.FailedRelayedMessage(relayHash);
+        messenger.relayMessage({_from: l1Sender, _to: address(moat), _value: value, _nonce: nonce, _message: message});
+
+        assertFalse(messenger.isL1MessageExecuted(relayHash), "a failed relay must not be marked executed");
+        assertEq(address(messenger).balance, value, "the messenger keeps the value of a failed relay");
+        assertEq(address(recipient).balance, 0, "the target received nothing");
+        assertEq(
+            messenger.xDomainMessageSender(),
+            ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER,
+            "xDomainMessageSender is reset after a failed relay"
+        );
+
+        // The retry with the same hash succeeds while still paused.
+        recipient.setAccepting(true);
+        assertTrue(messenger.paused(), "the messenger is still paused");
+        vm.prank(l1Alias);
+        vm.expectEmit(true, false, false, false, address(messenger));
+        emit IScrollMessenger.RelayedMessage(relayHash);
+        messenger.relayMessage({_from: l1Sender, _to: address(moat), _value: value, _nonce: nonce, _message: message});
+
+        assertTrue(messenger.isL1MessageExecuted(relayHash), "the retry marks the message executed");
+        assertEq(address(recipient).balance, value, "the retry credits the target");
+        assertEq(address(messenger).balance, 0, "the value left the messenger exactly once");
+
+        // A further replay is rejected.
+        vm.prank(l1Alias);
+        vm.expectRevert("Message was already successfully executed");
+        messenger.relayMessage({_from: l1Sender, _to: address(moat), _value: value, _nonce: nonce, _message: message});
+    }
+
+    // KNOWN-BAD PIN: `setDepositFee` has no upper bound (fee half of RG-97,
+    // still open). With a fee at or above the deposit, the relay succeeds and
+    // marks the message executed, but the whole deposit is held as Moat fee
+    // and the target is never called; `sweepFees` later pays it all to the fee
+    // recipient. When a fee cap lands, flip this test to expect `setDepositFee`
+    // to revert above the cap rather than keeping it passing.
+    function testKnownIssue_UnboundedDepositFeeSwallowsTheWholeDeposit() external {
         (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
         address l1Sender = address(0xabc);
         address recipient = address(0xdef);
@@ -633,11 +716,11 @@ contract L2DogeOsMessengerTest is MoatTestBase {
         assertEq(feeRecipient.balance, value, "the whole deposit went to the fee recipient");
     }
 
-    // A fee recipient that rejects value no longer fails deposits: fees are
-    // held by the Moat instead of paid inside the relay, so the deposit still
-    // credits and the message is marked executed. Only `sweepFees` reverts,
-    // until the owner changes the recipient.
-    function testRG97_ARevertingFeeRecipientNoLongerBlocksDeposits() external {
+    // A fee recipient that rejects value does not fail deposits: since the
+    // fee-hold change (#65), fees are held by the Moat instead of paid inside
+    // the relay, so the deposit still credits and the message is marked
+    // executed. Only `sweepFees` reverts, until the owner changes the recipient.
+    function testDeposit_RevertingFeeRecipientDoesNotFailRelay() external {
         (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
         address l1Sender = address(0xabc);
         address recipient = address(0xdef);

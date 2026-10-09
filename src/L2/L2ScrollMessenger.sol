@@ -88,11 +88,10 @@ contract L2ScrollMessenger is ScrollMessengerBase, IL2ScrollMessenger {
     }
 
     /// @inheritdoc IL2ScrollMessenger
-    /// @dev Deliberately NOT `whenNotPaused` (RG-97). A relay sequenced while paused
-    ///      used to revert atomically and leave no record; with no replay path, the
-    ///      deposit was lost until someone re-sent identical calldata after unpause.
-    ///      A messenger pause now freezes withdrawals only (both `sendMessage`
-    ///      overloads keep the guard); to stop deposits, hold deposit sequencing.
+    /// @dev Deliberately not `whenNotPaused`: the sequencer consumes an L1 message even if
+    ///      its relay reverts, so a paused relay left no on-chain state or event, and
+    ///      recovery needed the node to re-inject identical calldata. A pause gates only
+    ///      L2->L1 sends (both `sendMessage` overloads).
     function relayMessage(
         address _from,
         address _to,
