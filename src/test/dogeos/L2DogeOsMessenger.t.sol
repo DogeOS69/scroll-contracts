@@ -405,7 +405,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
     }
 
     // ------------------------------------------------------------------
-    // RG-97: deposits relay while the L2 messenger is paused.
+    // Deposits relay while the L2 messenger is paused.
     //
     // `whenNotPaused` was removed from `relayMessage` only; both
     // `sendMessage` overloads keep it. The sequencer consumes an L1 message
@@ -414,8 +414,8 @@ contract L2DogeOsMessengerTest is MoatTestBase {
     // identical calldata. Now a deposit relays during a pause and executes
     // at most once; a pause still freezes withdrawals, and stopping deposits
     // means stopping L1-message inclusion at the sequencer. The last two
-    // tests pin fee behavior this change does not touch; the unbounded
-    // deposit fee, the other half of RG-97, is still open.
+    // tests pin fee behavior this change does not touch; the deposit fee
+    // still has no upper bound.
     // ------------------------------------------------------------------
 
     /// @dev A messenger behind a proxy so that this test contract is its
@@ -483,7 +483,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
 
     // A relay sequenced while the messenger is paused now executes: the
     // recipient is credited and the message is marked executed.
-    function testRG97_PausedRelaySucceedsAndCreditsRecipient() external {
+    function testWhilePaused_RelaySucceedsAndCreditsRecipient() external {
         (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
         address l1Sender = address(0xabc);
         address recipient = address(0xdef);
@@ -512,7 +512,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
 
     // A replay of the same message is rejected while paused and after unpause:
     // the deposit executes at most once even if the sequencer path races a pause.
-    function testRG97_PausedRelayReplayRejected() external {
+    function testWhilePaused_RelayReplayRejected() external {
         (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
         address l1Sender = address(0xabc);
         address recipient = address(0xdef);
@@ -545,7 +545,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
 
     // A pause still freezes withdrawals: both sendMessage overloads revert for
     // the Moat and nothing enters the message queue.
-    function testRG97_WithdrawalStillRevertsWhilePaused() external {
+    function testWhilePaused_WithdrawalReverts() external {
         (L2DogeOsMessenger messenger, Moat moat, L2MessageQueue queue) = _deployPausableStack();
         messenger.setPause(true);
 
@@ -577,7 +577,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
 
     // After unpause everything behaves as before: deposits relay and
     // withdrawals enter the queue again.
-    function testRG97_AfterUnpauseBehavesAsBefore() external {
+    function testPaused_AfterUnpauseBehavesAsBefore() external {
         (L2DogeOsMessenger messenger, Moat moat, L2MessageQueue queue) = _deployPausableStack();
         address l1Sender = address(0xabc);
         address recipient = address(0xdef);
@@ -629,7 +629,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
     // value, so the relay emits FailedRelayedMessage, is not marked executed
     // and keeps the value in the messenger. A retry with the same hash, still
     // while paused, then succeeds, and a further replay is rejected.
-    function testRG97_PausedFailedRelayCanBeRetriedWhilePaused() external {
+    function testWhilePaused_FailedRelayCanBeRetried() external {
         (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
         ToggleReceiver recipient = new ToggleReceiver();
         address l1Sender = address(0xabc);
@@ -679,8 +679,7 @@ contract L2DogeOsMessengerTest is MoatTestBase {
         messenger.relayMessage({_from: l1Sender, _to: address(moat), _value: value, _nonce: nonce, _message: message});
     }
 
-    // KNOWN-BAD PIN: `setDepositFee` has no upper bound (fee half of RG-97,
-    // still open). With a fee at or above the deposit, the relay succeeds and
+    // KNOWN-BAD PIN: `setDepositFee` has no upper bound (still open). With a fee at or above the deposit, the relay succeeds and
     // marks the message executed, but the whole deposit is held as Moat fee
     // and the target is never called; `sweepFees` later pays it all to the fee
     // recipient. When a fee cap lands, flip this test to expect `setDepositFee`
@@ -716,10 +715,10 @@ contract L2DogeOsMessengerTest is MoatTestBase {
         assertEq(feeRecipient.balance, value, "the whole deposit went to the fee recipient");
     }
 
-    // A fee recipient that rejects value does not fail deposits: since the
-    // fee-hold change (#65), fees are held by the Moat instead of paid inside
-    // the relay, so the deposit still credits and the message is marked
-    // executed. Only `sweepFees` reverts, until the owner changes the recipient.
+    // A fee recipient that rejects value does not fail deposits: fees are
+    // held by the Moat instead of paid inside the relay, so the deposit still
+    // credits and the message is marked executed. Only `sweepFees` reverts,
+    // until the owner changes the recipient.
     function testDeposit_RevertingFeeRecipientDoesNotFailRelay() external {
         (L2DogeOsMessenger messenger, Moat moat, ) = _deployPausableStack();
         address l1Sender = address(0xabc);

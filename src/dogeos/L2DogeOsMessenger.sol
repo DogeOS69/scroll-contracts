@@ -13,7 +13,7 @@ import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
  * @title L2DogeOsMessenger
  * @notice A custom L2 messenger for DogeOS, inheriting from L2ScrollMessenger.
  * It modifies the standard behavior to interact with the DogeOS Moat contract.
- * @dev Pause semantics (RG-97): `setPause` freezes withdrawals only. Deposits keep
+ * @dev Pause semantics: `setPause` freezes withdrawals only. Deposits keep
  * relaying while paused, and each executes at most once. To stop deposits, stop the
  * sequencer from including L1 messages (see UPGRADE_MOAT.md section 1.8).
  */
