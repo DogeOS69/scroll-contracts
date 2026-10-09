@@ -63,6 +63,10 @@ def main():
         stage = Path(directory)
         for name in ["src", "scripts", "docker", "lib", "node_modules", "foundry.toml", "remappings.txt"]:
             (stage / name).symlink_to(root / name)
+        # Reuse the preceding CI build instead of cold-compiling in staging.
+        for name in ["artifacts", "cache"]:
+            (root / name).mkdir(exist_ok=True)
+            (stage / name).symlink_to(root / name, target_is_directory=True)
         (stage / "volume").mkdir()
         config = (root / "docker/templates/config.toml").read_text()
         for name, value in {

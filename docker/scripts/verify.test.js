@@ -259,11 +259,31 @@ test("history uses the canonical account at one block hash without Solidity veri
   assert.equal(source.match(/ADDRESS = (0x[0-9a-fA-F]+);/)[1].toLowerCase(), historyAddress);
 });
 
-test("missing or incorrect history runtime and nonce make verification fail", (t) => {
+test("missing history account warns and allows older networks to verify", (t) => {
+  const result = fixture(t).run({ VERIFY_TEST_HISTORY_CODE: "0x" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.calls.length, 21);
+  assert.match(result.stderr, /Warning: EIP-2935 history account is missing/);
+  assert.equal(result.stdout.includes("runtime and nonce verified"), false);
+  assert.deepEqual(
+    result.castCalls.map((args) => args[0]),
+    ["block", "code"]
+  );
+});
+
+test("missing history account does not hide Solidity verification failures", (t) => {
+  const result = fixture(t).run({ VERIFY_TEST_HISTORY_CODE: "0x", VERIFY_TEST_FAIL: "Moat" });
+  assert.equal(result.status, 1);
+  assert.equal(result.calls.length, 21);
+  assert.match(result.stderr, /Warning: EIP-2935 history account is missing/);
+  assert.match(result.stderr, /Failed contracts: L2_MOAT_IMPLEMENTATION_ADDR/);
+});
+
+test("incorrect history runtime and nonce make verification fail", (t) => {
   const f = fixture(t);
   fs.writeFileSync(f.addressesPath, "");
   for (const extraEnv of [
-    { VERIFY_TEST_HISTORY_CODE: "0x" },
+    { VERIFY_TEST_HISTORY_CODE: "" },
     { VERIFY_TEST_HISTORY_CODE: "0x6000" },
     { VERIFY_TEST_HISTORY_NONCE: "0" },
     { VERIFY_TEST_HISTORY_NONCE: "2" },

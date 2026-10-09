@@ -28,8 +28,14 @@ function verifyBlockHashHistory(rpc) {
   const blockHash = readCast(["block", "latest", "--field", "hash"]);
   if (!/^0x[0-9a-fA-F]{64}$/.test(blockHash)) throw new Error("Invalid L2 block hash returned by cast");
   const code = readCast(["code", blockHashHistoryAddress, "--block", blockHash]);
+  if (code === "0x") {
+    console.warn(
+      `Warning: EIP-2935 history account is missing at block ${blockHash}; skipping runtime and nonce verification for older networks`
+    );
+    return;
+  }
   if (code.toLowerCase() !== blockHashHistoryCode) {
-    throw new Error("EIP-2935 history runtime is missing or does not match the canonical bytecode");
+    throw new Error("EIP-2935 history runtime does not match the canonical bytecode");
   }
   const nonce = readCast(["nonce", blockHashHistoryAddress, "--block", blockHash]);
   if (nonce !== "1") throw new Error("EIP-2935 history account nonce must be 1");
