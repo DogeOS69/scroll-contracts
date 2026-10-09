@@ -90,6 +90,8 @@ repository's [configuration and migration guide](../scroll-sdk-cli/docs/config-c
 explains the removed prompts, supported inputs and local artifact cleanup.
 
 The Docker generator produces contract addresses, genesis, and frontend config.
+Fresh genesis also installs the canonical EIP-2935 L2 history account for the
+Feynman-at-genesis schedule. See [activation dependencies and RPC checks](docs/eip-2935.md).
 The legacy standalone `GenerateCoordinatorConfig` generator reads its own
 `coordinator.*_COLLECTION_TIME_SEC` settings and `general.L2_RPC_ENDPOINT` only
 when invoked explicitly; callers of that generator must supply those fields.
@@ -165,8 +167,17 @@ template and factory remain excluded. Unconfigured deployment addresses are
 reported as skipped; failed verifications are collected and produce a nonzero
 exit status after the remaining contracts have been attempted.
 
+The same command also checks the EIP-2935 history account at its fixed protocol
+address using `cast`: exact canonical runtime and nonce `1`, read at the same
+block hash. This is a bytecode/account check, not explorer Solidity source
+verification: the history runtime is hand-written EVM code, and the
+`BlockHashHistory` Solidity library only holds constants. Missing or mismatching
+history code, an incorrect nonce, or an RPC failure makes the command fail,
+including for older configs without a history-account entry. History contents
+are checked separately by [the RPC smoke test](docs/eip-2935.md).
+
 Run `node --test docker/scripts/verify.test.js` to check the verification flow
-using a mock forge executable, without submitting explorer requests.
+using mock forge and cast executables, without submitting explorer or RPC requests.
 
 ## Build
 

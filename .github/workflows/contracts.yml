@@ -77,6 +77,12 @@ jobs:
       - name: Run foundry tests
         run: forge test --evm-version cancun -vvv
 
+      - name: Test EIP-2935 RPC snapshot checks
+        run: python3 -m unittest discover -s scripts/integration -p 'test_block_hash_history.py' -v
+
+      - name: Verify EIP-2935 in generated genesis
+        run: python3 scripts/integration/test-eip2935.py --genesis-only
+
       - name: Run foundry coverage
         run : forge coverage --evm-version cancun --report lcov
 

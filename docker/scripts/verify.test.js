@@ -7,6 +7,10 @@ const { test } = require("node:test");
 
 const script = path.join(__dirname, "verify.sh");
 const nativeToken = "0x530000000000000000000000000000000000d09e";
+const historyAddress = "0x0000f90827f1c53a10cb7a02335b175320002935";
+const historyCode =
+  "0x3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f35600143038111604257611fff81430311604257611fff9006545f5260205ff35b5f5ffd5b5f35611fff60014303065500";
+const blockHash = "0x" + "ab".repeat(32);
 const config = `
 [general]
 CHAIN_ID_L2 = 938_471 # numeric separators and comments are valid TOML
@@ -28,6 +32,7 @@ function fixture(t, configToml = config) {
   const configPath = path.join(directory, "volume/config.toml");
   const addressesPath = path.join(directory, "volume/config-contracts.toml");
   const log = path.join(directory, "calls.jsonl");
+  const castLog = path.join(directory, "cast-calls.jsonl");
   fs.writeFileSync(configPath, configToml);
   // Populate every template entry, including real L1 addresses and the ten L2
   // contracts deliberately excluded from verification. None may leak into calls.
@@ -42,6 +47,26 @@ function fixture(t, configToml = config) {
         return `${name} = "${addresses[name]}" # deployed`;
       })
       .trimEnd() // The final address must also work without a trailing newline.
+  );
+  fs.writeFileSync(
+    path.join(directory, "bin/cast"),
+    `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.VERIFY_TEST_CAST_LOG, JSON.stringify(args) + "\\n");
+if (process.env.VERIFY_TEST_CAST_FAIL === args[0]) {
+  console.error("sensitive-rpc-diagnostic");
+  process.exit(1);
+}
+const outputs = {
+  block: process.env.VERIFY_TEST_BLOCK_HASH ?? ${JSON.stringify(blockHash)},
+  code: process.env.VERIFY_TEST_HISTORY_CODE ?? ${JSON.stringify(historyCode)},
+  nonce: process.env.VERIFY_TEST_HISTORY_NONCE ?? "1",
+};
+if (!(args[0] in outputs)) process.exit(2);
+console.log(outputs[args[0]]);
+`,
+    { mode: 0o755 }
   );
   fs.writeFileSync(
     path.join(directory, "bin/forge"),
@@ -59,6 +84,7 @@ process.exit(process.env.VERIFY_TEST_FAIL === "all" || process.env.VERIFY_TEST_F
     addresses,
     run(extraEnv = {}) {
       fs.writeFileSync(log, "");
+      fs.writeFileSync(castLog, "");
       const result = spawnSync("bash", [script], {
         cwd: directory,
         encoding: "utf8",
@@ -66,6 +92,7 @@ process.exit(process.env.VERIFY_TEST_FAIL === "all" || process.env.VERIFY_TEST_F
           ...process.env,
           PATH: `${path.join(directory, "bin")}${path.delimiter}${process.env.PATH}`,
           VERIFY_TEST_LOG: log,
+          VERIFY_TEST_CAST_LOG: castLog,
           ...extraEnv,
         },
       });
@@ -73,6 +100,7 @@ process.exit(process.env.VERIFY_TEST_FAIL === "all" || process.env.VERIFY_TEST_F
       return {
         ...result,
         calls: fs.readFileSync(log, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse),
+        castCalls: fs.readFileSync(castLog, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse),
       };
     },
   };
@@ -111,6 +139,7 @@ test("verifies the 21 selected L2 contracts, including adapter and native predep
   }
   assert.equal(result.stdout.includes("test key with spaces"), false);
   assert.match(result.stdout, /21 succeeded, 0 failed/);
+  assert.match(result.stdout, /EIP-2935 history: runtime and nonce verified/);
 });
 
 test("genesis predeploys never guess constructor arguments; deployed adapter does", (t) => {
@@ -200,4 +229,93 @@ test("malformed TOML stops verification without echoing config contents", (t) =>
   assert.equal(result.calls.length, 0);
   assert.match(result.stderr, /Cannot read TOML file.*config.toml at line/);
   assert.equal(result.stderr.includes("sensitive-unclosed-value"), false);
+});
+
+test("history uses the canonical account at one block hash without Solidity verification", (t) => {
+  const f = fixture(t);
+  // Neither deployment output nor a user override may redirect a protocol account.
+  fs.appendFileSync(f.addressesPath, '\nL2_BLOCK_HASH_HISTORY_ADDR = "0x0000000000000000000000000000000000000001"\n');
+  const result = f.run();
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(
+    result.castCalls.map((args) => args[0]),
+    ["block", "code", "nonce"]
+  );
+  for (const args of result.castCalls) {
+    assert.equal(args[args.indexOf("--rpc-url") + 1], "http://l2.invalid/rpc?token=a=b#fragment");
+  }
+  for (const args of result.castCalls.slice(1)) {
+    assert.equal(args[1], historyAddress);
+    assert.equal(args[args.indexOf("--block") + 1], blockHash);
+  }
+  assert.equal(
+    result.calls.some(({ args }) => args.includes(historyAddress) || args.includes("BlockHashHistory")),
+    false
+  );
+  assert.match(result.stdout, /no Solidity source verification/);
+  // Catch drift between the verification fixture and the generator's constants.
+  const source = fs.readFileSync(path.join(__dirname, "../../src/libraries/constants/BlockHashHistory.sol"), "utf8");
+  assert.equal("0x" + source.match(/hex"([0-9a-f]+)"/)[1], historyCode);
+  assert.equal(source.match(/ADDRESS = (0x[0-9a-fA-F]+);/)[1].toLowerCase(), historyAddress);
+});
+
+test("missing history account warns and allows older networks to verify", (t) => {
+  const result = fixture(t).run({ VERIFY_TEST_HISTORY_CODE: "0x" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.calls.length, 21);
+  assert.match(result.stderr, /Warning: EIP-2935 history account is missing/);
+  assert.equal(result.stdout.includes("runtime and nonce verified"), false);
+  assert.deepEqual(
+    result.castCalls.map((args) => args[0]),
+    ["block", "code"]
+  );
+});
+
+test("missing history account does not hide Solidity verification failures", (t) => {
+  const result = fixture(t).run({ VERIFY_TEST_HISTORY_CODE: "0x", VERIFY_TEST_FAIL: "Moat" });
+  assert.equal(result.status, 1);
+  assert.equal(result.calls.length, 21);
+  assert.match(result.stderr, /Warning: EIP-2935 history account is missing/);
+  assert.match(result.stderr, /Failed contracts: L2_MOAT_IMPLEMENTATION_ADDR/);
+});
+
+test("incorrect history runtime and nonce make verification fail", (t) => {
+  const f = fixture(t);
+  fs.writeFileSync(f.addressesPath, "");
+  for (const extraEnv of [
+    { VERIFY_TEST_HISTORY_CODE: "" },
+    { VERIFY_TEST_HISTORY_CODE: "0x6000" },
+    { VERIFY_TEST_HISTORY_NONCE: "0" },
+    { VERIFY_TEST_HISTORY_NONCE: "2" },
+  ]) {
+    const result = f.run(extraEnv);
+    assert.equal(result.status, 1);
+    assert.equal(result.calls.length, 1); // Other verifications still run.
+    assert.match(result.stderr, /Verification failed for EIP-2935 history/);
+    assert.equal(result.stdout.includes("runtime and nonce verified"), false);
+  }
+});
+
+test("history RPC failures are fatal without exposing RPC diagnostics", (t) => {
+  const f = fixture(t);
+  fs.writeFileSync(f.addressesPath, "");
+  for (const command of ["block", "code", "nonce"]) {
+    const result = f.run({ VERIFY_TEST_CAST_FAIL: command });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Verification failed for EIP-2935 history: cast/);
+    assert.equal(result.stderr.includes("sensitive-rpc-diagnostic"), false);
+    assert.equal(result.stdout.includes("runtime and nonce verified"), false);
+  }
+  const malformed = f.run({ VERIFY_TEST_BLOCK_HASH: "not-a-hash" });
+  assert.equal(malformed.status, 1);
+  assert.equal(malformed.castCalls.length, 1);
+});
+
+test("history is still checked when every Solidity verification fails", (t) => {
+  const f = fixture(t);
+  fs.writeFileSync(f.addressesPath, "");
+  const result = f.run({ VERIFY_TEST_FAIL: "all" });
+  assert.equal(result.status, 1);
+  assert.equal(result.castCalls.length, 3);
+  assert.match(result.stdout, /EIP-2935 history: runtime and nonce verified/);
 });

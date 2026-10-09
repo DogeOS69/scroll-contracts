@@ -21,6 +21,7 @@ contract RethGenesisHarness is GenerateGenesis {
         vm.deal(address(0x1234), 2**247);
         vm.etch(address(0x1234), hex"60006000");
         vm.store(address(0x1234), bytes32(uint256(1)), bytes32(uint256(42)));
+        setBlockHashHistory();
         vm.dumpState(allocPath);
         generateGenesisJson(allocPath, outputPath);
     }
@@ -53,6 +54,15 @@ contract GenerateGenesisTest is Test {
         assertEq(vm.parseJsonUint(genesis, ".gasLimit"), 30000000);
         assertEq(vm.parseJsonBytes(genesis, ".extraData").length, 0);
         assertEq(vm.parseJson(genesis, ".alloc"), vm.parseJson(vm.readFile(allocPath)));
+        assertEq(vm.parseJsonUint(genesis, ".config.feynmanTime"), 0);
+        string memory history = ".alloc.0x0000f90827f1c53a10cb7a02335b175320002935";
+        assertEq(vm.parseJsonUint(genesis, string.concat(history, ".nonce")), 1);
+        assertEq(vm.parseJsonUint(genesis, string.concat(history, ".balance")), 0);
+        assertEq(vm.parseJsonKeys(genesis, string.concat(history, ".storage")).length, 0);
+        assertEq(
+            vm.parseJsonBytes(genesis, string.concat(history, ".code")),
+            hex"3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f35600143038111604257611fff81430311604257611fff9006545f5260205ff35b5f5ffd5b5f35611fff60014303065500"
+        );
 
         // Foundry's typed JSON readers accept numeric strings too. Check the raw
         // JSON types with jq to catch accidental quoting or double encoding.
