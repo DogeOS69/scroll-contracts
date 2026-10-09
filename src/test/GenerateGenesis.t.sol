@@ -5,6 +5,12 @@ import {Test} from "forge-std/Test.sol";
 import {GenerateGenesis} from "../../scripts/deterministic/GenerateGenesis.s.sol";
 
 contract RethGenesisHarness is GenerateGenesis {
+    function setTimestampConfig(string memory input) external returns (uint256) {
+        cfg = input;
+        GENESIS_TIMESTAMP = readGenesisTimestamp();
+        return GENESIS_TIMESTAMP;
+    }
+
     function exportGenesis(string memory allocPath, string memory outputPath) external {
         CHAIN_ID_L1 = 111111;
         CHAIN_ID_L2 = 938471;
@@ -28,6 +34,33 @@ contract RethGenesisHarness is GenerateGenesis {
 }
 
 contract GenerateGenesisTest is Test {
+    function testGenesisTimestampConfig() public {
+        RethGenesisHarness harness = new RethGenesisHarness();
+        assertEq(harness.setTimestampConfig("[genesis]\nTIMESTAMP = 1760027426\n"), 1760027426);
+        assertEq(harness.setTimestampConfig("[genesis]\nTIMESTAMP = 0\n"), 0);
+        assertEq(harness.setTimestampConfig('[genesis]\nTIMESTAMP = "18446744073709551615"\n'), type(uint64).max);
+        // Re-reading an older config resets to zero, not a previous configured value.
+        assertEq(harness.setTimestampConfig("[genesis]\n"), 0);
+    }
+
+    function testGenesisTimestampRejectsOverflow() public {
+        RethGenesisHarness harness = new RethGenesisHarness();
+        vm.expectRevert("invalid genesis.TIMESTAMP");
+        harness.setTimestampConfig('[genesis]\nTIMESTAMP = "18446744073709551616"\n');
+    }
+
+    function testGenesisTimestampRejectsNegative() public {
+        RethGenesisHarness harness = new RethGenesisHarness();
+        vm.expectRevert();
+        harness.setTimestampConfig("[genesis]\nTIMESTAMP = -1\n");
+    }
+
+    function testGenesisTimestampRejectsMalformed() public {
+        RethGenesisHarness harness = new RethGenesisHarness();
+        vm.expectRevert();
+        harness.setTimestampConfig('[genesis]\nTIMESTAMP = "not-a-timestamp"\n');
+    }
+
     function testRethGenesisSerialization() public {
         string[] memory commands = new string[](2);
         commands[0] = "mktemp";
@@ -37,6 +70,7 @@ contract GenerateGenesisTest is Test {
         string memory outputPath = string.concat(directory, "/genesis.json");
 
         RethGenesisHarness harness = new RethGenesisHarness();
+        harness.setTimestampConfig("[genesis]\nTIMESTAMP = 1760027426\n");
         harness.exportGenesis(allocPath, outputPath);
         string memory genesis = vm.readFile(outputPath);
 
@@ -52,6 +86,7 @@ contract GenerateGenesisTest is Test {
         assertEq(vm.parseJsonAddress(genesis, ".config.scroll.l1Config.l2SystemConfigAddress"), address(0x4444));
         assertEq(vm.parseJsonUint(genesis, ".baseFeePerGas"), 1000000000);
         assertEq(vm.parseJsonUint(genesis, ".gasLimit"), 30000000);
+        assertEq(vm.parseJsonUint(genesis, ".timestamp"), 1760027426);
         assertEq(vm.parseJsonBytes(genesis, ".extraData").length, 0);
         assertEq(vm.parseJson(genesis, ".alloc"), vm.parseJson(vm.readFile(allocPath)));
         assertEq(vm.parseJsonUint(genesis, ".config.feynmanTime"), 0);

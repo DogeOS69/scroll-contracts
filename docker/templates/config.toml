@@ -45,6 +45,10 @@ CONNECT_WALLET_PROJECT_ID = "14efbaafcf5232a47d93a68229b71028"
 
 [genesis]
 
+# Fixed Unix timestamp in seconds (uint64). Keep it unchanged when regenerating
+# the same chain. Older configs without this key also default to zero.
+TIMESTAMP = 0
+
 L2_MAX_NATIVE_DOGE_SUPPLY = "226156424291633194186662080095093570025917938800079226639565593765455331328"
 L2_DEPLOYER_INITIAL_BALANCE = 1000000000000000000
 # Fresh-chain targets; require the contracts generator that consumes GAS_LIMIT

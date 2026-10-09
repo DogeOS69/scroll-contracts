@@ -90,6 +90,19 @@ repository's [configuration and migration guide](../scroll-sdk-cli/docs/config-c
 explains the removed prompts, supported inputs and local artifact cleanup.
 
 The Docker generator produces contract addresses, genesis, and frontend config.
+The genesis header timestamp comes from `genesis.TIMESTAMP` in `config.toml`
+(Unix seconds, unsigned 64-bit integer). The template and older configs without
+this key use `0`; generation never substitutes the current time. Set a fixed
+nonzero value explicitly if the network needs a different genesis timestamp.
+To reproduce a genesis, keep this value, `contracts.DEPLOYMENT_SALT`, all other
+configuration, and the generator/compiler versions unchanged.
+
+Changing the timestamp changes the genesis hash. Before launching a fresh
+mainnet, regenerate the Reth mainnet genesis JSON, `DOGEOS_MAINNET_GENESIS_HASH`
+and its test, the rollup-node chain spec, and matching release images/tag together
+with the other pending genesis fixes. Do not replace an initialized network's
+genesis as an upgrade.
+
 Fresh genesis also installs the canonical EIP-2935 L2 history account for the
 Feynman-at-genesis schedule. See [activation dependencies and RPC checks](docs/eip-2935.md).
 The legacy standalone `GenerateCoordinatorConfig` generator reads its own
