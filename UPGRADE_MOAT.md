@@ -20,7 +20,7 @@ v0.2.0. It covers, in one upgrade window:
    `FEE_VAULT` exemption is removed from `L2DogeOsMessenger`, making the Moat
    the only possible L2->L1 sender (same PR).
 4. **Deposits relay while the messenger is paused** — from
-   `dogeos-v0.3.0-rc.4` (`f185d9f`) the `L2DogeOsMessenger` pause freezes
+   `dogeos-v0.3.0-rc.5` (#71, `08c45a2`) the `L2DogeOsMessenger` pause freezes
    withdrawals only; see section 1.8.
 
 No predeploy bytecode changes: the fee vault keeps its v0.2.0 code and is
@@ -632,9 +632,9 @@ reads the same messenger address it used before the upgrade.
 
 ### 1.8 Messenger pause semantics
 
-From `dogeos-v0.3.0-rc.4` (`f185d9f`), a messenger pause
+From `dogeos-v0.3.0-rc.5` (#71, `08c45a2`), a messenger pause
 (`ScrollMessengerBase.setPause`) freezes **withdrawals only**. Earlier
-implementations, including rc.1 to rc.3, still guard `relayMessage`.
+implementations, including rc.1 to rc.4, still guard `relayMessage`.
 
 - **Withdrawals freeze.** Both `sendMessage` overloads keep the
   `whenNotPaused` guard, so no new L2->L1 messages can be initiated while
@@ -662,7 +662,7 @@ implementations, including rc.1 to rc.3, still guard `relayMessage`.
 
 The old behavior returns if the messenger proxy
 (`L2_DOGEOS_MESSENGER_PROXY_ADDR`) is rolled back to an implementation before
-rc.4: while that implementation is paused, relays revert and in-flight
+rc.5: while that implementation is paused, relays revert and in-flight
 deposits are lost unless re-injected. Before such a rollback, unpause, or
 stop L1-message inclusion and confirm block production has settled.
 
