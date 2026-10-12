@@ -27,4 +27,5 @@ def address: type == "string" and test("^0x[0-9a-fA-F]{40}$");
     (.key | address) and
     (.value | (keys - ["balance", "code", "nonce", "storage"] == []) and
         (.balance | hex_string) and (.nonce | hex_string) and
-        (.code | type == "string") and (.storage | type == "object"))))
+        (.code | type == "string") and
+        (.storage | type == "object" and all(.[]; hex_string and (test("^0[xX]0+$") | not))))))

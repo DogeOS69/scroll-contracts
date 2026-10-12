@@ -60,7 +60,6 @@ contract GenerateGenesis is DeployScroll {
 
         // write to file
         vm.dumpState(GENESIS_ALLOC_JSON_PATH);
-        sortJsonByKeys(GENESIS_ALLOC_JSON_PATH);
     }
 
     function setL2MessageQueue() internal {
@@ -201,9 +200,6 @@ contract GenerateGenesis is DeployScroll {
         bytes32 _recipientSlot = hex"0000000000000000000000000000000000000000000000000000000000000003";
         vm.store(predeployAddr, _recipientSlot, vm.load(_vaultAddr, _recipientSlot));
 
-        bytes32 _ETHGatewaySlot = hex"0000000000000000000000000000000000000000000000000000000000000005";
-        vm.store(predeployAddr, _ETHGatewaySlot, vm.load(_vaultAddr, _ETHGatewaySlot));
-
         // reset so its not included state dump
         vm.etch(_vaultAddr, "");
         vm.resetNonce(_vaultAddr);
@@ -294,7 +290,8 @@ contract GenerateGenesis is DeployScroll {
             ".config.scroll.l1Config.l2SystemConfigAddress"
         );
 
-        // Preserve the state dump's balances, bytecode and storage without re-encoding.
+        normalizeGenesisAlloc(allocPath);
+        // Preserve the normalized state dump's balances, bytecode and storage without re-encoding.
         vm.writeJson(vm.readFile(allocPath), outputPath, ".alloc");
     }
 
@@ -307,13 +304,16 @@ contract GenerateGenesis is DeployScroll {
         vm.writeJson(string.concat('"', value, '"'), outputPath, key);
     }
 
-    /// @notice Sorts the allocs by address
-    // source: https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/scripts/L2Genesis.s.sol
-    function sortJsonByKeys(string memory _path) private {
-        string[] memory commands = new string[](3);
-        commands[0] = "/bin/bash";
-        commands[1] = "-c";
-        commands[2] = string.concat("cat <<< $(jq -S '.' ", _path, ") > ", _path);
-        vm.ffi(commands);
+    /// @notice Sorts allocations and omits zero-valued storage, which is absent from the state trie.
+    function normalizeGenesisAlloc(string memory _path) private {
+        string[] memory commands = new string[](4);
+        commands[0] = "jq";
+        commands[1] = "-S";
+        commands[2] = string.concat(
+            '.[] |= if has("storage") then ',
+            '.storage |= with_entries(select(.value | test("^0[xX]0+$") | not)) else . end'
+        );
+        commands[3] = _path;
+        vm.writeFile(_path, string(vm.ffi(commands)));
     }
 }
