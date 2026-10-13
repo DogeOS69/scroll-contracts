@@ -27,6 +27,7 @@ contract RethGenesisHarness is GenerateGenesis {
         vm.deal(address(0x1234), 2**247);
         vm.etch(address(0x1234), hex"60006000");
         vm.store(address(0x1234), bytes32(uint256(1)), bytes32(uint256(42)));
+        vm.store(address(0x1234), bytes32(uint256(5)), bytes32(0));
         setBlockHashHistory();
         vm.dumpState(allocPath);
         generateGenesisJson(allocPath, outputPath);
@@ -89,6 +90,17 @@ contract GenerateGenesisTest is Test {
         assertEq(vm.parseJsonUint(genesis, ".timestamp"), 1760027426);
         assertEq(vm.parseJsonBytes(genesis, ".extraData").length, 0);
         assertEq(vm.parseJson(genesis, ".alloc"), vm.parseJson(vm.readFile(allocPath)));
+        string memory funded = ".alloc.0x0000000000000000000000000000000000001234";
+        assertEq(vm.parseJsonUint(genesis, string.concat(funded, ".balance")), 2**247);
+        assertEq(vm.parseJsonBytes(genesis, string.concat(funded, ".code")), hex"60006000");
+        assertEq(vm.parseJsonKeys(genesis, string.concat(funded, ".storage")).length, 1);
+        assertEq(
+            vm.parseJsonUint(
+                genesis,
+                string.concat(funded, ".storage.0x0000000000000000000000000000000000000000000000000000000000000001")
+            ),
+            42
+        );
         assertEq(vm.parseJsonUint(genesis, ".config.feynmanTime"), 0);
         string memory history = ".alloc.0x0000f90827f1c53a10cb7a02335b175320002935";
         assertEq(vm.parseJsonUint(genesis, string.concat(history, ".nonce")), 1);
