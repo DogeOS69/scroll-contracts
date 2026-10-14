@@ -43,6 +43,57 @@ Deployment RPC selection comes from the `L2_RPC_ENDPOINT` environment variable
 passed to the deploy image. The root TOML RPC fields remain necessary for CLI
 service configuration. L2 verification uses `contracts.verification.RPC_URI_L2`.
 
+`docker/scripts/deploy.sh` broadcasts L2 bootstrap transactions in batches of 100
+by default. Set the `BATCH_SIZE` environment variable to override this, for example
+`BATCH_SIZE=7 bash docker/scripts/deploy.sh`. Unset or empty values use 100.
+With the default genesis predeploys, a fresh deployment creates nine contracts:
+the Messenger, Moat and L2SystemConfig implementation/proxy pairs, ProxyAdmin,
+the temporary empty implementation, and FeeVaultMoatAdapter. Legacy Scroll asset
+gateways, the gateway router and the standard ERC20 template/factory are omitted,
+including their initialization, routing and ownership settings. Regenerating
+`config-contracts.toml` clears their old addresses; their frontend settings are empty.
+All L2 configuration completes before ownership is transferred. The configured
+`L2_BASE_FEE_OVERHEAD` is applied last in that configuration phase, followed by
+the ownership transfers in `transferL2ContractOwnership()`.
+
+The DogeOS audit scope remains included in bootstrap:
+
+| Audited source                              | Included through                                                        |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| `Moat.sol`                                  | Implementation and proxy deployed by `deploy.sh`                        |
+| `L2DogeOsMessenger.sol`                     | Implementation and proxy deployed by `deploy.sh`                        |
+| `FeeVaultMoatAdapter.sol`                   | Standalone contract deployed by `deploy.sh`                             |
+| `NativeDogeToken.sol`                       | Genesis predeploy at `0x530000000000000000000000000000000000d09e`       |
+| `WrappedDoge.sol`                           | WDOGE genesis predeploy at `0x5300000000000000000000000000000000000004` |
+| `DogeAddressLib.sol`                        | Internal library compiled into Moat                                     |
+| `WithdrawalEnvelope.sol`                    | Internal library compiled into Moat and L2DogeOsMessenger               |
+| `libraries/common/AppendOnlyMerkleTree.sol` | Base contract inherited by the L2MessageQueue genesis predeploy         |
+
+Removing the legacy WETH gateway does not remove WDOGE. The bootstrap integration
+test requires the audited deployment entries and checks the token/queue genesis
+code and Native DOGE supply initialization.
+
+L2 simulation and broadcast use EIP-1559 transactions by default. Set
+`DEPLOY_LEGACY=true` in the deploy container's environment to explicitly use
+legacy transactions; `false` (or unset) selects EIP-1559. Other values are rejected
+before deployment starts. `ETH_GAS_PRICE` is the max fee per gas in EIP-1559 mode
+and the fixed gas price in legacy mode. Set `ETH_PRIORITY_GAS_PRICE` separately
+to control the EIP-1559 tip. For example:
+
+```sh
+# EIP-1559: 840 gwei max fee, 1 gwei priority fee.
+ETH_GAS_PRICE=840000000000 ETH_PRIORITY_GAS_PRICE=1000000000 bash docker/scripts/deploy.sh
+
+# Legacy: fixed 840 gwei gas price.
+DEPLOY_LEGACY=true ETH_GAS_PRICE=840000000000 bash docker/scripts/deploy.sh
+```
+
+Run `python3 scripts/integration/test-bootstrap.py` to exercise both Docker
+entrypoints against an ephemeral Anvil, including the deployment inventory,
+transaction ordering, core wiring and a 10 DOGE deployer budget. It defaults to
+EIP-1559; pass `--legacy true` to check legacy transactions. This test does not
+emulate the DogeOS client's base-fee-overhead algorithm.
+
 The database section retains only `BLOCKSCOUT_DB_CONNECTION_STRING`. Bridge History, Chain Monitor and L1 Explorer database
 settings have been removed, together with the Bridge History API frontend URL
 and ingress host. CLI database initialization handles Blockscout only. The frontend generator no longer reads or emits the bridge API URL.
@@ -151,7 +202,8 @@ curl -L https://foundry.paradigm.xyz | bash
 
 If you do not want to use the redirect, feel free to manually download the `foundryup` installation script from [here](https://raw.githubusercontent.com/foundry-rs/foundry/master/foundryup/foundryup).
 
-Then, run `foundryup` in a new terminal session or after reloading `PATH`.
+Then, run `foundryup -i v1.3.0-rc2` in a new terminal session or after reloading
+`PATH`. This matches the version pinned in CI and `docker/Dockerfile.base`.
 
 Other ways to install Foundry can be found [here](https://github.com/foundry-rs/foundry#installation).
 
@@ -175,8 +227,8 @@ when the override is absent from older deployment configurations.
 
 The verification list includes `FeeVaultMoatAdapter` and the L2 predeploys,
 including `L1GasPriceOracle`. Genesis predeploys do not use constructor-argument
-guessing. The unused Standard/Custom ERC20, ERC721 and ERC1155 gateways, ERC20
-template and factory remain excluded. Unconfigured deployment addresses are
+guessing. Legacy asset gateways, the gateway router, ERC20 template and factory
+remain excluded. Unconfigured deployment addresses are
 reported as skipped; failed verifications are collected and produce a nonzero
 exit status after the remaining contracts have been attempted.
 

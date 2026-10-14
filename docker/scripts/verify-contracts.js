@@ -42,8 +42,8 @@ function verifyBlockHashHistory(rpc) {
   console.log(`EIP-2935 history: runtime and nonce verified at block ${blockHash} (no Solidity source verification)`);
 }
 
-// Only contracts used on L2 belong in this list. The unused ERC20/ERC721/ERC1155
-// gateways and ERC20 factory/template intentionally remain excluded.
+// Only contracts used on L2 belong in this list. Legacy Scroll asset gateways,
+// the router and ERC20 factory/template are omitted from DogeOS bootstrap.
 // L1GasPriceOracle is an L2 predeploy despite its L1_ configuration key.
 const contracts = [
   ["L1_GAS_PRICE_ORACLE_ADDR", "L1GasPriceOracle", true],
@@ -55,12 +55,6 @@ const contracts = [
   ["L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR", "EmptyContract", false],
   ["L2_DOGEOS_MESSENGER_PROXY_ADDR", "TransparentUpgradeableProxy", false],
   ["L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR", "L2DogeOsMessenger", false],
-  ["L2_GATEWAY_ROUTER_PROXY_ADDR", "TransparentUpgradeableProxy", false],
-  ["L2_GATEWAY_ROUTER_IMPLEMENTATION_ADDR", "L2GatewayRouter", false],
-  ["L2_ETH_GATEWAY_PROXY_ADDR", "TransparentUpgradeableProxy", false],
-  ["L2_ETH_GATEWAY_IMPLEMENTATION_ADDR", "L2ETHGateway", false],
-  ["L2_WETH_GATEWAY_PROXY_ADDR", "TransparentUpgradeableProxy", false],
-  ["L2_WETH_GATEWAY_IMPLEMENTATION_ADDR", "L2WETHGateway", false],
   ["L2_MOAT_PROXY_ADDR", "TransparentUpgradeableProxy", false],
   ["L2_MOAT_IMPLEMENTATION_ADDR", "Moat", false],
   ["L2_SYSTEM_CONFIG_PROXY_ADDR", "TransparentUpgradeableProxy", false],

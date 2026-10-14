@@ -189,6 +189,11 @@ contract DeployScroll is DeterministicDeployment {
         broadcastLayer = parseLayer(layer);
         ScriptMode mode = parseScriptMode(scriptMode);
 
+        // Rebuild the address manifest so regenerating an older configuration
+        // does not retain addresses for gateways omitted from DogeOS bootstrap.
+        if (mode == ScriptMode.WriteConfig) {
+            vm.writeFile(CONFIG_CONTRACTS_PATH, vm.readFile(CONFIG_CONTRACTS_TEMPLATE_PATH));
+        }
         DeterministicDeployment.initialize(mode);
 
         console.log("checkDeployerBalance start");
@@ -476,6 +481,9 @@ contract DeployScroll is DeterministicDeployment {
         }
     }
 
+    // DogeOS uses Moat for deposits/withdrawals. The legacy Scroll asset
+    // gateways, router and ERC20 factory/template are omitted on both layers,
+    // including the local L1 simulation used to derive counterpart addresses.
     function deployAllContracts() private {
         deployL1Contracts1stPass();
         deployL2Contracts1stPass();
@@ -498,13 +506,6 @@ contract DeployScroll is DeterministicDeployment {
         deploySystemConfig();
         deployL1MessageQueue();
         deployL1ScrollChain();
-        deployL1GatewayRouter();
-        deployL1ETHGatewayProxy();
-        deployL1WETHGatewayProxy();
-        deployL1StandardERC20GatewayProxy();
-        deployL1CustomERC20GatewayProxy();
-        deployL1ERC721GatewayProxy();
-        deployL1ERC1155GatewayProxy();
     }
 
     // @notice deployL2Contracts1stPass deploys L2 contracts whose initialization does not depend on any L1 addresses.
@@ -517,14 +518,7 @@ contract DeployScroll is DeterministicDeployment {
         deployL2ProxyAdmin();
         deployL2PlaceHolder();
         deployL2DogeOsMessengerProxy();
-        deployL2ETHGatewayProxy();
-        deployL2WETHGatewayProxy();
         deployL2MoatProxy();
-        deployL2StandardERC20GatewayProxy();
-        deployL2CustomERC20GatewayProxy();
-        deployL2ERC721GatewayProxy();
-        deployL2ERC1155GatewayProxy();
-        deployScrollStandardERC20Factory();
         deployL2SystemConfig();
     }
 
@@ -532,12 +526,6 @@ contract DeployScroll is DeterministicDeployment {
     function deployL1Contracts2ndPass() private broadcast(Layer.L1) {
         deployL1EnforcedTxGateway();
         deployL1ScrollMessenger();
-        deployL1StandardERC20Gateway();
-        deployL1ETHGateway();
-        deployL1WETHGateway();
-        deployL1CustomERC20Gateway();
-        deployL1ERC721Gateway();
-        deployL1ERC1155Gateway();
     }
 
     // @notice deployL2Contracts2ndPass deploys L2 contracts whose initialization depends on some L1 addresses.
@@ -545,13 +533,6 @@ contract DeployScroll is DeterministicDeployment {
         // upgradable
         deployL2DogeOsMessenger();
         deployFeeVaultMoatAdapter();
-        deployL2GatewayRouter();
-        deployL2StandardERC20Gateway();
-        deployL2ETHGateway();
-        deployL2WETHGateway();
-        deployL2CustomERC20Gateway();
-        deployL2ERC721Gateway();
-        deployL2ERC1155Gateway();
         deployL2Moat();
     }
 
@@ -562,13 +543,6 @@ contract DeployScroll is DeterministicDeployment {
         initializeL1MessageQueue();
         initializeL1ScrollMessenger();
         initializeEnforcedTxGateway();
-        initializeL1GatewayRouter();
-        initializeL1CustomERC20Gateway();
-        initializeL1ERC1155Gateway();
-        initializeL1ERC721Gateway();
-        initializeL1ETHGateway();
-        initializeL1StandardERC20Gateway();
-        initializeL1WETHGateway();
         initializeL1Whitelist();
 
         // lock tokens on L1 to ensure bridge parity,
@@ -584,14 +558,6 @@ contract DeployScroll is DeterministicDeployment {
         initializeL2MessageQueue();
         initializeL1GasPriceOracle();
         initializeL2DogeOsMessenger();
-        initializeL2GatewayRouter();
-        initializeL2CustomERC20Gateway();
-        initializeL2ERC1155Gateway();
-        initializeL2ERC721Gateway();
-        initializeL2ETHGateway();
-        initializeL2StandardERC20Gateway();
-        initializeL2WETHGateway();
-        initializeScrollStandardERC20Factory();
         initializeL2Whitelist();
         initializeL2Moat();
         // must run after initializeL2Moat: the Moat must be fully configured (fee, min,
@@ -1541,19 +1507,12 @@ contract DeployScroll is DeterministicDeployment {
 
     function transferL1ContractOwnership() private {
         transferOwnership(L1_ENFORCED_TX_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_ERC1155_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_ERC721_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_GATEWAY_ROUTER_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_MESSAGE_QUEUE_V2_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_SCROLL_MESSENGER_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_MULTIPLE_VERSION_ROLLUP_VERIFIER_ADDR, OWNER_ADDR);
         transferOwnership(L1_PROXY_ADMIN_ADDR, OWNER_ADDR);
         transferOwnership(L1_SCROLL_CHAIN_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L1_WHITELIST_ADDR, OWNER_ADDR);
-        transferOwnership(L1_ETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L1_WETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
     }
 
     /**********************
@@ -1765,8 +1724,8 @@ contract DeployScroll is DeterministicDeployment {
         if (getInitializeCount(L2_SYSTEM_CONFIG_PROXY_ADDR) == 0) {
             L2SystemConfig(L2_SYSTEM_CONFIG_PROXY_ADDR).initialize(DEPLOYER_ADDR);
         }
-        // This proxy is deployed after genesis. Apply the configured floor
-        // during bootstrap, while the deployer still owns it, before launch.
+        // Apply the configured overhead as the final configuration transaction,
+        // before the ownership-transfer phase begins.
         if (
             vm.keyExistsToml(cfg, ".contracts.L2_BASE_FEE_OVERHEAD") &&
             L2SystemConfig(L2_SYSTEM_CONFIG_PROXY_ADDR).baseFeeOverhead() != L2_BASE_FEE_OVERHEAD
@@ -1777,20 +1736,12 @@ contract DeployScroll is DeterministicDeployment {
 
     function transferL2ContractOwnership() private {
         transferOwnership(L1_GAS_PRICE_ORACLE_ADDR, OWNER_ADDR);
-        transferOwnership(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L2_ERC1155_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L2_ERC721_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L2_ETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L2_GATEWAY_ROUTER_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_MESSAGE_QUEUE_ADDR, OWNER_ADDR);
         transferOwnership(L2_DOGEOS_MESSENGER_PROXY_ADDR, OWNER_ADDR);
-        transferOwnership(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR, OWNER_ADDR);
         transferOwnership(L2_TX_FEE_VAULT_ADDR, OWNER_ADDR);
         transferOwnership(L2_PROXY_ADMIN_ADDR, OWNER_ADDR);
         transferOwnership(L2_WHITELIST_ADDR, OWNER_ADDR);
         transferOwnership(L2_SYSTEM_CONFIG_PROXY_ADDR, OWNER_ADDR);
-
-        transferOwnership(L2_WETH_GATEWAY_PROXY_ADDR, OWNER_ADDR);
 
         //TODO: Maybe Moat should inherit from OwnableUpgradeable like other contracts
         Moat moat = Moat(L2_MOAT_PROXY_ADDR);
