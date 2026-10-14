@@ -5,11 +5,15 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const { test } = require("node:test");
 
-const script = path.join(__dirname, "deploy.sh");
-
 function run(t, shell, mode, options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "deploy-flags-"));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const scripts = path.join(directory, "docker/scripts");
+  fs.mkdirSync(scripts, { recursive: true });
+  for (const name of ["deploy.sh", "check-deploy-gas.js"]) {
+    fs.copyFileSync(path.join(__dirname, name), path.join(scripts, name));
+  }
+  const script = path.join(scripts, "deploy.sh");
   const log = path.join(directory, "calls.jsonl");
   fs.writeFileSync(log, "");
   fs.mkdirSync(path.join(directory, "volume"));
