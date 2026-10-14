@@ -43,6 +43,22 @@ Deployment RPC selection comes from the `L2_RPC_ENDPOINT` environment variable
 passed to the deploy image. The root TOML RPC fields remain necessary for CLI
 service configuration. L2 verification uses `contracts.verification.RPC_URI_L2`.
 
+`docker/scripts/deploy.sh` broadcasts L2 bootstrap transactions in batches of 100.
+With the default genesis predeploys, a fresh deployment creates nine contracts:
+the Messenger, Moat and L2SystemConfig implementation/proxy pairs, ProxyAdmin,
+the temporary empty implementation, and FeeVaultMoatAdapter. Legacy Scroll asset
+gateways, the gateway router and the standard ERC20 template/factory are omitted,
+including their initialization, routing and ownership settings. Regenerating
+`config-contracts.toml` clears their old addresses; their frontend settings are empty.
+All L2 configuration completes before ownership is transferred. The configured
+`L2_BASE_FEE_OVERHEAD` is applied last in that configuration phase, followed by
+the ownership transfers in `transferL2ContractOwnership()`.
+
+Run `python3 scripts/integration/test-bootstrap.py` to exercise both Docker
+entrypoints against an ephemeral Anvil, including the deployment inventory,
+transaction ordering, core wiring and a 10 DOGE deployer budget. This test does
+not emulate the DogeOS client's base-fee-overhead algorithm.
+
 The database section retains only `BLOCKSCOUT_DB_CONNECTION_STRING`. Bridge History, Chain Monitor and L1 Explorer database
 settings have been removed, together with the Bridge History API frontend URL
 and ingress host. CLI database initialization handles Blockscout only. The frontend generator no longer reads or emits the bridge API URL.
@@ -175,8 +191,8 @@ when the override is absent from older deployment configurations.
 
 The verification list includes `FeeVaultMoatAdapter` and the L2 predeploys,
 including `L1GasPriceOracle`. Genesis predeploys do not use constructor-argument
-guessing. The unused Standard/Custom ERC20, ERC721 and ERC1155 gateways, ERC20
-template and factory remain excluded. Unconfigured deployment addresses are
+guessing. Legacy asset gateways, the gateway router, ERC20 template and factory
+remain excluded. Unconfigured deployment addresses are
 reported as skipped; failed verifications are collected and produce a nonzero
 exit status after the remaining contracts have been attempted.
 

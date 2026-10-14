@@ -62,7 +62,7 @@ BASE_FEE_PER_GAS = 100000000
 
 DEPLOYMENT_SALT = "salt-000"
 
-# Applied by DeployScroll when initializing L2SystemConfig after genesis.
+# Applied after other L2 configuration, before the ownership-transfer phase.
 # This is distinct from the initial header BASE_FEE_PER_GAS above.
 L2_BASE_FEE_OVERHEAD = 420_000_000_000
 

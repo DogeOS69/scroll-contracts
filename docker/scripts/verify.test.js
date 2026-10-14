@@ -110,14 +110,14 @@ test("the Docker config template supplies every required verification setting", 
   const template = fs.readFileSync(path.join(__dirname, "../templates/config.toml"), "utf8");
   const result = fixture(t, template).run();
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.calls.length, 21);
+  assert.equal(result.calls.length, 15);
 });
 
-test("verifies the 21 selected L2 contracts, including adapter and native predeploy", (t) => {
+test("verifies the 15 selected L2 contracts, including adapter and native predeploy", (t) => {
   const f = fixture(t);
   const result = f.run();
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.calls.length, 21);
+  assert.equal(result.calls.length, 15);
   const byAddress = new Map(result.calls.map((call) => [call.args[1], call]));
   assert.equal(byAddress.get(f.addresses.L2_FEE_VAULT_MOAT_ADAPTER_ADDR).args[2], "FeeVaultMoatAdapter");
   assert.equal(byAddress.get(nativeToken).args[2], "NativeDogeToken");
@@ -125,7 +125,9 @@ test("verifies the 21 selected L2 contracts, including adapter and native predep
   const excluded = Object.entries(f.addresses).filter(
     ([name]) =>
       (name.startsWith("L1_") && name !== "L1_GAS_PRICE_ORACLE_ADDR") ||
-      /L2_(STANDARD_ERC20_GATEWAY|CUSTOM_ERC20_GATEWAY|ERC721_GATEWAY|ERC1155_GATEWAY|SCROLL_STANDARD_ERC20)/.test(name)
+      /L2_(GATEWAY_ROUTER|ETH_GATEWAY|WETH_GATEWAY|STANDARD_ERC20_GATEWAY|CUSTOM_ERC20_GATEWAY|ERC721_GATEWAY|ERC1155_GATEWAY|SCROLL_STANDARD_ERC20)/.test(
+        name
+      )
   );
   for (const [name, address] of excluded) assert.equal(byAddress.has(address), false, name);
   for (const call of result.calls) {
@@ -138,7 +140,7 @@ test("verifies the 21 selected L2 contracts, including adapter and native predep
     assert.equal(call.args.includes("#"), false);
   }
   assert.equal(result.stdout.includes("test key with spaces"), false);
-  assert.match(result.stdout, /21 succeeded, 0 failed/);
+  assert.match(result.stdout, /15 succeeded, 0 failed/);
   assert.match(result.stdout, /EIP-2935 history: runtime and nonce verified/);
 });
 
@@ -165,16 +167,16 @@ test("genesis predeploys never guess constructor arguments; deployed adapter doe
 test("all forge failures are reported and make the script fail", (t) => {
   const result = fixture(t).run({ VERIFY_TEST_FAIL: "all" });
   assert.equal(result.status, 1);
-  assert.equal(result.calls.length, 21);
-  assert.match(result.stdout, /0 succeeded, 21 failed/);
+  assert.equal(result.calls.length, 15);
+  assert.match(result.stdout, /0 succeeded, 15 failed/);
   assert.match(result.stderr, /Failed contracts:.*L2_FEE_VAULT_MOAT_ADAPTER_ADDR.*L2_NATIVE_DOGE_TOKEN_ADDR/);
 });
 
 test("one failed contract does not prevent later verifications or disappear behind successes", (t) => {
   const result = fixture(t).run({ VERIFY_TEST_FAIL: "Moat" });
   assert.equal(result.status, 1);
-  assert.equal(result.calls.length, 21);
-  assert.match(result.stdout, /20 succeeded, 1 failed/);
+  assert.equal(result.calls.length, 15);
+  assert.match(result.stdout, /14 succeeded, 1 failed/);
   assert.match(result.stderr, /Failed contracts: L2_MOAT_IMPLEMENTATION_ADDR/);
 });
 
@@ -194,7 +196,7 @@ test("legacy configs without a NativeDogeToken override verify its protocol addr
   fs.writeFileSync(f.configPath, config.replace(/^L2_NATIVE_DOGE_TOKEN.*$/m, ""));
   const result = f.run();
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.calls.length, 21);
+  assert.equal(result.calls.length, 15);
   const native = result.calls.find(({ args }) => args[2] === "NativeDogeToken");
   assert.equal(native.args[1], nativeToken);
   assert.equal(native.args.includes("--guess-constructor-args"), false);
@@ -207,7 +209,7 @@ test("unconfigured deployment addresses are explicitly skipped", (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.calls.length, 1);
   assert.equal(result.calls[0].args[2], "NativeDogeToken");
-  assert.match(result.stdout, /1 succeeded, 0 failed, 20 unconfigured/);
+  assert.match(result.stdout, /1 succeeded, 0 failed, 14 unconfigured/);
 });
 
 test("Sourcify with an empty API key receives no dangling --api-key argument", (t) => {
@@ -262,7 +264,7 @@ test("history uses the canonical account at one block hash without Solidity veri
 test("missing history account warns and allows older networks to verify", (t) => {
   const result = fixture(t).run({ VERIFY_TEST_HISTORY_CODE: "0x" });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.calls.length, 21);
+  assert.equal(result.calls.length, 15);
   assert.match(result.stderr, /Warning: EIP-2935 history account is missing/);
   assert.equal(result.stdout.includes("runtime and nonce verified"), false);
   assert.deepEqual(
@@ -274,7 +276,7 @@ test("missing history account warns and allows older networks to verify", (t) =>
 test("missing history account does not hide Solidity verification failures", (t) => {
   const result = fixture(t).run({ VERIFY_TEST_HISTORY_CODE: "0x", VERIFY_TEST_FAIL: "Moat" });
   assert.equal(result.status, 1);
-  assert.equal(result.calls.length, 21);
+  assert.equal(result.calls.length, 15);
   assert.match(result.stderr, /Warning: EIP-2935 history account is missing/);
   assert.match(result.stderr, /Failed contracts: L2_MOAT_IMPLEMENTATION_ADDR/);
 });
