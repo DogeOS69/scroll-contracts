@@ -54,6 +54,23 @@ All L2 configuration completes before ownership is transferred. The configured
 `L2_BASE_FEE_OVERHEAD` is applied last in that configuration phase, followed by
 the ownership transfers in `transferL2ContractOwnership()`.
 
+The DogeOS audit scope remains included in bootstrap:
+
+| Audited source                              | Included through                                                        |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| `Moat.sol`                                  | Implementation and proxy deployed by `deploy.sh`                        |
+| `L2DogeOsMessenger.sol`                     | Implementation and proxy deployed by `deploy.sh`                        |
+| `FeeVaultMoatAdapter.sol`                   | Standalone contract deployed by `deploy.sh`                             |
+| `NativeDogeToken.sol`                       | Genesis predeploy at `0x530000000000000000000000000000000000d09e`       |
+| `WrappedDoge.sol`                           | WDOGE genesis predeploy at `0x5300000000000000000000000000000000000004` |
+| `DogeAddressLib.sol`                        | Internal library compiled into Moat                                     |
+| `WithdrawalEnvelope.sol`                    | Internal library compiled into Moat and L2DogeOsMessenger               |
+| `libraries/common/AppendOnlyMerkleTree.sol` | Base contract inherited by the L2MessageQueue genesis predeploy         |
+
+Removing the legacy WETH gateway does not remove WDOGE. The bootstrap integration
+test requires the audited deployment entries and checks the token/queue genesis
+code and Native DOGE supply initialization.
+
 L2 simulation and broadcast use EIP-1559 transactions by default. Set
 `DEPLOY_LEGACY=true` in the deploy container's environment to explicitly use
 legacy transactions; `false` (or unset) selects EIP-1559. Other values are rejected

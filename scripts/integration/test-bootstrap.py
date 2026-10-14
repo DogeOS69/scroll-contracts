@@ -24,6 +24,7 @@ TEST_KEY = "0x" + "0" * 63 + "1"
 DEPLOYER = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
 OWNER = "0x1111111111111111111111111111111111111111"
 GAS_PRICE = 420_100_000_000
+NATIVE_DOGE = "0x530000000000000000000000000000000000d09e"
 OMITTED = re.compile(
     r"L[12]_(GATEWAY_ROUTER|ETH_GATEWAY|WETH_GATEWAY|WDOGE_GATEWAY|"
     r"STANDARD_ERC20_GATEWAY|CUSTOM_ERC20_GATEWAY|ERC721_GATEWAY|"
@@ -73,6 +74,8 @@ def main():
 
     run(["bash", "docker/scripts/gen-configs.sh"], "generate.log")
     addresses = tomllib.loads((stage / "volume/config-contracts.toml").read_text())
+    # NativeDogeToken is a genesis predeploy, not a deploy.sh manifest entry.
+    addresses["L2_NATIVE_DOGE_TOKEN_ADDR"] = NATIVE_DOGE
     assert all(not value for name, value in addresses.items() if OMITTED.match(name))
     frontend = (stage / "volume/frontend-config.yaml").read_text()
     assert not re.search(r'REACT_APP_L[12]_(?:GATEWAY_ROUTER|\w+_GATEWAY)_PROXY_ADDR = "0x', frontend)
@@ -116,6 +119,16 @@ def main():
                     time.sleep(0.1)
             else:
                 raise RuntimeError("Anvil did not start")
+            # Audited token contracts and the queue carrying AppendOnlyMerkleTree
+            # must already exist in genesis, independently of deploy.sh.
+            for name in ["L2_NATIVE_DOGE_TOKEN_ADDR", "L2_WDOGE_ADDR", "L2_MESSAGE_QUEUE_ADDR"]:
+                address = addresses[name]
+                code = genesis["alloc"][address.lower()]["code"]
+                assert code != "0x" and len(code) > 2, name
+                assert rpc("eth_getCode", [address, "latest"]) == code, name
+            supply = int(tomllib.loads(config)["genesis"]["L2_MAX_NATIVE_DOGE_SUPPLY"])
+            assert int(call("L2_NATIVE_DOGE_TOKEN_ADDR", "totalSupply()"), 16) == supply
+            assert int(call("L2_WDOGE_ADDR", "decimals()"), 16) == 18
             before = int(rpc("eth_getBalance", [DEPLOYER, "latest"]), 16)
             assert before == 10 * 10**18
             max_fee = GAS_PRICE if legacy else 840_000_000_000
@@ -156,6 +169,16 @@ def main():
             ]:
                 assert address_call(name, signature) == addresses[target].lower(), (name, signature)
             assert int(call("L2_SYSTEM_CONFIG_PROXY_ADDR", "baseFeeOverhead()"), 16) == 420_000_000_000
+            # Fail on missing/empty audited deployment entries, not just empty
+            # bytecode at the optional addresses below. DogeAddressLib and
+            # WithdrawalEnvelope are internal libraries compiled into Moat and
+            # the messenger; AppendOnlyMerkleTree is inherited by the queue.
+            for name in ["L2_MOAT_IMPLEMENTATION_ADDR", "L2_MOAT_PROXY_ADDR",
+                         "L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR", "L2_DOGEOS_MESSENGER_PROXY_ADDR",
+                         "L2_FEE_VAULT_MOAT_ADAPTER_ADDR", "L2_WDOGE_ADDR", "L2_MESSAGE_QUEUE_ADDR",
+                         "L2_NATIVE_DOGE_TOKEN_ADDR"]:
+                assert addresses.get(name), f"Missing audited deployment: {name}"
+                assert rpc("eth_getCode", [addresses[name], "latest"]) != "0x", name
             for name, value in addresses.items():
                 if value and (name.startswith("L2_") or name == "L1_GAS_PRICE_ORACLE_ADDR"):
                     assert rpc("eth_getCode", [value, "latest"]) != "0x", name
