@@ -54,10 +54,26 @@ All L2 configuration completes before ownership is transferred. The configured
 `L2_BASE_FEE_OVERHEAD` is applied last in that configuration phase, followed by
 the ownership transfers in `transferL2ContractOwnership()`.
 
+L2 simulation and broadcast use EIP-1559 transactions by default. Set
+`DEPLOY_LEGACY=true` in the deploy container's environment to explicitly use
+legacy transactions; `false` (or unset) selects EIP-1559. Other values are rejected
+before deployment starts. `ETH_GAS_PRICE` is the max fee per gas in EIP-1559 mode
+and the fixed gas price in legacy mode. Set `ETH_PRIORITY_GAS_PRICE` separately
+to control the EIP-1559 tip. For example:
+
+```sh
+# EIP-1559: 840 gwei max fee, 1 gwei priority fee.
+ETH_GAS_PRICE=840000000000 ETH_PRIORITY_GAS_PRICE=1000000000 bash docker/scripts/deploy.sh
+
+# Legacy: fixed 840 gwei gas price.
+DEPLOY_LEGACY=true ETH_GAS_PRICE=840000000000 bash docker/scripts/deploy.sh
+```
+
 Run `python3 scripts/integration/test-bootstrap.py` to exercise both Docker
 entrypoints against an ephemeral Anvil, including the deployment inventory,
-transaction ordering, core wiring and a 10 DOGE deployer budget. This test does
-not emulate the DogeOS client's base-fee-overhead algorithm.
+transaction ordering, core wiring and a 10 DOGE deployer budget. It defaults to
+EIP-1559; pass `--legacy true` to check legacy transactions. This test does not
+emulate the DogeOS client's base-fee-overhead algorithm.
 
 The database section retains only `BLOCKSCOUT_DB_CONNECTION_STRING`. Bridge History, Chain Monitor and L1 Explorer database
 settings have been removed, together with the Bridge History API frontend URL

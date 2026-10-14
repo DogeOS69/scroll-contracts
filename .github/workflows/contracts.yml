@@ -84,7 +84,9 @@ jobs:
         run: python3 scripts/integration/test-eip2935.py --genesis-only
 
       - name: Test L2 bootstrap on Anvil
-        run: python3 scripts/integration/test-bootstrap.py
+        run: |
+          python3 scripts/integration/test-bootstrap.py --legacy true
+          python3 scripts/integration/test-bootstrap.py --legacy false
 
       - name: Run foundry coverage
         run : forge coverage --evm-version cancun --report lcov

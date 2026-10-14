@@ -6,6 +6,7 @@ Anvil does not implement DogeOS's overhead algorithm; this checks transaction
 ordering, wiring, balances and omitted deployments, not native fee activation.
 """
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -31,6 +32,9 @@ OMITTED = re.compile(
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--legacy", choices=["true", "false"], default="false")
+    legacy = parser.parse_args().legacy == "true"
     root = Path(__file__).resolve().parents[2]
     stage = Path(tempfile.mkdtemp(prefix="dogeos-bootstrap-"))
     print(f"Bootstrap test artifacts: {stage}", flush=True)
@@ -114,7 +118,9 @@ def main():
                 raise RuntimeError("Anvil did not start")
             before = int(rpc("eth_getBalance", [DEPLOYER, "latest"]), 16)
             assert before == 10 * 10**18
-            env.update(L1_RPC_ENDPOINT=url, L2_RPC_ENDPOINT=url, ETH_GAS_PRICE=str(GAS_PRICE))
+            max_fee = GAS_PRICE if legacy else 840_000_000_000
+            env.update(L1_RPC_ENDPOINT=url, L2_RPC_ENDPOINT=url, ETH_GAS_PRICE=str(max_fee),
+                       DEPLOY_LEGACY="true" if legacy else "false", ETH_PRIORITY_GAS_PRICE="1000000000")
             run(["bash", "docker/scripts/deploy.sh"], "deploy.log")
             assert 'BATCH_SIZE: 100' in (stage / "deploy.log").read_text()
             blocks = [rpc("eth_getBlockByNumber", [hex(i), True])
@@ -155,9 +161,16 @@ def main():
                     assert rpc("eth_getCode", [value, "latest"]) != "0x", name
             after = int(rpc("eth_getBalance", [DEPLOYER, "latest"]), 16)
             gas = sum(int(r["gasUsed"], 16) for r in receipts)
-            assert all(int(r["effectiveGasPrice"], 16) == GAS_PRICE for r in receipts)
-            assert before - after == gas * GAS_PRICE
-            summary = {"transactions": len(transactions), "new_contracts": 9, "gas_used": gas,
+            assert all(int(tx["type"], 16) == (0 if legacy else 2) for tx in transactions)
+            base_fees = {block["hash"]: int(block["baseFeePerGas"], 16) for block in blocks}
+            for tx, receipt in zip(transactions, receipts):
+                if not legacy:
+                    assert int(tx["maxFeePerGas"], 16) == max_fee
+                    assert int(tx["maxPriorityFeePerGas"], 16) == 1_000_000_000
+                expected = GAS_PRICE if legacy else min(max_fee, base_fees[receipt["blockHash"]] + 1_000_000_000)
+                assert int(receipt["effectiveGasPrice"], 16) == expected
+            assert before - after == sum(int(r["gasUsed"], 16) * int(r["effectiveGasPrice"], 16) for r in receipts)
+            summary = {"legacy": legacy, "transactions": len(transactions), "new_contracts": 9, "gas_used": gas,
                        "fee_wei": before - after, "remaining_wei": after,
                        "overhead_transaction": update + 1, "ownership_transactions_after": 8}
             (stage / "summary.json").write_text(json.dumps(summary, indent=2))

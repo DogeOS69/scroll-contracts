@@ -14,12 +14,21 @@ L2_RPC_ENDPOINT="${L2_RPC_ENDPOINT}"
 # Broadcast bootstrap transactions in batches of up to 100.
 BATCH_SIZE="100"
 
+# Use the same transaction type for the L2 simulation and broadcast.
+DEPLOY_LEGACY="${DEPLOY_LEGACY:-false}"
+case "$DEPLOY_LEGACY" in
+    true) set -- --legacy ;;
+    false) set -- ;;
+    *) echo "DEPLOY_LEGACY must be true or false" >&2; exit 1 ;;
+esac
+
 echo "using L1_RPC_ENDPOINT = $L1_RPC_ENDPOINT"
 echo "using L2_RPC_ENDPOINT = $L2_RPC_ENDPOINT"
 echo "Environment variables:"
 echo "FOUNDRY_EVM_VERSION: $FOUNDRY_EVM_VERSION"
 echo "FOUNDRY_BYTECODE_HASH: $FOUNDRY_BYTECODE_HASH"
 echo "BATCH_SIZE: $BATCH_SIZE"
+echo "DEPLOY_LEGACY: $DEPLOY_LEGACY"
 
 #simulate L1
 echo ""
@@ -35,12 +44,17 @@ forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --sig "run(st
 # simulate L2
 echo ""
 echo "simulating on L2"
-forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT" --sig "run(string,string)" "L2" "verify-config" --legacy
+forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT" --sig "run(string,string)" "L2" "verify-config" "$@"
 
 
 # deploy L2
 echo ""
 echo "deploying on L2"
-forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT"  --batch-size "$BATCH_SIZE" --sig "run(string,string)" "L2" "verify-config" --broadcast --legacy --json
+# Newer Foundry versions require --batch to enable --batch-size. Older deploy
+# images do not expose this flag, so detect support without changing their CLI.
+if forge script --help | grep -qE '^[[:space:]]*--batch([[:space:]]|$)'; then
+    set -- "$@" --batch
+fi
+forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT"  --batch-size "$BATCH_SIZE" --sig "run(string,string)" "L2" "verify-config" --broadcast "$@" --json
 
 echo "=== SCRIPT END ==="
