@@ -50,11 +50,7 @@ forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L
 # deploy L2
 echo ""
 echo "deploying on L2"
-# Newer Foundry versions require --batch to enable --batch-size. Older deploy
-# images do not expose this flag, so detect support without changing their CLI.
-if forge script --help | grep -qE '^[[:space:]]*--batch([[:space:]]|$)'; then
-    set -- "$@" --batch
-fi
+# Foundry is pinned to the deploy image version in CI. --batch is Tempo-specific.
 forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT"  --batch-size "$BATCH_SIZE" --sig "run(string,string)" "L2" "verify-config" --broadcast "$@" --json
 
 echo "=== SCRIPT END ==="

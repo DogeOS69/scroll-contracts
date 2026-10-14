@@ -37,7 +37,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@82dee4ba654bd2146511f85f0d013af94670c4de # v1.4.0
         with:
-          version: nightly
+          # Match docker/Dockerfile.base so CI exercises the deployed toolchain.
+          version: v1.3.0-rc2
 
       - name: Setup LCOV
         uses: hrishikesh-kadam/setup-lcov@6c1aa0cc9e1c02f9f58f01ac599f1064ccc83470 # v1
@@ -171,7 +172,8 @@ jobs:
 
       - uses: foundry-rs/foundry-toolchain@82dee4ba654bd2146511f85f0d013af94670c4de # v1.4.0
         with:
-          version: nightly
+          # Match docker/Dockerfile.base so CI exercises the deployed toolchain.
+          version: v1.3.0-rc2
 
       - name: Build contracts
         run: forge build --build-info --out out --evm-version cancun

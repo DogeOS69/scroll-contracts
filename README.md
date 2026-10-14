@@ -183,7 +183,8 @@ curl -L https://foundry.paradigm.xyz | bash
 
 If you do not want to use the redirect, feel free to manually download the `foundryup` installation script from [here](https://raw.githubusercontent.com/foundry-rs/foundry/master/foundryup/foundryup).
 
-Then, run `foundryup` in a new terminal session or after reloading `PATH`.
+Then, run `foundryup -i v1.3.0-rc2` in a new terminal session or after reloading
+`PATH`. This matches the version pinned in CI and `docker/Dockerfile.base`.
 
 Other ways to install Foundry can be found [here](https://github.com/foundry-rs/foundry#installation).
 
