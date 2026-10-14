@@ -11,5 +11,6 @@ WORKDIR /contracts
 COPY ./docker/templates/config-contracts.toml /contracts/docker/templates/config-contracts.toml
 
 COPY ./docker/scripts/deploy.sh /contracts/docker/scripts/deploy.sh
+COPY ./node_modules/toml /contracts/node_modules/toml
 
 ENTRYPOINT ["/bin/bash", "/contracts/docker/scripts/deploy.sh"]
