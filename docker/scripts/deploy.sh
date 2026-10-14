@@ -11,8 +11,8 @@ CONFIG_FILE="./volume/config.toml"
 # Set default values for environment variables if they are not set
 L1_RPC_ENDPOINT="${L1_RPC_ENDPOINT}"
 L2_RPC_ENDPOINT="${L2_RPC_ENDPOINT}"
-# Broadcast bootstrap transactions in batches of up to 100.
-BATCH_SIZE="100"
+# Broadcast bootstrap transactions in batches of up to 100 by default.
+BATCH_SIZE="${BATCH_SIZE:-100}"
 
 # Use the same transaction type for the L2 simulation and broadcast.
 DEPLOY_LEGACY="${DEPLOY_LEGACY:-false}"

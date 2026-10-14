@@ -43,7 +43,9 @@ Deployment RPC selection comes from the `L2_RPC_ENDPOINT` environment variable
 passed to the deploy image. The root TOML RPC fields remain necessary for CLI
 service configuration. L2 verification uses `contracts.verification.RPC_URI_L2`.
 
-`docker/scripts/deploy.sh` broadcasts L2 bootstrap transactions in batches of 100.
+`docker/scripts/deploy.sh` broadcasts L2 bootstrap transactions in batches of 100
+by default. Set the `BATCH_SIZE` environment variable to override this, for example
+`BATCH_SIZE=7 bash docker/scripts/deploy.sh`. Unset or empty values use 100.
 With the default genesis predeploys, a fresh deployment creates nine contracts:
 the Messenger, Moat and L2SystemConfig implementation/proxy pairs, ProxyAdmin,
 the temporary empty implementation, and FeeVaultMoatAdapter. Legacy Scroll asset
