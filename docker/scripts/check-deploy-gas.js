@@ -14,7 +14,9 @@ function main() {
     fail("cannot read or parse volume/config.toml");
   }
   // Match Configuration.sol: an omitted overhead defaults to zero.
-  const overhead = config.contracts?.L2_BASE_FEE_OVERHEAD ?? 0;
+  const value = config.contracts?.L2_BASE_FEE_OVERHEAD ?? 0;
+  // Configuration.sol also accepts quoted decimal integers through readUint.
+  const overhead = typeof value === "string" && /^[0-9]+$/.test(value) ? Number(value) : value;
   if (!Number.isSafeInteger(overhead) || overhead < 0) {
     fail("contracts.L2_BASE_FEE_OVERHEAD must be a non-negative safe integer in wei");
   }
