@@ -99,6 +99,18 @@ for (const shell of ["sh", "bash"]) {
       assert.equal(result.status, 0, result.stderr);
       assert.equal(result.calls.length, 3);
     });
+    test(`${shell}: enforce the same minimum for quoted overhead, legacy=${mode}`, (t) => {
+      const config = '[contracts]\nL2_BASE_FEE_OVERHEAD = "420000000000"\n';
+      const accepted = run(t, shell, mode, { config });
+      assert.equal(accepted.status, 0, accepted.stderr);
+      assert.equal(accepted.calls.length, 3);
+      for (const price of [undefined, "839999999999"]) {
+        const rejected = run(t, shell, mode, { config, env: { ETH_GAS_PRICE: price } });
+        assert.notEqual(rejected.status, 0);
+        assert.match(rejected.stderr, /840000000000/);
+        assert.deepEqual(rejected.calls, []);
+      }
+    });
   }
   test(`${shell}: derive the minimum from the mounted config`, (t) => {
     const options = { config: "[contracts]\nL2_BASE_FEE_OVERHEAD = 500_000_000_000\n" };
@@ -113,7 +125,21 @@ for (const shell of ["sh", "bash"]) {
     assert.equal(accepted.status, 0, accepted.stderr);
     assert.equal(accepted.calls.length, 3);
   });
-  for (const config of ["[contracts]\nL2_BASE_FEE_OVERHEAD = 0\n", "[contracts]\n"]) {
+  test(`${shell}: preserve the exact minimum at the safe integer boundary`, (t) => {
+    const config = '[contracts]\nL2_BASE_FEE_OVERHEAD = "9007199254740991"\n';
+    const rejected = run(t, shell, "false", { config, env: { ETH_GAS_PRICE: "18014398509481981" } });
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, /18014398509481982/);
+    assert.deepEqual(rejected.calls, []);
+    const accepted = run(t, shell, "false", { config, env: { ETH_GAS_PRICE: "18014398509481982" } });
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.equal(accepted.calls.length, 3);
+  });
+  for (const config of [
+    "[contracts]\nL2_BASE_FEE_OVERHEAD = 0\n",
+    '[contracts]\nL2_BASE_FEE_OVERHEAD = "0"\n',
+    "[contracts]\n",
+  ]) {
     test(`${shell}: allow automatic pricing without overhead: ${config.trim()}`, (t) => {
       const result = run(t, shell, "false", { config, env: { ETH_GAS_PRICE: undefined } });
       assert.equal(result.status, 0, result.stderr);
@@ -126,6 +152,19 @@ for (const shell of ["sh", "bash"]) {
     "[contracts]\nL2_BASE_FEE_OVERHEAD = -1\n",
     "[contracts]\nL2_BASE_FEE_OVERHEAD = 1.5\n",
     "[contracts]\nL2_BASE_FEE_OVERHEAD = 9007199254740993\n",
+    ...[
+      "",
+      "-1",
+      "+1",
+      "1.5",
+      "4.2e11",
+      "420gwei",
+      "420_000_000_000",
+      " 420000000000",
+      "420000000000 ",
+      "9007199254740992",
+      "9007199254740993",
+    ].map((value) => `[contracts]\nL2_BASE_FEE_OVERHEAD = "${value}"\n`),
   ]) {
     test(`${shell}: reject missing/invalid gas config: ${config}`, (t) => {
       const result = run(t, shell, "false", { config });
