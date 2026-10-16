@@ -78,7 +78,17 @@ L2 simulation and broadcast use EIP-1559 transactions by default. Set
 legacy transactions; `false` (or unset) selects EIP-1559. Other values are rejected
 before deployment starts. `ETH_GAS_PRICE` is the max fee per gas in EIP-1559 mode
 and the fixed gas price in legacy mode. Set `ETH_PRIORITY_GAS_PRICE` separately
-to control the EIP-1559 tip. For example:
+to control the EIP-1559 tip.
+
+Before running Forge, `deploy.sh` requires `ETH_GAS_PRICE` to be an integer in wei
+and at least twice `contracts.L2_BASE_FEE_OVERHEAD` from `volume/config.toml`.
+With the default 420 gwei overhead, set it to at least `840000000000` (840 gwei).
+Forge prices the transactions before broadcasting, so automatic pricing based on
+the initial low base fee can leave the eight ownership transfers underpriced
+after the overhead update. The 2x margin is a deployment policy, not a guarantee
+against arbitrary base-fee increases. In EIP-1559 mode, the actual price remains
+the block base fee plus tip, capped by `ETH_GAS_PRICE`. If overhead is zero or
+omitted, automatic pricing is allowed. For example:
 
 ```sh
 # EIP-1559: 840 gwei max fee, 1 gwei priority fee.

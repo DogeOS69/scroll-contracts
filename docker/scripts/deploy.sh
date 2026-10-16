@@ -22,6 +22,9 @@ case "$DEPLOY_LEGACY" in
     *) echo "DEPLOY_LEGACY must be true or false" >&2; exit 1 ;;
 esac
 
+# Check fee headroom before any Forge invocation.
+node "$(dirname "$0")/check-deploy-gas.js" "$CONFIG_FILE"
+
 echo "using L1_RPC_ENDPOINT = $L1_RPC_ENDPOINT"
 echo "using L2_RPC_ENDPOINT = $L2_RPC_ENDPOINT"
 echo "Environment variables:"
