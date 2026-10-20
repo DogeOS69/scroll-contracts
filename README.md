@@ -125,7 +125,11 @@ environment variables; this standalone capability is separate from the normal
 DogeOS workflow. L2 generation/deployment requires none of them. `MAX_TX_IN_CHUNK` was removed because
 ScrollChain only writes it to an unused, deprecated storage slot. The canonical genesis supply field
 is `genesis.L2_MAX_NATIVE_DOGE_SUPPLY`; the parser accepts the legacy
-`L2_MAX_ETH_SUPPLY` alias in existing configurations.
+`L2_MAX_ETH_SUPPLY` alias in existing configurations. The template sets it to
+10 trillion DOGE (1e31 wei). Genesis funds the L2 DogeOS messenger with that
+amount minus `L2_DEPLOYER_INITIAL_BALANCE`; deposits are paid from this balance
+and withdrawals return to it, so it caps net bridged DOGE. Dogecoin's supply is
+uncapped (already above 100 billion), so keep this value far above it.
 
 The ingress template retains `BLOCKSCOUT_HOST` for both UI (`/`) and API (`/api`),
 and now includes `TSO_HOST` and `PROOF_COORDINATOR_HOST`. The unused

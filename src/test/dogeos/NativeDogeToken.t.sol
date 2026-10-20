@@ -80,7 +80,7 @@ contract NativeDogeTokenTest is Test {
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
-    uint256 internal constant SUPPLY = 2**247;
+    uint256 internal constant SUPPLY = 10_000_000_000_000 ether;
     uint256 internal constant ALICE_INITIAL_BALANCE = 100 ether;
     uint256 internal constant BOB_INITIAL_BALANCE = 5 ether;
 
@@ -587,6 +587,19 @@ contract NativeDogeTokenTest is Test {
         harness.exposedReadL2MaxNativeDogeSupply(
             '[genesis]\nL2_MAX_NATIVE_DOGE_SUPPLY = "12345"\nL2_MAX_ETH_SUPPLY = "67890"\n'
         );
+    }
+
+    function test_configTemplateFundsMessengerWithTenTrillionDoge() external {
+        NativeDogeSupplyConfigHarness harness = new NativeDogeSupplyConfigHarness();
+        string memory configToml = vm.readFile(string.concat(vm.projectRoot(), "/docker/templates/config.toml"));
+
+        uint256 supply = harness.exposedReadL2MaxNativeDogeSupply(configToml);
+        uint256 deployerInitialBalance = vm.parseTomlUint(configToml, ".genesis.L2_DEPLOYER_INITIAL_BALANCE");
+
+        assertEq(supply, 10_000_000_000_000 ether);
+        assertEq(deployerInitialBalance, 10 ether);
+        // Genesis messenger balance, computed as in Configuration.sol.
+        assertEq(supply - deployerInitialBalance, 9_999_999_999_990 ether);
     }
 
     function test_nativeDogeTokenDoesNotExposeP2PKHSelectors() external view {

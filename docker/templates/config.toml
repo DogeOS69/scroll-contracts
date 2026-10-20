@@ -49,7 +49,11 @@ CONNECT_WALLET_PROJECT_ID = "14efbaafcf5232a47d93a68229b71028"
 # the same chain. Older configs without this key also default to zero.
 TIMESTAMP = 0
 
-L2_MAX_NATIVE_DOGE_SUPPLY = "226156424291633194186662080095093570025917938800079226639565593765455331328"
+# 10 trillion DOGE in wei (1e31). Genesis funds the L2 DogeOS messenger with
+# this minus L2_DEPLOYER_INITIAL_BALANCE, and it is NativeDogeToken.totalSupply().
+# Deposits are paid out of the messenger and withdrawals return to it, so it
+# bounds net bridged DOGE and must stay well above Dogecoin's uncapped supply.
+L2_MAX_NATIVE_DOGE_SUPPLY = "10000000000000000000000000000000"
 # 10 DOGE in wei; quoted because this exceeds TOML's signed 64-bit integer range.
 L2_DEPLOYER_INITIAL_BALANCE = "10000000000000000000"
 # Fresh-chain targets; require the contracts generator that consumes GAS_LIMIT
