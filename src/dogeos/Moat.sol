@@ -51,6 +51,9 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     event DepositFeeUpdated(uint256 oldFee, uint256 newFee);
     event MinWithdrawalUpdated(uint256 oldMin, uint256 newMin);
     event FeeRecipientUpdated(address indexed oldRecip, address indexed newRecip);
+    /// @notice Emitted when a withdrawal to L1 is queued. `sender` is the account that called
+    /// the Moat (the FeeVaultMoatAdapter for fee vault withdrawals). The messenger's
+    /// `SentMessage` in the same transaction always has the Moat as its sender.
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event FeeExemptionUpdated(address indexed account, bool exempt);
 
