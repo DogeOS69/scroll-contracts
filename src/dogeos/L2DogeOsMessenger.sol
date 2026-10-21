@@ -16,6 +16,12 @@ import {WithdrawalEnvelope} from "./WithdrawalEnvelope.sol";
  * @dev Pause semantics: `setPause` freezes withdrawals only. Deposits keep
  * relaying while paused, and each executes at most once. To stop deposits, stop the
  * sequencer from including L1 messages (see UPGRADE_MOAT.md section 1.8).
+ *
+ * `SentMessage.sender`: only the Moat can send L2 -> L1 messages, so on DogeOS the
+ * `sender` of every `SentMessage` is the Moat, not the account that started the
+ * withdrawal. This is intended; the message hash commits to it. The account that
+ * called the Moat is the `sender` of the Moat's `WithdrawalQueued` event in the same
+ * transaction. For fee vault withdrawals, that is the FeeVaultMoatAdapter.
  */
 contract L2DogeOsMessenger is L2ScrollMessenger {
     // --- Errors --- //
