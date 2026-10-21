@@ -13,7 +13,7 @@ WORKDIR /root
 
 # Install dependencies
 RUN apt update
-RUN apt install --yes curl bash coreutils git jq ca-certificates
+RUN apt install --yes curl bash coreutils git jq ca-certificates=20250419~deb12u2
 
 # Download and run the Foundry installation script
 RUN curl -L https://foundry.paradigm.xyz | bash
