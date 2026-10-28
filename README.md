@@ -67,7 +67,7 @@ The DogeOS audit scope remains included in bootstrap:
 | `WrappedDoge.sol`                           | WDOGE genesis predeploy at `0x5300000000000000000000000000000000000004` |
 | `DogeAddressLib.sol`                        | Internal library compiled into Moat                                     |
 | `WithdrawalEnvelope.sol`                    | Internal library compiled into Moat and L2DogeOsMessenger               |
-| `libraries/common/AppendOnlyMerkleTree.sol` | Base contract inherited by the L2MessageQueue genesis predeploy         |
+| `libraries/common/AppendOnlyHashChain.sol`  | Base contract inherited by the L2MessageQueue genesis predeploy         |
 
 Removing the legacy WETH gateway does not remove WDOGE. The bootstrap integration
 test requires the audited deployment entries and checks the token/queue genesis
