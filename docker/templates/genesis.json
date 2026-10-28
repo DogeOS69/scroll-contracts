@@ -26,7 +26,6 @@
     "tsukiTime": 0,
     "scroll": {
       "maxTxPayloadBytesPerBlock": 122880,
-      "l1DataFeeBufferCheck": false,
       "feeVaultAddress": null,
       "l1Config": {
         "l1ChainId": null,

@@ -7,10 +7,9 @@ def address: type == "string" and test("^0x[0-9a-fA-F]{40}$");
 
 (.config.chainId | uint) and
 (.config.tsukiTime | uint and . == 0) and
-(.config.scroll | keys == ["feeVaultAddress", "l1Config", "l1DataFeeBufferCheck", "maxTxPayloadBytesPerBlock"]) and
+(.config.scroll | keys == ["feeVaultAddress", "l1Config", "maxTxPayloadBytesPerBlock"]) and
 (.config.scroll.feeVaultAddress | address) and
 (.config.scroll.maxTxPayloadBytesPerBlock | uint) and
-(.config.scroll.l1DataFeeBufferCheck | type == "boolean") and
 (.config.scroll.l1Config |
     (keys == ["l1ChainId", "l1MessageQueueAddress", "l1MessageQueueV2Address", "l2SystemConfigAddress",
               "numL1MessagesPerBlock", "scrollChainAddress", "startL1Block", "systemContractAddress"]) and
