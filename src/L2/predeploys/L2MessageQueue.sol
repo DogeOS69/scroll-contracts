@@ -52,7 +52,8 @@ contract L2MessageQueue is AppendOnlyHashChain, OwnableBase {
 
         (uint256 _currentNonce, bytes32 _currentRoot) = _appendMessageHash(_messageHash);
 
-        // We can use the event to compute the hash chain locally.
+        // The events reproduce the hash chain locally, given its seed: zero for a queue
+        // created at genesis, the checkpoint root for one upgraded by code replacement.
         emit AppendMessage(_currentNonce, _messageHash);
 
         return _currentRoot;

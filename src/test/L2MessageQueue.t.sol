@@ -7,6 +7,8 @@ import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import {L2MessageQueue} from "../L2/predeploys/L2MessageQueue.sol";
 
 contract L2MessageQueueTest is DSTestPlus {
+    event AppendMessage(uint256 index, bytes32 messageHash);
+
     L2MessageQueue queue;
 
     function setUp() public {
@@ -33,6 +35,8 @@ contract L2MessageQueueTest is DSTestPlus {
         assertEq(queue.messageRoot(), keccak256(abi.encodePacked(bytes32(0), _message)));
     }
 
+    // Shared with crates/circuits/common/dogeos/src/withdrawal_hash_chain.rs in dogeos-core:
+    // both sides pin these zero-seed roots, so a change here must change the Rust vectors too.
     function testPassMessageSuccess() external {
         queue.appendMessage(bytes32(uint256(1)));
         assertEq(queue.nextMessageIndex(), 1);
@@ -47,8 +51,6 @@ contract L2MessageQueueTest is DSTestPlus {
         assertEq(queue.nextMessageIndex(), 4);
         assertEq(queue.messageRoot(), 0x2a2c1a9f9c9fbebbf2dce2f8e9b96d5bcf0374b203bb2f7330def1cdbc47eb8c);
     }
-
-    event AppendMessage(uint256 index, bytes32 messageHash);
 
     function testCheckpointStorageLayout() external {
         // Preserve a nonzero checkpoint and the inherited owner/messenger slots on upgrade.
