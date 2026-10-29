@@ -118,7 +118,7 @@ def main():
                     time.sleep(0.1)
             else:
                 raise RuntimeError("Anvil did not start")
-            # Audited token contracts and the queue carrying AppendOnlyMerkleTree
+            # Audited token contracts and the queue carrying AppendOnlyHashChain
             # must already exist in genesis, independently of deploy.sh.
             for name in ["L2_NATIVE_DOGE_TOKEN_ADDR", "L2_WDOGE_ADDR", "L2_MESSAGE_QUEUE_ADDR"]:
                 address = addresses[name]
@@ -171,7 +171,7 @@ def main():
             # Fail on missing/empty audited deployment entries, not just empty
             # bytecode at the optional addresses below. DogeAddressLib and
             # WithdrawalEnvelope are internal libraries compiled into Moat and
-            # the messenger; AppendOnlyMerkleTree is inherited by the queue.
+            # the messenger; AppendOnlyHashChain is inherited by the queue.
             for name in ["L2_MOAT_IMPLEMENTATION_ADDR", "L2_MOAT_PROXY_ADDR",
                          "L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR", "L2_DOGEOS_MESSENGER_PROXY_ADDR",
                          "L2_FEE_VAULT_MOAT_ADAPTER_ADDR", "L2_WDOGE_ADDR", "L2_MESSAGE_QUEUE_ADDR",

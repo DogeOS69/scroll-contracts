@@ -174,3 +174,23 @@ for (const shell of ["sh", "bash"]) {
     });
   }
 }
+
+test("the Scroll L1 deploy script fails fast before calling forge", (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "deploy-l1-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const log = path.join(directory, "calls.jsonl");
+  fs.writeFileSync(log, "");
+  fs.writeFileSync(path.join(directory, "forge"), `#!/bin/sh\necho "$@" >> "${log}"\n`, { mode: 0o755 });
+  const result = spawnSync("sh", [path.join(__dirname, "../../scripts/deterministic/shell/deploy.sh")], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${directory}${path.delimiter}${process.env.PATH}`,
+      L1_RPC_ENDPOINT: "http://l1.invalid:8545",
+      L2_RPC_ENDPOINT: "http://l2.invalid:8545",
+    },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /not supported for DogeOS/);
+  assert.equal(fs.readFileSync(log, "utf8"), "");
+});

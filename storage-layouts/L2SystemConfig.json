@@ -1,0 +1,48 @@
+{
+  "contract": "src/L2/L2SystemConfig.sol:L2SystemConfig",
+  "storage": [
+    {
+      "label": "_initialized",
+      "slot": 0,
+      "offset": 0,
+      "type": "uint8"
+    },
+    {
+      "label": "_initializing",
+      "slot": 0,
+      "offset": 1,
+      "type": "bool"
+    },
+    {
+      "label": "__gap",
+      "slot": 1,
+      "offset": 0,
+      "type": "uint256[50]"
+    },
+    {
+      "label": "_owner",
+      "slot": 51,
+      "offset": 0,
+      "type": "address"
+    },
+    {
+      "label": "__gap",
+      "slot": 52,
+      "offset": 0,
+      "type": "uint256[49]"
+    },
+    {
+      "label": "baseFeeOverhead",
+      "slot": 101,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "baseFeeScalar",
+      "slot": 102,
+      "offset": 0,
+      "type": "uint256"
+    }
+  ],
+  "structs": {}
+}

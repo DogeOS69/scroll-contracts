@@ -12,9 +12,11 @@ library WithdrawTrieVerifier {
     ///   thereby giving an intermediate node of the trie. This can then be used with a shortened
     ///   proof to pass the verification, which may lead to replayability.
     ///
-    ///   However, it is designed to verify the withdraw trie in `L2MessageQueue`. The `_hash` given
-    ///   in the parameter is always a leaf node. So we assume the length of proof is correct and
-    ///   cannot be shortened.
+    ///   Upstream Scroll relied on `L2MessageQueue` being a Merkle trie whose `_hash` is always a
+    ///   leaf node. On DogeOS that premise no longer holds: `L2MessageQueue` is a Keccak hash chain,
+    ///   so its roots are not Merkle roots and this verifier cannot validate DogeOS withdrawals.
+    ///   DogeOS does not relay withdrawals through `L1ScrollMessenger`; they are paid on Dogecoin
+    ///   from the bridge proof. This library is kept only for the simulated Scroll L1 contracts.
     /// @param _root The expected root node hash of the withdraw trie.
     /// @param _hash The leaf node hash of the withdraw trie.
     /// @param _nonce The index of the leaf node from left to right, starting from 0.

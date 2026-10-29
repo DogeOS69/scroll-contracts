@@ -1,0 +1,90 @@
+{
+  "contract": "src/L2/predeploys/L1GasPriceOracle.sol:L1GasPriceOracle",
+  "storage": [
+    {
+      "label": "owner",
+      "slot": 0,
+      "offset": 0,
+      "type": "address"
+    },
+    {
+      "label": "l1BaseFee",
+      "slot": 1,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "overhead",
+      "slot": 2,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "scalar",
+      "slot": 3,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "whitelist",
+      "slot": 4,
+      "offset": 0,
+      "type": "contract IWhitelist"
+    },
+    {
+      "label": "l1BlobBaseFee",
+      "slot": 5,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "commitScalar",
+      "slot": 6,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "blobScalar",
+      "slot": 7,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "isCurie",
+      "slot": 8,
+      "offset": 0,
+      "type": "bool"
+    },
+    {
+      "label": "__penaltyThreshold",
+      "slot": 9,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "penaltyFactor",
+      "slot": 10,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "isFeynman",
+      "slot": 11,
+      "offset": 0,
+      "type": "bool"
+    },
+    {
+      "label": "__gap",
+      "slot": 11,
+      "offset": 1,
+      "type": "uint248"
+    },
+    {
+      "label": "isGalileo",
+      "slot": 12,
+      "offset": 0,
+      "type": "bool"
+    }
+  ],
+  "structs": {}
+}

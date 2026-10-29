@@ -12,7 +12,8 @@ interface IL1ScrollMessenger is IScrollMessenger {
     struct L2MessageProof {
         // The index of the batch where the message belongs to.
         uint256 batchIndex;
-        // Concatenation of merkle proof for withdraw merkle trie.
+        // Concatenation of merkle proof for withdraw merkle trie. Not usable on DogeOS, whose
+        // L2MessageQueue is a hash chain; DogeOS withdrawals are paid on Dogecoin instead.
         bytes merkleProof;
     }
 

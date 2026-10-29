@@ -7,11 +7,13 @@ on:
     paths:
       - "docker/scripts/**"
       - "docker/templates/**"
+      - "scripts/deterministic/shell/deploy.sh"
       - ".github/workflows/docker-scripts.yml"
   pull_request:
     paths:
       - "docker/scripts/**"
       - "docker/templates/**"
+      - "scripts/deterministic/shell/deploy.sh"
       - ".github/workflows/docker-scripts.yml"
 
 permissions: {}
