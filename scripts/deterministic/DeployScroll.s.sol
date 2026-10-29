@@ -10,38 +10,22 @@ import {console} from "forge-std/Script.sol";
 import {EmptyContract} from "../../src/misc/EmptyContract.sol";
 
 import {EnforcedTxGateway} from "../../src/L1/gateways/EnforcedTxGateway.sol";
-import {L1CustomERC20Gateway} from "../../src/L1/gateways/L1CustomERC20Gateway.sol";
-import {L1ERC1155Gateway} from "../../src/L1/gateways/L1ERC1155Gateway.sol";
-import {L1ERC721Gateway} from "../../src/L1/gateways/L1ERC721Gateway.sol";
-import {L1ETHGateway} from "../../src/L1/gateways/L1ETHGateway.sol";
-import {L1GatewayRouter} from "../../src/L1/gateways/L1GatewayRouter.sol";
 import {L1MessageQueueV1WithGasPriceOracle} from "../../src/L1/rollup/L1MessageQueueV1WithGasPriceOracle.sol";
 import {L1MessageQueueV2} from "../../src/L1/rollup/L1MessageQueueV2.sol";
 import {SystemConfig} from "../../src/L1/system-contract/SystemConfig.sol";
 import {L1ScrollMessenger} from "../../src/L1/L1ScrollMessenger.sol";
-import {L1StandardERC20Gateway} from "../../src/L1/gateways/L1StandardERC20Gateway.sol";
-import {L1WETHGateway} from "../../src/L1/gateways/L1WETHGateway.sol";
 import {L2GasPriceOracle} from "../../src/L1/rollup/L2GasPriceOracle.sol";
 import {MultipleVersionRollupVerifierSetOwner} from "./contracts/MultipleVersionRollupVerifierSetOwner.sol";
 import {ScrollChain} from "../../src/L1/rollup/ScrollChain.sol";
 import {ZkEvmVerifierV2} from "../../src/libraries/verifier/ZkEvmVerifierV2.sol";
-import {L2CustomERC20Gateway} from "../../src/L2/gateways/L2CustomERC20Gateway.sol";
-import {L2ERC1155Gateway} from "../../src/L2/gateways/L2ERC1155Gateway.sol";
-import {L2ERC721Gateway} from "../../src/L2/gateways/L2ERC721Gateway.sol";
-import {L2ETHGateway} from "../../src/L2/gateways/L2ETHGateway.sol";
-import {L2GatewayRouter} from "../../src/L2/gateways/L2GatewayRouter.sol";
 import {L2DogeOsMessenger} from "../../src/dogeos/L2DogeOsMessenger.sol";
 import {FeeVaultMoatAdapter} from "../../src/dogeos/FeeVaultMoatAdapter.sol";
-import {L2StandardERC20Gateway} from "../../src/L2/gateways/L2StandardERC20Gateway.sol";
-import {L2WETHGateway} from "../../src/L2/gateways/L2WETHGateway.sol";
 import {L1GasPriceOracle} from "../../src/L2/predeploys/L1GasPriceOracle.sol";
 import {L2MessageQueue} from "../../src/L2/predeploys/L2MessageQueue.sol";
 import {L2TxFeeVault} from "../../src/L2/predeploys/L2TxFeeVault.sol";
 import {L2SystemConfig} from "../../src/L2/L2SystemConfig.sol";
 import {Whitelist} from "../../src/L2/predeploys/Whitelist.sol";
 import {WrappedDoge} from "../../src/dogeos/WrappedDoge.sol";
-import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20.sol";
-import {ScrollStandardERC20FactorySetOwner} from "./contracts/ScrollStandardERC20FactorySetOwner.sol";
 import {Moat} from "../../src/dogeos/Moat.sol";
 
 import "./Constants.sol";
@@ -76,18 +60,8 @@ contract DeployScroll is DeterministicDeployment {
      ***********************/
 
     // L1 addresses
-    address internal L1_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR;
     address internal L1_ENFORCED_TX_GATEWAY_IMPLEMENTATION_ADDR;
     address internal L1_ENFORCED_TX_GATEWAY_PROXY_ADDR;
-    address internal L1_ERC1155_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L1_ERC1155_GATEWAY_PROXY_ADDR;
-    address internal L1_ERC721_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L1_ERC721_GATEWAY_PROXY_ADDR;
-    address internal L1_ETH_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L1_ETH_GATEWAY_PROXY_ADDR;
-    address internal L1_GATEWAY_ROUTER_IMPLEMENTATION_ADDR;
-    address internal L1_GATEWAY_ROUTER_PROXY_ADDR;
     address internal L1_MESSAGE_QUEUE_V1_IMPLEMENTATION_ADDR;
     address internal L1_MESSAGE_QUEUE_V1_PROXY_ADDR;
     address internal L1_MESSAGE_QUEUE_V2_IMPLEMENTATION_ADDR;
@@ -99,11 +73,7 @@ contract DeployScroll is DeterministicDeployment {
     address internal L1_SCROLL_CHAIN_PROXY_ADDR;
     address internal L1_SCROLL_MESSENGER_IMPLEMENTATION_ADDR;
     address internal L1_SCROLL_MESSENGER_PROXY_ADDR;
-    address internal L1_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR;
     address internal L1_WDOGE_ADDR;
-    address internal L1_WETH_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L1_WETH_GATEWAY_PROXY_ADDR;
     address internal L1_WHITELIST_ADDR;
     address internal L1_PLONK_VERIFIER_ADDR;
     address internal L1_ZKEVM_VERIFIER_V2_ADDR;
@@ -113,30 +83,14 @@ contract DeployScroll is DeterministicDeployment {
 
     // L2 addresses
     address internal L1_GAS_PRICE_ORACLE_ADDR;
-    address internal L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR;
-    address internal L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L2_ERC1155_GATEWAY_PROXY_ADDR;
-    address internal L2_ERC721_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L2_ERC721_GATEWAY_PROXY_ADDR;
-    address internal L2_ETH_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L2_ETH_GATEWAY_PROXY_ADDR;
-    address internal L2_GATEWAY_ROUTER_IMPLEMENTATION_ADDR;
-    address internal L2_GATEWAY_ROUTER_PROXY_ADDR;
     address internal L2_MESSAGE_QUEUE_ADDR;
     address internal L2_PROXY_ADMIN_ADDR;
     address internal L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR;
     address internal L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR;
     address internal L2_DOGEOS_MESSENGER_PROXY_ADDR;
-    address internal L2_SCROLL_STANDARD_ERC20_ADDR;
-    address internal L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR;
-    address internal L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR;
     address internal L2_TX_FEE_VAULT_ADDR;
     address internal L2_FEE_VAULT_MOAT_ADAPTER_ADDR;
     address internal L2_WDOGE_ADDR;
-    address internal L2_WETH_GATEWAY_IMPLEMENTATION_ADDR;
-    address internal L2_WETH_GATEWAY_PROXY_ADDR;
     address internal L2_WHITELIST_ADDR;
     address internal L2_MOAT_IMPLEMENTATION_ADDR;
     address internal L2_MOAT_PROXY_ADDR;
@@ -760,109 +714,6 @@ contract DeployScroll is DeterministicDeployment {
         upgrade(L1_PROXY_ADMIN_ADDR, L1_SCROLL_CHAIN_PROXY_ADDR, L1_SCROLL_CHAIN_IMPLEMENTATION_ADDR);
     }
 
-    function deployL1GatewayRouter() private {
-        L1_GATEWAY_ROUTER_IMPLEMENTATION_ADDR = deploy(
-            "L1_GATEWAY_ROUTER_IMPLEMENTATION",
-            type(L1GatewayRouter).creationCode
-        );
-
-        bytes memory args = abi.encode(
-            notnull(L1_GATEWAY_ROUTER_IMPLEMENTATION_ADDR),
-            notnull(L1_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L1_GATEWAY_ROUTER_PROXY_ADDR = deploy(
-            "L1_GATEWAY_ROUTER_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL1ETHGatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L1_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L1_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L1_ETH_GATEWAY_PROXY_ADDR = deploy(
-            "L1_ETH_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL1WETHGatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L1_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L1_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L1_WETH_GATEWAY_PROXY_ADDR = deploy(
-            "L1_WETH_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL1StandardERC20GatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L1_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L1_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR = deploy(
-            "L1_STANDARD_ERC20_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL1CustomERC20GatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L1_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L1_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = deploy(
-            "L1_CUSTOM_ERC20_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL1ERC721GatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L1_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L1_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L1_ERC721_GATEWAY_PROXY_ADDR = deploy(
-            "L1_ERC721_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL1ERC1155GatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L1_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L1_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L1_ERC1155_GATEWAY_PROXY_ADDR = deploy(
-            "L1_ERC1155_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
     /***************************
      * L2: 1st pass deployment *
      ***************************/
@@ -917,101 +768,6 @@ contract DeployScroll is DeterministicDeployment {
         );
     }
 
-    function deployL2StandardERC20GatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L2_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR = deploy(
-            "L2_STANDARD_ERC20_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL2ETHGatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L2_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L2_ETH_GATEWAY_PROXY_ADDR = deploy(
-            "L2_ETH_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL2WETHGatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L2_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L2_WETH_GATEWAY_PROXY_ADDR = deploy(
-            "L2_WETH_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL2CustomERC20GatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L2_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR = deploy(
-            "L2_CUSTOM_ERC20_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL2ERC721GatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L2_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L2_ERC721_GATEWAY_PROXY_ADDR = deploy(
-            "L2_ERC721_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL2ERC1155GatewayProxy() private {
-        bytes memory args = abi.encode(
-            notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
-            notnull(L2_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L2_ERC1155_GATEWAY_PROXY_ADDR = deploy(
-            "L2_ERC1155_GATEWAY_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployScrollStandardERC20Factory() private {
-        L2_SCROLL_STANDARD_ERC20_ADDR = deploy("L2_SCROLL_STANDARD_ERC20", type(ScrollStandardERC20).creationCode);
-        bytes memory args = abi.encode(DEPLOYER_ADDR, notnull(L2_SCROLL_STANDARD_ERC20_ADDR));
-
-        L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR = deploy(
-            "L2_SCROLL_STANDARD_ERC20_FACTORY",
-            type(ScrollStandardERC20FactorySetOwner).creationCode,
-            args
-        );
-    }
-
     function deployL2MoatProxy() private {
         bytes memory args = abi.encode(
             notnull(L2_PROXY_IMPLEMENTATION_PLACEHOLDER_ADDR),
@@ -1044,102 +800,6 @@ contract DeployScroll is DeterministicDeployment {
         upgrade(L1_PROXY_ADMIN_ADDR, L1_SCROLL_MESSENGER_PROXY_ADDR, L1_SCROLL_MESSENGER_IMPLEMENTATION_ADDR);
     }
 
-    function deployL1ETHGateway() private {
-        bytes memory args = abi.encode(
-            notnull(L2_ETH_GATEWAY_PROXY_ADDR),
-            notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
-        );
-
-        L1_ETH_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L1_ETH_GATEWAY_IMPLEMENTATION",
-            type(L1ETHGateway).creationCode,
-            args
-        );
-
-        upgrade(L1_PROXY_ADMIN_ADDR, L1_ETH_GATEWAY_PROXY_ADDR, L1_ETH_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
-    function deployL1WETHGateway() private {
-        bytes memory args = abi.encode(
-            notnull(L1_WDOGE_ADDR),
-            notnull(L2_WDOGE_ADDR),
-            notnull(L2_WETH_GATEWAY_PROXY_ADDR),
-            notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
-        );
-
-        L1_WETH_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L1_WETH_GATEWAY_IMPLEMENTATION",
-            type(L1WETHGateway).creationCode,
-            args
-        );
-
-        upgrade(L1_PROXY_ADMIN_ADDR, L1_WETH_GATEWAY_PROXY_ADDR, L1_WETH_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
-    function deployL1StandardERC20Gateway() private {
-        bytes memory args = abi.encode(
-            notnull(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR),
-            notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L1_SCROLL_MESSENGER_PROXY_ADDR),
-            notnull(L2_SCROLL_STANDARD_ERC20_ADDR),
-            notnull(L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR)
-        );
-
-        L1_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L1_STANDARD_ERC20_GATEWAY_IMPLEMENTATION",
-            type(L1StandardERC20Gateway).creationCode,
-            args
-        );
-
-        upgrade(
-            L1_PROXY_ADMIN_ADDR,
-            L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR,
-            L1_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR
-        );
-    }
-
-    function deployL1CustomERC20Gateway() private {
-        bytes memory args = abi.encode(
-            notnull(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR),
-            notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
-        );
-
-        L1_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L1_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION",
-            type(L1CustomERC20Gateway).creationCode,
-            args
-        );
-
-        upgrade(L1_PROXY_ADMIN_ADDR, L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, L1_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
-    function deployL1ERC721Gateway() private {
-        bytes memory args = abi.encode(notnull(L2_ERC721_GATEWAY_PROXY_ADDR), notnull(L1_SCROLL_MESSENGER_PROXY_ADDR));
-
-        L1_ERC721_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L1_ERC721_GATEWAY_IMPLEMENTATION",
-            type(L1ERC721Gateway).creationCode,
-            args
-        );
-
-        upgrade(L1_PROXY_ADMIN_ADDR, L1_ERC721_GATEWAY_PROXY_ADDR, L1_ERC721_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
-    function deployL1ERC1155Gateway() private {
-        bytes memory args = abi.encode(notnull(L2_ERC1155_GATEWAY_PROXY_ADDR), notnull(L1_SCROLL_MESSENGER_PROXY_ADDR));
-
-        L1_ERC1155_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L1_ERC1155_GATEWAY_IMPLEMENTATION",
-            type(L1ERC1155Gateway).creationCode,
-            args
-        );
-
-        upgrade(L1_PROXY_ADMIN_ADDR, L1_ERC1155_GATEWAY_PROXY_ADDR, L1_ERC1155_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
     /***************************
      * L2: 2nd pass deployment *
      ***************************/
@@ -1168,121 +828,6 @@ contract DeployScroll is DeterministicDeployment {
             type(FeeVaultMoatAdapter).creationCode,
             args
         );
-    }
-
-    function deployL2GatewayRouter() private {
-        L2_GATEWAY_ROUTER_IMPLEMENTATION_ADDR = deploy(
-            "L2_GATEWAY_ROUTER_IMPLEMENTATION",
-            type(L2GatewayRouter).creationCode
-        );
-
-        bytes memory args = abi.encode(
-            notnull(L2_GATEWAY_ROUTER_IMPLEMENTATION_ADDR),
-            notnull(L2_PROXY_ADMIN_ADDR),
-            new bytes(0)
-        );
-
-        L2_GATEWAY_ROUTER_PROXY_ADDR = deploy(
-            "L2_GATEWAY_ROUTER_PROXY",
-            type(TransparentUpgradeableProxy).creationCode,
-            args
-        );
-    }
-
-    function deployL2StandardERC20Gateway() private {
-        bytes memory args = abi.encode(
-            notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR),
-            notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR),
-            notnull(L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR)
-        );
-
-        L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION",
-            type(L2StandardERC20Gateway).creationCode,
-            args
-        );
-
-        upgrade(
-            L2_PROXY_ADMIN_ADDR,
-            L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR,
-            L2_STANDARD_ERC20_GATEWAY_IMPLEMENTATION_ADDR
-        );
-    }
-
-    function deployL2ETHGateway() private {
-        address COUNTERPART = L1_ETH_GATEWAY_PROXY_ADDR;
-        bytes memory args = abi.encode(
-            notnull(COUNTERPART),
-            notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
-        );
-
-        L2_ETH_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L2_ETH_GATEWAY_IMPLEMENTATION",
-            type(L2ETHGateway).creationCode,
-            args
-        );
-
-        upgrade(L2_PROXY_ADMIN_ADDR, L2_ETH_GATEWAY_PROXY_ADDR, L2_ETH_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
-    function deployL2WETHGateway() private {
-        bytes memory args = abi.encode(
-            notnull(L2_WDOGE_ADDR),
-            notnull(L1_WDOGE_ADDR),
-            notnull(L1_WETH_GATEWAY_PROXY_ADDR),
-            notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
-        );
-
-        L2_WETH_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L2_WETH_GATEWAY_IMPLEMENTATION",
-            type(L2WETHGateway).creationCode,
-            args
-        );
-
-        upgrade(L2_PROXY_ADMIN_ADDR, L2_WETH_GATEWAY_PROXY_ADDR, L2_WETH_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
-    function deployL2CustomERC20Gateway() private {
-        bytes memory args = abi.encode(
-            notnull(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR),
-            notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-            notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
-        );
-
-        L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION",
-            type(L2CustomERC20Gateway).creationCode,
-            args
-        );
-
-        upgrade(L2_PROXY_ADMIN_ADDR, L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR, L2_CUSTOM_ERC20_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
-    function deployL2ERC721Gateway() private {
-        bytes memory args = abi.encode(notnull(L1_ERC721_GATEWAY_PROXY_ADDR), notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR));
-
-        L2_ERC721_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L2_ERC721_GATEWAY_IMPLEMENTATION",
-            type(L2ERC721Gateway).creationCode,
-            args
-        );
-
-        upgrade(L2_PROXY_ADMIN_ADDR, L2_ERC721_GATEWAY_PROXY_ADDR, L2_ERC721_GATEWAY_IMPLEMENTATION_ADDR);
-    }
-
-    function deployL2ERC1155Gateway() private {
-        bytes memory args = abi.encode(notnull(L1_ERC1155_GATEWAY_PROXY_ADDR), notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR));
-
-        L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR = deploy(
-            "L2_ERC1155_GATEWAY_IMPLEMENTATION",
-            type(L2ERC1155Gateway).creationCode,
-            args
-        );
-
-        upgrade(L2_PROXY_ADMIN_ADDR, L2_ERC1155_GATEWAY_PROXY_ADDR, L2_ERC1155_GATEWAY_IMPLEMENTATION_ADDR);
     }
 
     function deployL2Moat() private {
@@ -1402,86 +947,6 @@ contract DeployScroll is DeterministicDeployment {
         }
     }
 
-    function initializeL1GatewayRouter() private {
-        address L2_ETH_GATEWAY_COUNTERPART = L1_ETH_GATEWAY_PROXY_ADDR;
-        if (getInitializeCount(L1_GATEWAY_ROUTER_PROXY_ADDR) == 0) {
-            L1GatewayRouter(L1_GATEWAY_ROUTER_PROXY_ADDR).initialize(
-                notnull(L2_ETH_GATEWAY_COUNTERPART),
-                notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL1CustomERC20Gateway() private {
-        if (getInitializeCount(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR) == 0) {
-            L1CustomERC20Gateway(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR),
-                notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL1ERC1155Gateway() private {
-        if (getInitializeCount(L1_ERC1155_GATEWAY_PROXY_ADDR) == 0) {
-            L1ERC1155Gateway(L1_ERC1155_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L2_ERC1155_GATEWAY_PROXY_ADDR),
-                notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL1ERC721Gateway() private {
-        if (getInitializeCount(L1_ERC721_GATEWAY_PROXY_ADDR) == 0) {
-            L1ERC721Gateway(L1_ERC721_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L2_ERC721_GATEWAY_PROXY_ADDR),
-                notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL1ETHGateway() private {
-        if (getInitializeCount(L1_ETH_GATEWAY_PROXY_ADDR) == 0) {
-            L1ETHGateway(L1_ETH_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L2_ETH_GATEWAY_PROXY_ADDR),
-                notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL1StandardERC20Gateway() private {
-        if (getInitializeCount(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR) == 0) {
-            L1StandardERC20Gateway(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR),
-                notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L1_SCROLL_MESSENGER_PROXY_ADDR),
-                notnull(L2_SCROLL_STANDARD_ERC20_ADDR),
-                notnull(L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR)
-            );
-        }
-    }
-
-    function initializeL1WETHGateway() private {
-        if (getInitializeCount(L1_WETH_GATEWAY_PROXY_ADDR) == 0) {
-            L1WETHGateway(payable(L1_WETH_GATEWAY_PROXY_ADDR)).initialize(
-                notnull(L2_WETH_GATEWAY_PROXY_ADDR),
-                notnull(L1_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L1_SCROLL_MESSENGER_PROXY_ADDR)
-            );
-        }
-
-        // set WETH gateway in router
-        address[] memory _tokens = new address[](1);
-        _tokens[0] = notnull(L1_WDOGE_ADDR);
-        address[] memory _gateways = new address[](1);
-        _gateways[0] = notnull(L1_WETH_GATEWAY_PROXY_ADDR);
-
-        if (L1GatewayRouter(L1_GATEWAY_ROUTER_PROXY_ADDR).ERC20Gateway(_tokens[0]) != _gateways[0]) {
-            L1GatewayRouter(L1_GATEWAY_ROUTER_PROXY_ADDR).setERC20Gateway(_tokens, _gateways);
-        }
-    }
-
     function initializeL1Whitelist() private {
         // The legacy L1 gas-oracle sender is disabled; do not whitelist address(0).
         if (L1_GAS_ORACLE_SENDER_ADDR == address(0)) return;
@@ -1580,92 +1045,6 @@ contract DeployScroll is DeterministicDeployment {
         require(
             messengerOwner == DEPLOYER_ADDR || messengerOwner == OWNER_ADDR,
             "L2DogeOsMessenger has an unexpected owner"
-        );
-    }
-
-    function initializeL2GatewayRouter() private {
-        if (getInitializeCount(L2_GATEWAY_ROUTER_PROXY_ADDR) == 0) {
-            L2GatewayRouter(L2_GATEWAY_ROUTER_PROXY_ADDR).initialize(
-                notnull(L2_ETH_GATEWAY_PROXY_ADDR),
-                notnull(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL2CustomERC20Gateway() private {
-        if (getInitializeCount(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR) == 0) {
-            L2CustomERC20Gateway(L2_CUSTOM_ERC20_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L1_CUSTOM_ERC20_GATEWAY_PROXY_ADDR),
-                notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL2ERC1155Gateway() private {
-        if (getInitializeCount(L2_ERC1155_GATEWAY_PROXY_ADDR) == 0) {
-            L2ERC1155Gateway(L2_ERC1155_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L1_ERC1155_GATEWAY_PROXY_ADDR),
-                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL2ERC721Gateway() private {
-        if (getInitializeCount(L2_ERC721_GATEWAY_PROXY_ADDR) == 0) {
-            L2ERC721Gateway(L2_ERC721_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L1_ERC721_GATEWAY_PROXY_ADDR),
-                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL2ETHGateway() private {
-        address COUNTERPART = L1_ETH_GATEWAY_PROXY_ADDR;
-        if (getInitializeCount(L2_ETH_GATEWAY_PROXY_ADDR) == 0) {
-            L2ETHGateway(L2_ETH_GATEWAY_PROXY_ADDR).initialize(
-                notnull(COUNTERPART),
-                notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
-            );
-        }
-    }
-
-    function initializeL2StandardERC20Gateway() private {
-        if (getInitializeCount(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR) == 0) {
-            L2StandardERC20Gateway(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR).initialize(
-                notnull(L1_STANDARD_ERC20_GATEWAY_PROXY_ADDR),
-                notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR),
-                notnull(L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR)
-            );
-        }
-    }
-
-    function initializeL2WETHGateway() private {
-        if (getInitializeCount(L2_WETH_GATEWAY_PROXY_ADDR) == 0) {
-            L2WETHGateway(payable(L2_WETH_GATEWAY_PROXY_ADDR)).initialize(
-                notnull(L1_WETH_GATEWAY_PROXY_ADDR),
-                notnull(L2_GATEWAY_ROUTER_PROXY_ADDR),
-                notnull(L2_DOGEOS_MESSENGER_PROXY_ADDR)
-            );
-        }
-
-        // set WETH gateway in router
-        address[] memory _tokens = new address[](1);
-        _tokens[0] = notnull(L2_WDOGE_ADDR);
-        address[] memory _gateways = new address[](1);
-        _gateways[0] = notnull(L2_WETH_GATEWAY_PROXY_ADDR);
-
-        if (L2GatewayRouter(L2_GATEWAY_ROUTER_PROXY_ADDR).ERC20Gateway(_tokens[0]) != _gateways[0]) {
-            L2GatewayRouter(L2_GATEWAY_ROUTER_PROXY_ADDR).setERC20Gateway(_tokens, _gateways);
-        }
-    }
-
-    function initializeScrollStandardERC20Factory() private {
-        transferOwnership(
-            notnull(L2_SCROLL_STANDARD_ERC20_FACTORY_ADDR),
-            notnull(L2_STANDARD_ERC20_GATEWAY_PROXY_ADDR)
         );
     }
 
