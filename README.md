@@ -26,6 +26,7 @@ This directory contains the solidity code for Scroll L1 bridge and rollup contra
 │   ├── <a href="./src/mocks/">mocks</a>: Mock contracts used in the testing
 │   ├── <a href="./src/rate-limiter/">rate-limiter</a>: Rater limiter contract
 │   └── <a href="./src/test/">test</a>: Unit tests in solidity
+├── <a href="./storage-layouts/">storage-layouts</a>: Pinned storage layouts of the upgradeable and predeployed L2 contracts
 ├── <a href="./foundry.toml">foundry.toml</a>: Foundry configuration
 ├── <a href="./hardhat.config.ts">hardhat.config.ts</a>: Hardhat configuration
 ├── <a href="./remappings.txt">remappings.txt</a>: Foundry dependency mappings
@@ -253,6 +254,45 @@ are checked separately by [the RPC smoke test](docs/eip-2935.md).
 
 Run `node --test docker/scripts/verify.test.js` to check the verification flow
 using mock forge and cast executables, without submitting explorer or RPC requests.
+
+## Storage layouts
+
+The L2 contracts behind the L2 ProxyAdmin keep the proxy's storage across an
+implementation upgrade, and the genesis predeploys have some of their slots
+written by absolute slot number in
+[`scripts/deterministic/GenerateGenesis.s.sol`](scripts/deterministic/GenerateGenesis.s.sol).
+A variable that silently moves corrupts live state in both cases, so
+[`storage-layouts/`](storage-layouts) holds the committed layout of each of
+them: one ordered entry per variable with its label, slot, offset and type
+label, taken from `forge inspect <Contract> storageLayout`. AST ids are dropped,
+because they shift whenever an unrelated source file changes.
+
+A label alone would not describe the member layout of a struct, and a member that
+moves inside one changes where the contract reads data it already holds, even
+when every surrounding variable stays put. So each snapshot also carries a
+`structs` section with the member label, slot, offset and type label of every
+struct the storage reaches, mapping and array values included.
+
+CI checks the layouts on every pull request, alongside
+[`scripts/integration/test_storage_layout.py`](scripts/integration/test_storage_layout.py),
+which pins the normalization itself. Run both locally with:
+
+```bash
+python3 -m unittest discover -s scripts/integration -p 'test_storage_layout.py' -v
+python3 scripts/check-storage-layout.py
+```
+
+It fails with a diff when a layout no longer matches. If the change is intended,
+rewrite the pins and commit the diff alongside the contract change:
+
+```bash
+python3 scripts/check-storage-layout.py --write
+```
+
+The pinned contracts are listed in `CONTRACTS` at the top of that script. Add a
+contract there when a new one goes behind the L2 ProxyAdmin or into the genesis
+alloc; the check also fails on a snapshot file that no longer belongs to a
+listed contract.
 
 ## Build
 

@@ -1,0 +1,18 @@
+{
+  "contract": "src/L2/predeploys/Whitelist.sol:Whitelist",
+  "storage": [
+    {
+      "label": "owner",
+      "slot": 0,
+      "offset": 0,
+      "type": "address"
+    },
+    {
+      "label": "isWhitelisted",
+      "slot": 1,
+      "offset": 0,
+      "type": "mapping(address => bool)"
+    }
+  ],
+  "structs": {}
+}

@@ -1,0 +1,36 @@
+{
+  "contract": "src/L2/predeploys/L2MessageQueue.sol:L2MessageQueue",
+  "storage": [
+    {
+      "label": "messageRoot",
+      "slot": 0,
+      "offset": 0,
+      "type": "bytes32"
+    },
+    {
+      "label": "nextMessageIndex",
+      "slot": 1,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "__legacyTreeSlots",
+      "slot": 2,
+      "offset": 0,
+      "type": "uint256[80]"
+    },
+    {
+      "label": "owner",
+      "slot": 82,
+      "offset": 0,
+      "type": "address"
+    },
+    {
+      "label": "messenger",
+      "slot": 83,
+      "offset": 0,
+      "type": "address"
+    }
+  ],
+  "structs": {}
+}

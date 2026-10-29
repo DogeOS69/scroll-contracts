@@ -1,0 +1,78 @@
+{
+  "contract": "src/dogeos/Moat.sol:Moat",
+  "storage": [
+    {
+      "label": "owner",
+      "slot": 0,
+      "offset": 0,
+      "type": "address"
+    },
+    {
+      "label": "_initialized",
+      "slot": 0,
+      "offset": 20,
+      "type": "uint8"
+    },
+    {
+      "label": "_initializing",
+      "slot": 0,
+      "offset": 21,
+      "type": "bool"
+    },
+    {
+      "label": "_status",
+      "slot": 1,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "__gap",
+      "slot": 2,
+      "offset": 0,
+      "type": "uint256[49]"
+    },
+    {
+      "label": "_deprecatedMessengerSlot",
+      "slot": 51,
+      "offset": 0,
+      "type": "address"
+    },
+    {
+      "label": "_deprecatedVerifierSlot",
+      "slot": 52,
+      "offset": 0,
+      "type": "address"
+    },
+    {
+      "label": "withdrawalFee",
+      "slot": 53,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "minWithdrawalAmount",
+      "slot": 54,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "feeRecipient",
+      "slot": 55,
+      "offset": 0,
+      "type": "address"
+    },
+    {
+      "label": "depositFee",
+      "slot": 56,
+      "offset": 0,
+      "type": "uint256"
+    },
+    {
+      "label": "feeExemptCallers",
+      "slot": 57,
+      "offset": 0,
+      "type": "mapping(address => bool)"
+    }
+  ],
+  "structs": {}
+}

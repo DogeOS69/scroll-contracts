@@ -75,6 +75,11 @@ jobs:
       - name: Compile with foundry
         run: forge build --evm-version cancun
 
+      - name: Check pinned storage layouts
+        run: |
+          python3 -m unittest discover -s scripts/integration -p 'test_storage_layout.py' -v
+          python3 scripts/check-storage-layout.py
+
       - name: Run foundry tests
         run: forge test --evm-version cancun -vvv
 
