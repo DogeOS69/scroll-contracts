@@ -13,9 +13,14 @@ import {AddressAliasHelper} from "../../libraries/common/AddressAliasHelper.sol"
 import {IScrollMessenger} from "../../libraries/IScrollMessenger.sol";
 import {MoatTestBase} from "./MoatTestBase.t.sol";
 
-/// @notice Upgrades an L2DogeOsMessenger proxy to a fresh implementation through its
-///         ProxyAdmin, the way an existing network is upgraded, and checks that every
-///         storage variable survives and that the messenger still works afterwards.
+/// @notice Upgrades an L2DogeOsMessenger proxy through its ProxyAdmin to a fresh deployment of
+///         the current implementation, and checks that every storage variable survives and
+///         that the messenger still works afterwards.
+/// @dev This file has no older messenger to upgrade from: the messenger source is unchanged, so
+///      there is no historical transition to replay. Layout compatibility across versions is
+///      enforced by storage-layouts/L2DogeOsMessenger.json and by the slot constants below,
+///      which are read back through the getters; the upgrade here exercises the proxy
+///      mechanics, the initializer guards and behaviour after an implementation swap.
 /// @dev The proxy keeps its state across an implementation change, so the test first
 ///      brings it into a state no fresh deployment has: an owner, a fee vault, a pause, an
 ///      executed L1 message, a sent withdrawal, and a `messageSendTimestamp` entry from
@@ -38,8 +43,16 @@ contract L2DogeOsMessengerUpgradeTest is MoatTestBase {
     uint256 internal constant MESSAGE_SEND_TIMESTAMP_SLOT = 251;
     uint256 internal constant IS_L1_MESSAGE_EXECUTED_SLOT = 252;
     uint256 internal constant USED_SLOT = 253;
-    /// @dev Covers every variable, up to and including `__used[1]` at slot 254.
+    /// @dev Slots 0..255 are compared across the upgrade, up to and including `__used[1]` at
+    ///      slot 254. `ProxyAdmin.upgrade` runs no implementation code, so the comparison guards
+    ///      the proxy mechanics only; `setUp` seeds both ends of every gap so that the comparison
+    ///      is not mostly between zeros.
     uint256 internal constant SNAPSHOT_SLOTS = 256;
+
+    /// @dev The first and last slot of each reserved gap: ContextUpgradeable (1..50),
+    ///      OwnableUpgradeable (52..100), PausableUpgradeable (102..150),
+    ///      ReentrancyGuardUpgradeable (152..200) and ScrollMessengerBase (205..250).
+    uint256[10] internal GAP_EDGE_SLOTS = [uint256(1), 50, 52, 100, 102, 150, 152, 200, 205, 250];
 
     /// @dev Sentinels for the slots the current source reserves but never writes.
     bytes32 internal constant DEPRECATED_COUNTERPART_VALUE = bytes32(uint256(0xc0c0));
@@ -105,6 +118,9 @@ contract L2DogeOsMessengerUpgradeTest is MoatTestBase {
         vm.store(address(_proxy), bytes32(USED_SLOT), USED_0_VALUE);
         vm.store(address(_proxy), bytes32(USED_SLOT + 1), USED_1_VALUE);
         vm.store(address(_proxy), _timestampSlot(LEGACY_MESSAGE_HASH), bytes32(LEGACY_SEND_TIMESTAMP));
+        for (uint256 i = 0; i < GAP_EDGE_SLOTS.length; i++) {
+            vm.store(address(_proxy), bytes32(GAP_EDGE_SLOTS[i]), bytes32(0x9a9000 + GAP_EDGE_SLOTS[i]));
+        }
     }
 
     /// @dev The hash the messenger records for a relayed L1 message, and the one it
@@ -241,6 +257,10 @@ contract L2DogeOsMessengerUpgradeTest is MoatTestBase {
 
         L2DogeOsMessenger upgraded = _upgradeToFresh();
 
+        // The executed flag written by the old implementation still blocks a replay.
+        vm.expectRevert("Message was already successfully executed");
+        _relayDeposit(address(0xdef), 1);
+
         bytes32 executedAfter = _relayDeposit(address(0xfeed), 2);
         assertTrue(upgraded.isL1MessageExecuted(executedBefore), "entry written before the upgrade");
         assertTrue(upgraded.isL1MessageExecuted(executedAfter), "entry written after the upgrade");
@@ -262,6 +282,12 @@ contract L2DogeOsMessengerUpgradeTest is MoatTestBase {
         _messenger.setPause(true);
 
         L2DogeOsMessenger upgraded = _upgradeToFresh();
+
+        // The pause set through the old implementation still gates the new one's send path.
+        vm.deal(_user, WITHDRAWAL);
+        vm.prank(_user);
+        vm.expectRevert("Pausable: paused");
+        _moat.withdrawToP2PKH{value: WITHDRAWAL}(address(0x1111));
 
         // Admin path: only the owner may unpause, and only the owner may repoint the vault.
         vm.prank(_user);
@@ -306,6 +332,27 @@ contract L2DogeOsMessengerUpgradeTest is MoatTestBase {
         vm.prank(_user);
         vm.expectRevert(abi.encodeWithSelector(L2DogeOsMessenger.ErrorSenderNotMoat.selector, _user, address(_moat)));
         upgraded.sendMessage{value: WITHDRAWAL}(target, WITHDRAWAL, WithdrawalEnvelope.encode(false), 0);
+    }
+
+    /// @dev The Moat, queue and counterpart bindings are immutables in the implementation's code,
+    ///      not proxy storage, so nothing on-chain stops an upgrade to an implementation bound to
+    ///      the wrong Moat. The upgrade succeeds and the bridge stops working in both directions;
+    ///      verifying the bindings is the deploy script's job.
+    function test_Upgrade_ToAWronglyBoundImplementationBreaksTheBridge() external {
+        address wrongMoat = address(0xbad);
+        _admin.upgrade(
+            ITransparentUpgradeableProxy(address(_proxy)),
+            address(new L2DogeOsMessenger(_l1Counterpart, address(_queue), wrongMoat))
+        );
+        L2DogeOsMessenger upgraded = L2DogeOsMessenger(payable(address(_proxy)));
+        assertEq(upgraded.MOAT(), wrongMoat, "upgrade accepted the wrong binding");
+
+        vm.deal(_user, WITHDRAWAL);
+        vm.prank(_user);
+        vm.expectRevert(
+            abi.encodeWithSelector(L2DogeOsMessenger.ErrorSenderNotMoat.selector, address(_moat), wrongMoat)
+        );
+        _moat.withdrawToP2PKH{value: WITHDRAWAL}(address(0x1111));
     }
 
     function test_Upgrade_InitializeCannotRerun() external {

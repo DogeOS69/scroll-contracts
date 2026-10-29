@@ -289,6 +289,14 @@ rewrite the pins and commit the diff alongside the contract change:
 python3 scripts/check-storage-layout.py --write
 ```
 
+Regenerate with the foundry version this repo pins (see `docker/Dockerfile.base`),
+because `forge inspect` type labels are not guaranteed stable across versions.
+
+Read a diff in which only a label changes at an unchanged slot and offset as a
+repurposed variable. On an upgraded chain that slot already holds the old
+variable's value, so reusing a deprecated or reserved slot for new state is not
+safe even though nothing moved.
+
 The pinned contracts are listed in `CONTRACTS` at the top of that script. Add a
 contract there when a new one goes behind the L2 ProxyAdmin or into the genesis
 alloc; the check also fails on a snapshot file that no longer belongs to a

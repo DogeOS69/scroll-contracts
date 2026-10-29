@@ -169,7 +169,7 @@ def main():
     if args.write:
         LAYOUT_DIR.mkdir(exist_ok=True)
     elif not LAYOUT_DIR.is_dir():
-        raise RuntimeError(f"missing layout directory {LAYOUT_DIR.relative_to(REPO_ROOT)}")
+        sys.exit(f"missing layout directory {LAYOUT_DIR.relative_to(REPO_ROOT)}")
 
     # A snapshot of a contract no longer listed above would never be checked again.
     for stale in sorted(set(LAYOUT_DIR.glob("*.json")) - set(expected)):
@@ -195,7 +195,7 @@ def main():
 
     if failures:
         print("\n".join(failures), file=sys.stderr)
-        raise RuntimeError(
+        sys.exit(
             "storage layout no longer matches the committed pins; if the change is intended, "
             "rerun with --write and commit the diff"
         )
