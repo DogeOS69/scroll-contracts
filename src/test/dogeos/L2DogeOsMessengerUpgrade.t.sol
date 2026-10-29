@@ -67,6 +67,9 @@ contract L2DogeOsMessengerUpgradeTest is MoatTestBase {
     Moat internal _moat;
 
     function setUp() public {
+        // foundry.toml pins block.timestamp to 0, which would make the "timestamp is not
+        // written" assertions pass even if the write came back. Run at a nonzero time.
+        vm.warp(LEGACY_SEND_TIMESTAMP + 1);
         _queue = new L2MessageQueue(address(this));
         _admin = new ProxyAdmin();
 
