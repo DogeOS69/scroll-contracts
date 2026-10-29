@@ -336,8 +336,8 @@ contract L2DogeOsMessengerUpgradeTest is MoatTestBase {
 
     /// @dev The Moat, queue and counterpart bindings are immutables in the implementation's code,
     ///      not proxy storage, so nothing on-chain stops an upgrade to an implementation bound to
-    ///      the wrong Moat. The upgrade succeeds and the bridge stops working in both directions;
-    ///      verifying the bindings is the deploy script's job.
+    ///      the wrong Moat. The upgrade succeeds and withdrawals through the real Moat revert,
+    ///      as checked here; verifying the bindings is the deploy script's job.
     function test_Upgrade_ToAWronglyBoundImplementationBreaksTheBridge() external {
         address wrongMoat = address(0xbad);
         _admin.upgrade(
