@@ -57,18 +57,47 @@ All L2 configuration completes before ownership is transferred. The configured
 `L2_BASE_FEE_OVERHEAD` is applied last in that configuration phase, followed by
 the ownership transfers in `transferL2ContractOwnership()`.
 
+#### Moat ownership handover
+
+The Moat uses two-step ownership. `transferL2ContractOwnership()` only nominates
+`OWNER_ADDR` as the Moat's `pendingOwner`; the deployer stays the Moat owner until
+`OWNER_ADDR` accepts. The other L2 contracts are transferred in one step. When
+the Moat handover is still open, the deploy output prints an `ACTION REQUIRED`
+block with the transaction to send. From `OWNER_ADDR` (for example the Safe):
+
+| Field | Value                              |
+| ----- | ---------------------------------- |
+| to    | `L2_MOAT_PROXY_ADDR` (Moat proxy)  |
+| value | `0`                                |
+| data  | `0x79ba5097` (`acceptOwnership()`) |
+
+The handover is complete only when the Moat proxy reports both of these:
+
+```sh
+cast call "$L2_MOAT_PROXY_ADDR" "owner()(address)" --rpc-url "$L2_RPC_ENDPOINT"        # == OWNER_ADDR
+cast call "$L2_MOAT_PROXY_ADDR" "pendingOwner()(address)" --rpc-url "$L2_RPC_ENDPOINT" # == address(0)
+```
+
+Until then, the deployer key still controls the Moat's fee and withdrawal settings,
+so send the accept transaction promptly after the bootstrap. `OWNER_ADDR` must
+already exist on L2 and hold DOGE for gas; for a Safe, deploy it on L2 and fund
+it before the handover. Rerunning the deployment does not nominate again while
+`OWNER_ADDR` is already pending or the owner. Tooling that expects
+`Moat.owner() == OWNER_ADDR`, such as the fee vault rewire script, fails until
+the accept transaction lands.
+
 The DogeOS audit scope remains included in bootstrap:
 
-| Audited source                              | Included through                                                        |
-| ------------------------------------------- | ----------------------------------------------------------------------- |
-| `Moat.sol`                                  | Implementation and proxy deployed by `deploy.sh`                        |
-| `L2DogeOsMessenger.sol`                     | Implementation and proxy deployed by `deploy.sh`                        |
-| `FeeVaultMoatAdapter.sol`                   | Standalone contract deployed by `deploy.sh`                             |
-| `NativeDogeToken.sol`                       | Genesis predeploy at `0x530000000000000000000000000000000000d09e`       |
-| `WrappedDoge.sol`                           | WDOGE genesis predeploy at `0x5300000000000000000000000000000000000004` |
-| `DogeAddressLib.sol`                        | Internal library compiled into Moat                                     |
-| `WithdrawalEnvelope.sol`                    | Internal library compiled into Moat and L2DogeOsMessenger               |
-| `libraries/common/AppendOnlyHashChain.sol`  | Base contract inherited by the L2MessageQueue genesis predeploy         |
+| Audited source                             | Included through                                                        |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| `Moat.sol`                                 | Implementation and proxy deployed by `deploy.sh`                        |
+| `L2DogeOsMessenger.sol`                    | Implementation and proxy deployed by `deploy.sh`                        |
+| `FeeVaultMoatAdapter.sol`                  | Standalone contract deployed by `deploy.sh`                             |
+| `NativeDogeToken.sol`                      | Genesis predeploy at `0x530000000000000000000000000000000000d09e`       |
+| `WrappedDoge.sol`                          | WDOGE genesis predeploy at `0x5300000000000000000000000000000000000004` |
+| `DogeAddressLib.sol`                       | Internal library compiled into Moat                                     |
+| `WithdrawalEnvelope.sol`                   | Internal library compiled into Moat and L2DogeOsMessenger               |
+| `libraries/common/AppendOnlyHashChain.sol` | Base contract inherited by the L2MessageQueue genesis predeploy         |
 
 Removing the legacy WETH gateway does not remove WDOGE. The bootstrap integration
 test requires the audited deployment entries and checks the token/queue genesis
