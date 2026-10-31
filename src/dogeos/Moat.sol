@@ -150,7 +150,8 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /**
      * @notice Start a two-step ownership transfer to `_newOwner`.
      * @dev Can only be called by the owner. Ownership does not change until `_newOwner`
-     * calls {acceptOwnership}; a later call replaces the nomination. Emits an
+     * calls {acceptOwnership}; a later call replaces the nomination. The zero address is
+     * rejected, so to drop a nomination the owner nominates itself and accepts. Emits an
      * {OwnershipTransferStarted} event.
      * @param _newOwner The account to nominate as the next owner.
      */

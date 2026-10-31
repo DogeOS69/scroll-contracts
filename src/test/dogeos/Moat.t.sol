@@ -299,6 +299,22 @@ contract MoatTest is MoatTestBase {
         vm.prank(nominee);
         _moat.setWithdrawalFee(0.02 ether);
         assertEq(_moat.withdrawalFee(), 0.02 ether, "new owner can configure");
+
+        vm.prank(nominee);
+        vm.expectRevert(Moat.ErrorCallerNotPendingOwner.selector);
+        _moat.acceptOwnership();
+    }
+
+    /// @dev Nominating itself and accepting is how the owner drops a nomination.
+    function testSelfNomination_ClearsPendingOwner() external {
+        vm.startPrank(_owner);
+        _moat.transferOwnership(address(0xa11ce));
+        _moat.transferOwnership(_owner);
+        _moat.acceptOwnership();
+        vm.stopPrank();
+
+        assertEq(_moat.owner(), _owner, "owner unchanged");
+        assertEq(_moat.pendingOwner(), address(0), "pendingOwner cleared");
     }
 
     function testAcceptOwnership_Revert_NotPendingOwner() external {

@@ -1128,5 +1128,20 @@ contract DeployScroll is DeterministicDeployment {
         if (moat.owner() != OWNER_ADDR && moat.pendingOwner() != OWNER_ADDR) {
             moat.transferOwnership(OWNER_ADDR);
         }
+        if (moat.owner() != OWNER_ADDR) {
+            console.log("ACTION REQUIRED: Moat ownership handover is not complete.");
+            console.log("  The deployer stays the Moat owner until OWNER_ADDR sends:");
+            console.log("  from :", OWNER_ADDR);
+            console.log("  to   :", L2_MOAT_PROXY_ADDR);
+            console.log("  value: 0");
+            console.log(
+                string.concat(
+                    "  data : ",
+                    vm.toString(abi.encodeCall(Moat.acceptOwnership, ())),
+                    " (acceptOwnership())"
+                )
+            );
+            console.log("  Then check owner() == OWNER_ADDR and pendingOwner() == address(0).");
+        }
     }
 }

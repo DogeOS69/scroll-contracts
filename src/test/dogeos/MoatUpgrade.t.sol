@@ -160,6 +160,28 @@ contract MoatUpgradeTest is Test {
         assertEq(moat.depositFee(), 0.03 ether, "new owner can configure");
     }
 
+    /// @dev The pre-change implementation can't clear pendingOwner, so a nomination left open
+    ///      through a rollback is acceptable again after the next forward upgrade, even after
+    ///      ownership moved in between. The upgrade runbook requires clearing it first.
+    function test_Rollback_PendingNominationSurvivesReupgrade() external {
+        Moat moat = _upgradeToCurrent();
+        address nominee = address(0xa11ce);
+        vm.prank(_owner);
+        moat.transferOwnership(nominee);
+
+        _admin.upgrade(ITransparentUpgradeableProxy(address(_proxy)), address(_referenceImpl));
+        address interimOwner = address(0xb0b);
+        vm.prank(_owner);
+        ReferenceMoat(address(_proxy)).transferOwnership(interimOwner);
+
+        moat = _upgradeToCurrent();
+        assertEq(moat.owner(), interimOwner, "owner set under the old implementation");
+        assertEq(moat.pendingOwner(), nominee, "stale nomination kept");
+        vm.prank(nominee);
+        moat.acceptOwnership();
+        assertEq(moat.owner(), nominee, "stale nominee can accept");
+    }
+
     function test_Upgrade_InitializeCannotRerun() external {
         Moat moat = _upgradeToCurrent();
 

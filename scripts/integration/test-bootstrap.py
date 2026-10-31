@@ -134,7 +134,9 @@ def main():
             env.update(L1_RPC_ENDPOINT=url, L2_RPC_ENDPOINT=url, ETH_GAS_PRICE=str(max_fee),
                        DEPLOY_LEGACY="true" if legacy else "false", ETH_PRIORITY_GAS_PRICE="1000000000")
             run(["bash", "docker/scripts/deploy.sh"], "deploy.log")
-            assert 'BATCH_SIZE: 100' in (stage / "deploy.log").read_text()
+            deploy_log = (stage / "deploy.log").read_text()
+            assert 'BATCH_SIZE: 100' in deploy_log
+            assert "ACTION REQUIRED: Moat ownership handover is not complete." in deploy_log
             blocks = [rpc("eth_getBlockByNumber", [hex(i), True])
                       for i in range(1, int(rpc("eth_blockNumber", []), 16) + 1)]
             transactions = sorted([tx for block in blocks for tx in block["transactions"]],
@@ -159,7 +161,8 @@ def main():
                          "L2_TX_FEE_VAULT_ADDR", "L2_PROXY_ADMIN_ADDR", "L2_DOGEOS_MESSENGER_PROXY_ADDR",
                          "L2_SYSTEM_CONFIG_PROXY_ADDR"]:
                 assert address_call(name, "owner()") == OWNER.lower(), name
-            # Moat ownership is two-step: the bootstrap only nominates OWNER, which accepts itself.
+            # Moat ownership is two-step: the bootstrap only nominates OWNER, which must then
+            # call acceptOwnership() (simulated below by impersonation).
             assert address_call("L2_MOAT_PROXY_ADDR", "owner()") == DEPLOYER.lower()
             assert address_call("L2_MOAT_PROXY_ADDR", "pendingOwner()") == OWNER.lower()
             rpc("anvil_impersonateAccount", [OWNER])
