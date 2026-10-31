@@ -9,6 +9,11 @@ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20P
 // solhint-disable no-empty-blocks
 
 /// @author Inspired by WETH9 (https://github.com/dapphub/ds-weth/blob/master/src/weth9.sol)
+/// @dev Shares are minted only through deposit() (and receive(), which calls it).
+///      DOGE credited to this contract any other way, such as a NativeDogeToken
+///      transfer, which does not run receive(), mints nothing and stays locked
+///      here, like force-sent ETH in WETH9. The contract's balance therefore
+///      stays at or above totalSupply().
 contract WrappedDoge is ERC20Permit {
     /// @notice Emitted when user deposits Doge to this contract.
     /// @param dst The address of depositor.
