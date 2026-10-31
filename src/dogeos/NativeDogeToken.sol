@@ -13,6 +13,20 @@ import {DogeOSPredeploy} from "../libraries/constants/DogeOSPredeploy.sol";
 ///      - Allowances are storage.
 ///      - transfer/transferFrom call a restricted native-transfer precompile.
 ///      - Recipient code is not executed.
+///
+///      Because the precompile credits the recipient without running its
+///      receive() or fallback(), a contract can be credited DOGE that it would
+///      reject as a plain value transfer, much like SELFDESTRUCT or coinbase
+///      credits on Ethereum. Contracts must not rely on receive() to account
+///      for every incoming credit.
+///
+///      Indexers:
+///      - balanceOf is the native balance, so plain value transfers, gas
+///        payments and bridge credits change it without a Transfer event.
+///        Complete balances need native value movements, not only Transfer logs.
+///      - transferFrom does not emit Approval when it spends an allowance
+///        (EIP-20 only requires Approval from approve). Read allowance() for the
+///        current value instead of replaying Approval events.
 contract NativeDogeToken is INativeDogeToken {
     error ErrorTotalSupplyUninitialized();
     error ErrorTransferToZeroAddress();
