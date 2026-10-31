@@ -9,6 +9,7 @@ import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transp
 // Target contract
 import {Moat} from "../../dogeos/Moat.sol";
 import {MoatTestBase} from "./MoatTestBase.t.sol";
+import {OwnableBase} from "../../libraries/common/OwnableBase.sol";
 import {DogeAddressLib} from "../../dogeos/DogeAddressLib.sol";
 
 // Interfaces & Mocks
@@ -244,6 +245,103 @@ contract MoatTest is MoatTestBase {
         bytes32 slot0 = vm.load(proxy, bytes32(0));
         assertEq(uint8(uint256(slot0) >> 160), 1, "_initialized byte after owner");
         assertEq(address(uint160(uint256(slot0))), _owner, "owner in the low 20 bytes");
+    }
+
+    // --- Tests: Ownership --- //
+
+    function testTransferOwnership_OnlyNominates() external {
+        address nominee = address(0xa11ce);
+
+        vm.expectEmit(true, true, false, false, address(_moat));
+        emit Moat.OwnershipTransferStarted(_owner, nominee);
+        vm.prank(_owner);
+        _moat.transferOwnership(nominee);
+
+        assertEq(_moat.owner(), _owner, "owner unchanged until accepted");
+        assertEq(_moat.pendingOwner(), nominee, "pendingOwner");
+
+        // The current owner keeps its powers while the transfer is pending.
+        vm.prank(_owner);
+        _moat.setWithdrawalFee(0.02 ether);
+        vm.prank(nominee);
+        vm.expectRevert(bytes("caller is not the owner"));
+        _moat.setWithdrawalFee(0.03 ether);
+    }
+
+    function testTransferOwnership_Revert_NotOwner() external {
+        vm.prank(_user);
+        vm.expectRevert(bytes("caller is not the owner"));
+        _moat.transferOwnership(_user);
+    }
+
+    function testTransferOwnership_Revert_ZeroAddress() external {
+        vm.prank(_owner);
+        vm.expectRevert(bytes("new owner is the zero address"));
+        _moat.transferOwnership(address(0));
+    }
+
+    function testAcceptOwnership() external {
+        address nominee = address(0xa11ce);
+        vm.prank(_owner);
+        _moat.transferOwnership(nominee);
+
+        vm.expectEmit(true, true, false, false, address(_moat));
+        emit OwnableBase.OwnershipTransferred(_owner, nominee);
+        vm.prank(nominee);
+        _moat.acceptOwnership();
+
+        assertEq(_moat.owner(), nominee, "owner");
+        assertEq(_moat.pendingOwner(), address(0), "pendingOwner cleared");
+
+        vm.prank(_owner);
+        vm.expectRevert(bytes("caller is not the owner"));
+        _moat.setWithdrawalFee(0.02 ether);
+        vm.prank(nominee);
+        _moat.setWithdrawalFee(0.02 ether);
+        assertEq(_moat.withdrawalFee(), 0.02 ether, "new owner can configure");
+    }
+
+    function testAcceptOwnership_Revert_NotPendingOwner() external {
+        vm.prank(_owner);
+        _moat.transferOwnership(address(0xa11ce));
+
+        vm.prank(_user);
+        vm.expectRevert(Moat.ErrorCallerNotPendingOwner.selector);
+        _moat.acceptOwnership();
+        assertEq(_moat.owner(), _owner, "owner unchanged");
+    }
+
+    function testTransferOwnership_ReplacesNomination() external {
+        address first = address(0xa11ce);
+        address second = address(0xb0b);
+        vm.startPrank(_owner);
+        _moat.transferOwnership(first);
+        _moat.transferOwnership(second);
+        vm.stopPrank();
+
+        vm.prank(first);
+        vm.expectRevert(Moat.ErrorCallerNotPendingOwner.selector);
+        _moat.acceptOwnership();
+
+        vm.prank(second);
+        _moat.acceptOwnership();
+        assertEq(_moat.owner(), second, "second nominee is the owner");
+    }
+
+    /// @dev A nominee must not be able to take a Moat whose owner renounced.
+    function testRenounceOwnership_ClearsPendingOwner() external {
+        address nominee = address(0xa11ce);
+        vm.startPrank(_owner);
+        _moat.transferOwnership(nominee);
+        _moat.renounceOwnership();
+        vm.stopPrank();
+
+        assertEq(_moat.owner(), address(0), "renounced");
+        assertEq(_moat.pendingOwner(), address(0), "pendingOwner cleared");
+
+        vm.prank(nominee);
+        vm.expectRevert(Moat.ErrorCallerNotPendingOwner.selector);
+        _moat.acceptOwnership();
     }
 
     // --- Tests: Setters --- //

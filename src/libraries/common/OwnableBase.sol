@@ -44,7 +44,7 @@ abstract contract OwnableBase {
 
     /// @notice Transfers ownership of the contract to a new account (`newOwner`).
     /// Can only be called by the current owner.
-    function transferOwnership(address _newOwner) public onlyOwner {
+    function transferOwnership(address _newOwner) public virtual onlyOwner {
         require(_newOwner != address(0), "new owner is the zero address");
         _transferOwnership(_newOwner);
     }
@@ -55,7 +55,7 @@ abstract contract OwnableBase {
 
     /// @dev Transfers ownership of the contract to a new account (`newOwner`).
     /// Internal function without access restriction.
-    function _transferOwnership(address _newOwner) internal {
+    function _transferOwnership(address _newOwner) internal virtual {
         address _oldOwner = owner;
         owner = _newOwner;
         emit OwnershipTransferred(_oldOwner, _newOwner);

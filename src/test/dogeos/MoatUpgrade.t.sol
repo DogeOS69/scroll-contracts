@@ -18,6 +18,8 @@ contract MoatUpgradeTest is Test {
     uint256 internal constant DEPRECATED_MESSENGER_SLOT = 51;
     /// @dev Storage slot of the `feeExemptCallers` mapping (see testFeeExemptCallersStorageSlot).
     uint256 internal constant FEE_EXEMPT_CALLERS_SLOT = 57;
+    /// @dev Storage slot of `pendingOwner`, appended after `feeExemptCallers`.
+    uint256 internal constant PENDING_OWNER_SLOT = 58;
     /// @dev Covers OwnableBase, Initializable, ReentrancyGuard (+ gap) and every Moat variable.
     uint256 internal constant SNAPSHOT_SLOTS = 64;
 
@@ -127,6 +129,35 @@ contract MoatUpgradeTest is Test {
         moat.withdrawToP2PKH{value: 0.5 ether + WITHDRAWAL_FEE}(address(0x1111));
         assertEq(_messenger.lastSender(), address(moat), "withdrawal sent by the Moat");
         assertEq(_messenger.lastValue(), 0.5 ether, "withdrawal amount");
+    }
+
+    /// @dev The appended pendingOwner slot starts empty on an upgraded proxy, and the
+    ///      two-step handover works on the existing owner and configuration.
+    function test_Upgrade_TwoStepOwnershipTransfer() external {
+        Moat moat = _upgradeToCurrent();
+        assertEq(vm.load(address(_proxy), bytes32(PENDING_OWNER_SLOT)), bytes32(0), "pendingOwner slot empty");
+        assertEq(moat.pendingOwner(), address(0), "nothing pending after the upgrade");
+
+        address newOwner = address(0x5afe);
+        vm.prank(_owner);
+        moat.transferOwnership(newOwner);
+        assertEq(moat.owner(), _owner, "owner unchanged until accepted");
+        assertEq(
+            address(uint160(uint256(vm.load(address(_proxy), bytes32(PENDING_OWNER_SLOT))))),
+            newOwner,
+            "pendingOwner stored in the appended slot"
+        );
+
+        vm.prank(newOwner);
+        moat.acceptOwnership();
+        assertEq(moat.owner(), newOwner, "owner");
+        assertEq(moat.pendingOwner(), address(0), "pendingOwner cleared");
+        assertEq(moat.withdrawalFee(), WITHDRAWAL_FEE, "configuration kept");
+        assertTrue(moat.feeExemptCallers(_exemptCaller), "fee exemption kept");
+
+        vm.prank(newOwner);
+        moat.setDepositFee(0.03 ether);
+        assertEq(moat.depositFee(), 0.03 ether, "new owner can configure");
     }
 
     function test_Upgrade_InitializeCannotRerun() external {

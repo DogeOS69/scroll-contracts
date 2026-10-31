@@ -1122,8 +1122,11 @@ contract DeployScroll is DeterministicDeployment {
         transferOwnership(L2_WHITELIST_ADDR, OWNER_ADDR);
         transferOwnership(L2_SYSTEM_CONFIG_PROXY_ADDR, OWNER_ADDR);
 
-        //TODO: Maybe Moat should inherit from OwnableUpgradeable like other contracts
+        // Moat ownership is two-step: this only nominates OWNER_ADDR, which becomes the
+        // owner once it calls acceptOwnership() itself.
         Moat moat = Moat(L2_MOAT_PROXY_ADDR);
-        moat.transferOwnership(OWNER_ADDR);
+        if (moat.owner() != OWNER_ADDR && moat.pendingOwner() != OWNER_ADDR) {
+            moat.transferOwnership(OWNER_ADDR);
+        }
     }
 }
