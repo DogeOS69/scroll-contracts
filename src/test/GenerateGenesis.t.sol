@@ -77,6 +77,7 @@ contract GenerateGenesisTest is Test {
 
         assertEq(vm.parseJsonUint(genesis, ".config.chainId"), 938471);
         assertEq(vm.parseJsonUint(genesis, ".config.tsukiTime"), 0);
+        assertEq(vm.parseJsonUint(genesis, ".config.tsukiV2Time"), 0);
         assertEq(vm.parseJsonUint(genesis, ".config.scroll.l1Config.l1ChainId"), 111111);
         assertEq(vm.parseJsonUint(genesis, ".config.scroll.l1Config.startL1Block"), 0);
         assertEq(vm.parseJsonUint(genesis, ".config.scroll.l1Config.numL1MessagesPerBlock"), 10);
