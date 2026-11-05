@@ -3,6 +3,8 @@
 pragma solidity =0.8.24;
 
 import {L2ScrollMessenger} from "../L2/L2ScrollMessenger.sol";
+import {ScrollMessengerBase} from "../libraries/ScrollMessengerBase.sol";
+import {IScrollMessenger} from "../libraries/IScrollMessenger.sol";
 import {L2MessageQueue} from "../L2/predeploys/L2MessageQueue.sol";
 import {AddressAliasHelper} from "../libraries/common/AddressAliasHelper.sol";
 import {ScrollConstants} from "../libraries/constants/ScrollConstants.sol";
@@ -38,6 +40,10 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
     /// refuse to turn it off. It costs those networks one extra storage read per relay.
     bool public immutable LEGACY_REPLAY_CHECK;
 
+    /// @dev Transaction-local relay context, owned by the proxy under delegatecall.
+    /// Encoded as uint160(sender) + 1, so address(0) is distinct from idle (0).
+    bytes32 private constant RELAY_SENDER_SLOT = keccak256("dogeos.messenger.transient.relay-sender");
+
     // --- Storage --- //
 
     /// @dev Bitmap of successfully relayed L1 message nonces: bit `n & 0xff` of word `n >> 8`.
@@ -69,6 +75,28 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
     }
 
     // --- Views --- //
+
+    /// @notice The cross-domain sender during a relay, or the legacy idle value otherwise.
+    /// @dev Keep the pre-initialization getter and old proxy slot intact. The relay hot path
+    /// uses the initialized sentinel directly and never reads or writes that old slot.
+    function xDomainMessageSender() public view override(ScrollMessengerBase, IScrollMessenger) returns (address) {
+        uint256 encoded = _relaySender();
+        return encoded == 0 ? super.xDomainMessageSender() : address(uint160(encoded - 1));
+    }
+
+    function _relaySender() private view returns (uint256 encoded) {
+        bytes32 slot = RELAY_SENDER_SLOT;
+        assembly {
+            encoded := tload(slot)
+        }
+    }
+
+    function _setRelaySender(uint256 encoded) private {
+        bytes32 slot = RELAY_SENDER_SLOT;
+        assembly {
+            tstore(slot, encoded)
+        }
+    }
 
     /**
      * @notice Whether the L1 message with this nonce (== L1 queue index) was relayed successfully
@@ -149,16 +177,22 @@ contract L2DogeOsMessenger is L2ScrollMessenger {
         _validateTargetAddress(_to);
 
         // @note This usually will never happen, just in case.
-        require(_from != xDomainMessageSender, "Invalid message sender");
+        // Initialized proxies are idle at DEFAULT_XDOMAIN_MESSAGE_SENDER. Check
+        // the transient context directly so the hot path never reads the old slot.
+        uint256 encoded = uint256(uint160(_from)) + 1;
+        require(
+            _from != ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER && _relaySender() != encoded,
+            "Invalid message sender"
+        );
 
-        xDomainMessageSender = _from;
+        _setRelaySender(encoded);
         // solhint-disable-next-line avoid-low-level-calls
         // no reentrancy risk, only alias(l1ScrollMessenger) can call relayMessage.
         // Calls MOAT (== _to, checked above) so the destination is visibly fixed.
         // slither-disable-next-line reentrancy-eth
         (success, ) = MOAT.call{value: _value}(_message);
-        // reset value to refund gas.
-        xDomainMessageSender = ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER;
+        // Clear even after a caught target revert; another relay may run in this transaction.
+        _setRelaySender(0);
     }
 
     // --- Overridden Internal Functions --- //

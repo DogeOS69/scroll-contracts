@@ -1,0 +1,376 @@
+{
+  "block": 8394120,
+  "block_hash": "0xc6245188623c2b0d67dd190c31864e05a1fa243852b38734037d1b9c95c6b82a",
+  "moat_runtime_hash": "0x3e21fef5a646f147d27c838c08f249f3042b4d4fb7d79ecb15c66bc92ecfd4dd",
+  "gas_limit": 200000,
+  "transaction": {
+    "from": "0xcee0ace31b496ed536c93483e3a4e7b4a2c1ab66",
+    "to": "0xe9c53ca91528246e4e29304058b9d78d7999c96a",
+    "gas": "0x30d40",
+    "gasPrice": "0x0",
+    "data": "0x8ef1332e0000000000000000000000001212121212121212121212121212121212121212000000000000000000000000b46985d56f57d138bfaa7acbae0de38dc3cfc00f0000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000003ade68b100000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000004454c2bb4d0000000000000000000000001234567890abcdef1234567890abcdef12345678121212121212121212121212121212121212121212121212121212121212121200000000000000000000000000000000000000000000000000000000"
+  },
+  "cases": [
+    {
+      "version": "before",
+      "legacy_replay_check": true,
+      "populated_word": false,
+      "runtime_hash": "0x94897ac5fa3abce6dd0ea4adb41e7ef17330bd070805bbae4e8257b754ab661e",
+      "baseline": {
+        "delivered": true,
+        "requested_burn": 0,
+        "recipient_entry_gas": 110547,
+        "recipient_gas_used": 0,
+        "errors": [],
+        "ordinary_net_gas_used": 97170,
+        "gross_gas_used": 102770
+      },
+      "max_success": {
+        "delivered": true,
+        "requested_burn": 94587,
+        "recipient_entry_gas": 110547,
+        "recipient_gas_used": 94614,
+        "errors": [],
+        "ordinary_net_gas_used": 191784,
+        "gross_gas_used": 197384
+      },
+      "min_failure": {
+        "delivered": false,
+        "requested_burn": 94588,
+        "recipient_entry_gas": 110547,
+        "recipient_gas_used": 94645,
+        "errors": ["execution reverted", "out of gas"],
+        "ordinary_net_gas_used": 197391
+      },
+      "burn_100k": {
+        "delivered": false,
+        "requested_burn": 100000,
+        "recipient_entry_gas": 110547,
+        "recipient_gas_used": 100039,
+        "errors": ["execution reverted", "out of gas"],
+        "ordinary_net_gas_used": 197391
+      },
+      "credit_100k": {
+        "status": 0,
+        "credited_wei": 0
+      }
+    },
+    {
+      "version": "before",
+      "legacy_replay_check": true,
+      "populated_word": true,
+      "runtime_hash": "0x94897ac5fa3abce6dd0ea4adb41e7ef17330bd070805bbae4e8257b754ab661e",
+      "baseline": {
+        "delivered": true,
+        "requested_burn": 0,
+        "recipient_entry_gas": 110547,
+        "recipient_gas_used": 0,
+        "errors": [],
+        "ordinary_net_gas_used": 80070,
+        "gross_gas_used": 85670
+      },
+      "max_success": {
+        "delivered": true,
+        "requested_burn": 109839,
+        "recipient_entry_gas": 110547,
+        "recipient_gas_used": 109866,
+        "errors": [],
+        "ordinary_net_gas_used": 189936,
+        "gross_gas_used": 195536
+      },
+      "min_failure": {
+        "delivered": false,
+        "requested_burn": 109840,
+        "recipient_entry_gas": 110547,
+        "recipient_gas_used": 109897,
+        "errors": ["execution reverted", "out of gas: not enough gas for reentrancy sentry"],
+        "ordinary_net_gas_used": 191839,
+        "gross_gas_used": 194639
+      },
+      "burn_100k": {
+        "delivered": true,
+        "requested_burn": 100000,
+        "recipient_entry_gas": 110547,
+        "recipient_gas_used": 100039,
+        "errors": [],
+        "ordinary_net_gas_used": 180109,
+        "gross_gas_used": 185709
+      },
+      "credit_100k": {
+        "status": 1,
+        "credited_wei": 9000000000000000000
+      }
+    },
+    {
+      "version": "before",
+      "legacy_replay_check": false,
+      "populated_word": false,
+      "runtime_hash": "0x31b699884c7907d03ef5ca6ea54aeb7c3d31e41096c131c6803b312b25c53dbd",
+      "baseline": {
+        "delivered": true,
+        "requested_burn": 0,
+        "recipient_entry_gas": 112637,
+        "recipient_gas_used": 0,
+        "errors": [],
+        "ordinary_net_gas_used": 94980,
+        "gross_gas_used": 100580
+      },
+      "max_success": {
+        "delivered": true,
+        "requested_burn": 96757,
+        "recipient_entry_gas": 112637,
+        "recipient_gas_used": 96784,
+        "errors": [],
+        "ordinary_net_gas_used": 191764,
+        "gross_gas_used": 197364
+      },
+      "min_failure": {
+        "delivered": false,
+        "requested_burn": 96758,
+        "recipient_entry_gas": 112637,
+        "recipient_gas_used": 96815,
+        "errors": ["execution reverted", "out of gas"],
+        "ordinary_net_gas_used": 197391
+      },
+      "burn_100k": {
+        "delivered": false,
+        "requested_burn": 100000,
+        "recipient_entry_gas": 112637,
+        "recipient_gas_used": 100039,
+        "errors": ["execution reverted", "out of gas"],
+        "ordinary_net_gas_used": 197391
+      },
+      "credit_100k": {
+        "status": 0,
+        "credited_wei": 0
+      }
+    },
+    {
+      "version": "before",
+      "legacy_replay_check": false,
+      "populated_word": true,
+      "runtime_hash": "0x31b699884c7907d03ef5ca6ea54aeb7c3d31e41096c131c6803b312b25c53dbd",
+      "baseline": {
+        "delivered": true,
+        "requested_burn": 0,
+        "recipient_entry_gas": 112637,
+        "recipient_gas_used": 0,
+        "errors": [],
+        "ordinary_net_gas_used": 77880,
+        "gross_gas_used": 83480
+      },
+      "max_success": {
+        "delivered": true,
+        "requested_burn": 111947,
+        "recipient_entry_gas": 112637,
+        "recipient_gas_used": 111974,
+        "errors": [],
+        "ordinary_net_gas_used": 189854,
+        "gross_gas_used": 195454
+      },
+      "min_failure": {
+        "delivered": false,
+        "requested_burn": 111948,
+        "recipient_entry_gas": 112637,
+        "recipient_gas_used": 112005,
+        "errors": ["execution reverted", "out of gas: not enough gas for reentrancy sentry"],
+        "ordinary_net_gas_used": 191772,
+        "gross_gas_used": 194572
+      },
+      "burn_100k": {
+        "delivered": true,
+        "requested_burn": 100000,
+        "recipient_entry_gas": 112637,
+        "recipient_gas_used": 100039,
+        "errors": [],
+        "ordinary_net_gas_used": 177919,
+        "gross_gas_used": 183519
+      },
+      "credit_100k": {
+        "status": 1,
+        "credited_wei": 9000000000000000000
+      }
+    },
+    {
+      "version": "after",
+      "legacy_replay_check": true,
+      "populated_word": false,
+      "runtime_hash": "0x23328c2d12284ec7f63c13eb0b81eecc95f2050d7a754382f55b6557ac35dc9d",
+      "baseline": {
+        "delivered": true,
+        "requested_burn": 0,
+        "recipient_entry_gas": 115150,
+        "recipient_gas_used": 0,
+        "errors": [],
+        "ordinary_net_gas_used": 95058,
+        "gross_gas_used": 97858
+      },
+      "max_success": {
+        "delivered": true,
+        "requested_burn": 99485,
+        "recipient_entry_gas": 115150,
+        "recipient_gas_used": 99512,
+        "errors": [],
+        "ordinary_net_gas_used": 194570,
+        "gross_gas_used": 197370
+      },
+      "min_failure": {
+        "delivered": false,
+        "requested_burn": 99486,
+        "recipient_entry_gas": 115150,
+        "recipient_gas_used": 99543,
+        "errors": ["execution reverted", "out of gas"],
+        "ordinary_net_gas_used": 197391
+      },
+      "burn_100k": {
+        "delivered": false,
+        "requested_burn": 100000,
+        "recipient_entry_gas": 115150,
+        "recipient_gas_used": 100039,
+        "errors": ["execution reverted", "out of gas"],
+        "ordinary_net_gas_used": 197391
+      },
+      "credit_100k": {
+        "status": 0,
+        "credited_wei": 0
+      }
+    },
+    {
+      "version": "after",
+      "legacy_replay_check": true,
+      "populated_word": true,
+      "runtime_hash": "0x23328c2d12284ec7f63c13eb0b81eecc95f2050d7a754382f55b6557ac35dc9d",
+      "baseline": {
+        "delivered": true,
+        "requested_burn": 0,
+        "recipient_entry_gas": 115150,
+        "recipient_gas_used": 0,
+        "errors": [],
+        "ordinary_net_gas_used": 77958,
+        "gross_gas_used": 80758
+      },
+      "max_success": {
+        "delivered": true,
+        "requested_burn": 114520,
+        "recipient_entry_gas": 115150,
+        "recipient_gas_used": 114547,
+        "errors": [],
+        "ordinary_net_gas_used": 192505,
+        "gross_gas_used": 195305
+      },
+      "min_failure": {
+        "delivered": false,
+        "requested_burn": 114521,
+        "recipient_entry_gas": 115150,
+        "recipient_gas_used": 114578,
+        "errors": ["execution reverted", "out of gas: not enough gas for reentrancy sentry"],
+        "ordinary_net_gas_used": 194403,
+        "gross_gas_used": 194403
+      },
+      "burn_100k": {
+        "delivered": true,
+        "requested_burn": 100000,
+        "recipient_entry_gas": 115150,
+        "recipient_gas_used": 100039,
+        "errors": [],
+        "ordinary_net_gas_used": 177997,
+        "gross_gas_used": 180797
+      },
+      "credit_100k": {
+        "status": 1,
+        "credited_wei": 9000000000000000000
+      }
+    },
+    {
+      "version": "after",
+      "legacy_replay_check": false,
+      "populated_word": false,
+      "runtime_hash": "0xbf42ebf753c9a2e08923dc497b3f7e0e6520d6cf8165fa14d5a11a1f49b6aea2",
+      "baseline": {
+        "delivered": true,
+        "requested_burn": 0,
+        "recipient_entry_gas": 117238,
+        "recipient_gas_used": 0,
+        "errors": [],
+        "ordinary_net_gas_used": 92868,
+        "gross_gas_used": 95668
+      },
+      "max_success": {
+        "delivered": true,
+        "requested_burn": 101686,
+        "recipient_entry_gas": 117238,
+        "recipient_gas_used": 101713,
+        "errors": [],
+        "ordinary_net_gas_used": 194581,
+        "gross_gas_used": 197381
+      },
+      "min_failure": {
+        "delivered": false,
+        "requested_burn": 101687,
+        "recipient_entry_gas": 117238,
+        "recipient_gas_used": 101744,
+        "errors": ["execution reverted", "out of gas"],
+        "ordinary_net_gas_used": 197391
+      },
+      "burn_100k": {
+        "delivered": true,
+        "requested_burn": 100000,
+        "recipient_entry_gas": 117238,
+        "recipient_gas_used": 100039,
+        "errors": [],
+        "ordinary_net_gas_used": 192907,
+        "gross_gas_used": 195707
+      },
+      "credit_100k": {
+        "status": 1,
+        "credited_wei": 9000000000000000000
+      }
+    },
+    {
+      "version": "after",
+      "legacy_replay_check": false,
+      "populated_word": true,
+      "runtime_hash": "0xbf42ebf753c9a2e08923dc497b3f7e0e6520d6cf8165fa14d5a11a1f49b6aea2",
+      "baseline": {
+        "delivered": true,
+        "requested_burn": 0,
+        "recipient_entry_gas": 117238,
+        "recipient_gas_used": 0,
+        "errors": [],
+        "ordinary_net_gas_used": 75768,
+        "gross_gas_used": 78568
+      },
+      "max_success": {
+        "delivered": true,
+        "requested_burn": 116628,
+        "recipient_entry_gas": 117238,
+        "recipient_gas_used": 116655,
+        "errors": [],
+        "ordinary_net_gas_used": 192423,
+        "gross_gas_used": 195223
+      },
+      "min_failure": {
+        "delivered": false,
+        "requested_burn": 116629,
+        "recipient_entry_gas": 117238,
+        "recipient_gas_used": 116686,
+        "errors": ["execution reverted", "out of gas: not enough gas for reentrancy sentry"],
+        "ordinary_net_gas_used": 194334,
+        "gross_gas_used": 194334
+      },
+      "burn_100k": {
+        "delivered": true,
+        "requested_burn": 100000,
+        "recipient_entry_gas": 117238,
+        "recipient_gas_used": 100039,
+        "errors": [],
+        "ordinary_net_gas_used": 175807,
+        "gross_gas_used": 178607
+      },
+      "credit_100k": {
+        "status": 1,
+        "credited_wei": 9000000000000000000
+      }
+    }
+  ]
+}

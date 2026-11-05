@@ -38,7 +38,8 @@ abstract contract ScrollMessengerBase is
      *************/
 
     /// @notice See {IScrollMessenger-xDomainMessageSender}
-    address public override xDomainMessageSender;
+    // Keep this slot in place for existing proxies and storage-backed messengers.
+    address internal _xDomainMessageSender;
 
     /// @dev The storage slot used as counterpart ScrollMessenger contract, which is deprecated now.
     address private __counterpart;
@@ -58,7 +59,7 @@ abstract contract ScrollMessengerBase is
 
     modifier notInExecution() {
         require(
-            xDomainMessageSender == ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER,
+            _xDomainMessageSender == ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER,
             "Message is already in execution"
         );
         _;
@@ -82,7 +83,7 @@ abstract contract ScrollMessengerBase is
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
 
         // initialize to a nonzero value
-        xDomainMessageSender = ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER;
+        _xDomainMessageSender = ScrollConstants.DEFAULT_XDOMAIN_MESSAGE_SENDER;
 
         if (_feeVault != address(0)) {
             feeVault = _feeVault;
@@ -91,6 +92,11 @@ abstract contract ScrollMessengerBase is
 
     // make sure only owner can send ether to messenger to avoid possible user fund loss.
     receive() external payable onlyOwner {}
+
+    /// @inheritdoc IScrollMessenger
+    function xDomainMessageSender() public view virtual override returns (address) {
+        return _xDomainMessageSender;
+    }
 
     /************************
      * Restricted Functions *
