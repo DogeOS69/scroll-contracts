@@ -1,0 +1,131 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity =0.8.24;
+
+// REFERENCE IMPLEMENTATION (test-only). Do not modify.
+//
+// Copy of src/dogeos/L2DogeOsMessenger.sol at commit 28f6ca9, the messenger
+// implementation from before replay protection moved to the per-nonce bitmap
+// (it records successes in the per-hash isL1MessageExecuted mapping). Only the
+// import paths (for this directory) and the contract name differ.
+// L2DogeOsMessengerUpgrade.t.sol upgrades a proxy from it to the current
+// implementation. To confirm the copy:
+//   diff <(git show 28f6ca9:src/dogeos/L2DogeOsMessenger.sol) src/test/dogeos/reference/ReferenceL2DogeOsMessenger.sol
+//
+// Files under src/test/**/reference/ hold such pinned implementations. They are
+// compiled only by the test suite and never deployed.
+
+import {L2ScrollMessenger} from "../../../L2/L2ScrollMessenger.sol";
+
+import {WithdrawalEnvelope} from "../../../dogeos/WithdrawalEnvelope.sol";
+
+// Potentially add import for Moat contract here
+
+/**
+ * @title L2DogeOsMessenger
+ * @notice A custom L2 messenger for DogeOS, inheriting from L2ScrollMessenger.
+ * It modifies the standard behavior to interact with the DogeOS Moat contract.
+ */
+contract ReferenceL2DogeOsMessenger is L2ScrollMessenger {
+    // --- Errors --- //
+    error ErrorNotMoatAddress(address provided, address expected);
+    error ErrorSenderNotMoat(address sender, address expected);
+    error ErrorZeroMoatAddress();
+    error ErrorInvalidWithdrawalEnvelope(bytes message);
+
+    // --- State Variables --- //
+
+    /// @notice The immutable address of the DogeOS Moat contract.
+    /// @dev Only messages directed to this address will be executed.
+    address public immutable MOAT;
+
+    // --- Constructor --- //
+
+    /**
+     * @notice Constructor
+     * @param _counterpart The address of the L1 counterpart messenger.
+     * @param _messageQueue The address of the L2 Message Queue predeploy.
+     * @param _moat The address of the DogeOS Moat contract.
+     */
+    constructor(
+        address _counterpart,
+        address _messageQueue,
+        address _moat
+    ) L2ScrollMessenger(_counterpart, _messageQueue) {
+        if (_moat == address(0)) {
+            revert ErrorZeroMoatAddress();
+        }
+        MOAT = _moat;
+    }
+
+    // --- Overridden Internal Functions --- //
+
+    /**
+     * @notice Overrides the L1 -> L2 message execution logic.
+     * Ensures that messages relayed via this messenger are only executed if targeting the MOAT address.
+     * @param _from The L1 sender address.
+     * @param _to The originally intended L2 recipient address.
+     * @param _value The ETH value sent with the message.
+     * @param _message The encoded calldata intended for the target (_to).
+     * @param _xDomainCalldataHash The hash of the cross-domain message calldata.
+     */
+    function _executeMessage(
+        address _from,
+        address _to,
+        uint256 _value,
+        bytes memory _message,
+        bytes32 _xDomainCalldataHash
+    ) internal virtual override {
+        // Only allow messages destined for the Moat address.
+        if (_to != MOAT) {
+            revert ErrorNotMoatAddress(_to, MOAT);
+        }
+
+        // If the message is for the Moat, proceed with original execution logic.
+        super._executeMessage({
+            _from: _from,
+            _to: _to,
+            _value: _value,
+            _message: _message,
+            _xDomainCalldataHash: _xDomainCalldataHash
+        });
+    }
+
+    /**
+     * @notice Overrides the L2 -> L1 message sending logic.
+     * Only the Moat may send L2 -> L1 messages, and every message must be exactly a
+     * valid v1 withdrawal envelope (P2PKH 0x0100 / P2SH 0x0101) - so every withdrawal
+     * seen on L1 has a predictable sender, ONE deterministic message representation
+     * per Dogecoin recipient type, and an 8-decimal-aligned value. Downstream
+     * consumers can reconstruct the exact message bytes (and thus the message hash)
+     * from the Dogecoin address used in the withdrawal alone.
+     *
+     * Legacy pre-v0.3.0 blank messages are rejected here, not just avoided by the
+     * Moat: even a Moat rollback to an implementation that sends empty messages
+     * cannot reintroduce a second P2PKH representation (such sends revert).
+     * Fee vault withdrawals are routed through the Moat via the FeeVaultMoatAdapter.
+     * @param _to The L1 recipient address.
+     * @param _value The ETH value to send with the message.
+     * @param _message The message calldata; must be a valid v1 withdrawal envelope.
+     * @param _gasLimit The gas limit for L1 execution.
+     */
+    function _sendMessage(
+        address _to,
+        uint256 _value,
+        bytes memory _message,
+        uint256 _gasLimit
+    ) internal virtual override {
+        // Require that the caller is the MOAT contract.
+        if (msg.sender != MOAT) {
+            revert ErrorSenderNotMoat(msg.sender, MOAT);
+        }
+
+        // Require the canonical v1 envelope - no blank/legacy messages.
+        if (!WithdrawalEnvelope.isValid(_message)) {
+            revert ErrorInvalidWithdrawalEnvelope(_message);
+        }
+
+        // Call the original logic
+        super._sendMessage(_to, _value, _message, _gasLimit);
+    }
+}

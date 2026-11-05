@@ -52,7 +52,8 @@ contract L2DogeOsMessengerTest is MoatTestBase {
         _l2Messenger = new L2DogeOsMessenger(
             address(_l1Messenger), // counterpart
             address(_l2MessageQueue), // messageQueue
-            moatProxy // MOAT
+            moatProxy, // MOAT
+            false // fresh messenger: no legacy per-hash replay records
         );
         _moat = _installMoat(
             moatAdmin,
@@ -155,7 +156,8 @@ contract L2DogeOsMessengerTest is MoatTestBase {
         _l2Messenger.relayMessage({_from: l1Sender, _to: targetMoat, _value: value, _nonce: nonce, _message: message});
 
         // Verify the message was marked as executed
-        assertTrue(_l2Messenger.isL1MessageExecuted(xDomainCalldataHash), "Message not executed");
+        assertTrue(_l2Messenger.isL1MessageNonceExecuted(nonce), "Message not executed");
+        assertFalse(_l2Messenger.isL1MessageExecuted(xDomainCalldataHash), "per-hash mapping is frozen");
 
         vm.stopPrank();
     }
@@ -348,7 +350,8 @@ contract L2DogeOsMessengerTest is MoatTestBase {
 
         _l2Messenger.relayMessage({_from: l1Sender, _to: targetMoat, _value: value, _nonce: nonce, _message: message});
 
-        assertTrue(_l2Messenger.isL1MessageExecuted(xDomainCalldataHash), "Message not executed");
+        assertTrue(_l2Messenger.isL1MessageNonceExecuted(nonce), "Message not executed");
+        assertFalse(_l2Messenger.isL1MessageExecuted(xDomainCalldataHash), "per-hash mapping is frozen");
 
         vm.stopPrank();
     }

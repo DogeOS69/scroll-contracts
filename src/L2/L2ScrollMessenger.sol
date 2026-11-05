@@ -94,7 +94,7 @@ contract L2ScrollMessenger is ScrollMessengerBase, IL2ScrollMessenger {
         uint256 _value,
         uint256 _nonce,
         bytes memory _message
-    ) external override whenNotPaused {
+    ) external virtual override whenNotPaused {
         // It is impossible to deploy a contract with the same address, reentrance is prevented in nature.
         require(AddressAliasHelper.undoL1ToL2Alias(_msgSender()) == counterpart, "Caller is not L1ScrollMessenger");
 

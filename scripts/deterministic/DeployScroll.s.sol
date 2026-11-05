@@ -44,6 +44,7 @@ import {ScrollStandardERC20} from "../../src/libraries/token/ScrollStandardERC20
 import {ScrollStandardERC20FactorySetOwner} from "./contracts/ScrollStandardERC20FactorySetOwner.sol";
 import {ScrollChainMockFinalize} from "../../src/mocks/ScrollChainMockFinalize.sol";
 import {Moat} from "../../src/dogeos/Moat.sol";
+import {LegacyReplayCheck} from "./LegacyReplayCheck.sol";
 
 import "./Constants.sol";
 import "./Configuration.sol";
@@ -302,7 +303,20 @@ contract DeployScroll is DeterministicDeployment {
         L2_MESSAGE_QUEUE_ADDR = notnull(contractsCfg.readAddress(".L2_MESSAGE_QUEUE_ADDR"));
         L2_MOAT_PROXY_ADDR = notnull(contractsCfg.readAddress(".L2_MOAT_PROXY_ADDR"));
 
-        bytes memory args = abi.encode(L1_SCROLL_MESSENGER_PROXY_ADDR, L2_MESSAGE_QUEUE_ADDR, L2_MOAT_PROXY_ADDR);
+        // Derived from the live proxy: a pre-bitmap messenger must keep checking the old
+        // per-hash replay mapping (see LegacyReplayCheck).
+        bool legacyReplayCheck = LegacyReplayCheck.required(
+            L2_DOGEOS_MESSENGER_PROXY_ADDR,
+            getInitializeCount(L2_DOGEOS_MESSENGER_PROXY_ADDR) != 0
+        );
+        console.log("LEGACY_REPLAY_CHECK:", legacyReplayCheck);
+
+        bytes memory args = abi.encode(
+            L1_SCROLL_MESSENGER_PROXY_ADDR,
+            L2_MESSAGE_QUEUE_ADDR,
+            L2_MOAT_PROXY_ADDR,
+            legacyReplayCheck
+        );
 
         L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = deploy(
             "L2_DOGEOS_MESSENGER_IMPLEMENTATION",
@@ -1182,10 +1196,12 @@ contract DeployScroll is DeterministicDeployment {
      ***************************/
 
     function deployL2DogeOsMessenger() private {
+        bool initialized = getInitializeCount(L2_DOGEOS_MESSENGER_PROXY_ADDR) != 0;
         bytes memory args = abi.encode(
             notnull(L1_SCROLL_MESSENGER_PROXY_ADDR),
             notnull(L2_MESSAGE_QUEUE_ADDR),
-            notnull(L2_MOAT_PROXY_ADDR)
+            notnull(L2_MOAT_PROXY_ADDR),
+            LegacyReplayCheck.required(L2_DOGEOS_MESSENGER_PROXY_ADDR, initialized)
         );
 
         L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR = deploy(
