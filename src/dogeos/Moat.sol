@@ -23,6 +23,7 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     error ErrorInvalidMinWithdrawal();
     error ErrorEqualPrefixes();
     error ErrorFeeRecipientNotSet();
+    error ErrorCallerNotPendingOwner();
 
     // --- Constants --- //
 
@@ -59,6 +60,9 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
 
     event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event FeesSwept(address indexed recipient, uint256 amount);
+    /// @notice Emitted when the owner nominates `newOwner`; ownership moves once it calls
+    /// {acceptOwnership}.
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
     // --- State Variables --- //
 
@@ -86,6 +90,11 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     /// @notice Callers exempt from the base withdrawal fee (e.g. the fee vault adapter).
     /// Exempt callers still have their withdrawal amount floored to SATOSHI_TO_WEI.
     mapping(address => bool) public feeExemptCallers;
+
+    /// @notice The account nominated by {transferOwnership}, which becomes the owner by calling
+    /// {acceptOwnership}. Zero when no transfer is pending.
+    /// @dev Appended after every earlier variable so upgraded proxies keep their layout.
+    address public pendingOwner;
 
     // --- Constructor --- //
 
@@ -134,6 +143,33 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
      */
     function messenger() external view returns (address) {
         return MESSENGER;
+    }
+
+    // --- Ownership --- //
+
+    /**
+     * @notice Start a two-step ownership transfer to `_newOwner`.
+     * @dev Can only be called by the owner. Ownership does not change until `_newOwner`
+     * calls {acceptOwnership}; a later call replaces the nomination. The zero address is
+     * rejected, so to drop a nomination the owner nominates itself and accepts. Emits an
+     * {OwnershipTransferStarted} event.
+     * @param _newOwner The account to nominate as the next owner.
+     */
+    function transferOwnership(address _newOwner) public override onlyOwner {
+        require(_newOwner != address(0), "new owner is the zero address");
+        pendingOwner = _newOwner;
+        emit OwnershipTransferStarted(owner, _newOwner);
+    }
+
+    /**
+     * @notice Complete a pending ownership transfer.
+     * @dev Can only be called by {pendingOwner}. Emits an {OwnershipTransferred} event.
+     */
+    function acceptOwnership() external {
+        if (msg.sender != pendingOwner) {
+            revert ErrorCallerNotPendingOwner();
+        }
+        _transferOwnership(msg.sender);
     }
 
     // --- Setters (Owner Restricted) --- //
@@ -324,6 +360,15 @@ contract Moat is OwnableBase, ReentrancyGuardUpgradeable {
     }
 
     // --- Internal Functions --- //
+
+    /**
+     * @dev Every ownership change (initialize, {acceptOwnership}, renounceOwnership) clears
+     * any pending nomination, so a nominee cannot take ownership after the owner renounced.
+     */
+    function _transferOwnership(address _newOwner) internal override {
+        delete pendingOwner;
+        super._transferOwnership(_newOwner);
+    }
 
     /**
      * @dev Internal function to process withdrawals with envelope encoding.

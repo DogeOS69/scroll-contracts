@@ -72,6 +72,12 @@
       "slot": 57,
       "offset": 0,
       "type": "mapping(address => bool)"
+    },
+    {
+      "label": "pendingOwner",
+      "slot": 58,
+      "offset": 0,
+      "type": "address"
     }
   ],
   "structs": {}

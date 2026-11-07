@@ -18,6 +18,7 @@ interface IMoat {
     error ErrorInvalidMinWithdrawal();
     error ErrorEqualPrefixes();
     error ErrorFeeRecipientNotSet();
+    error ErrorCallerNotPendingOwner();
 
     // --- Events --- //
 
@@ -31,6 +32,7 @@ interface IMoat {
     event WithdrawalQueued(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event FeeExemptionUpdated(address indexed account, bool exempt);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner); // From OwnableBase inheritance
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
     event DepositReceived(address indexed sender, address indexed target, uint256 amount, uint256 fee);
     event FeesSwept(address indexed recipient, uint256 amount);
@@ -51,6 +53,8 @@ interface IMoat {
     function feeExemptCallers(address _account) external view returns (bool);
 
     function owner() external view returns (address); // From OwnableBase inheritance
+
+    function pendingOwner() external view returns (address);
 
     // Setters
     function setWithdrawalFee(uint256 _newFee) external;
@@ -85,8 +89,10 @@ interface IMoat {
 
     function sweepFees() external returns (uint256 amount);
 
-    // OwnableBase functions
+    // Ownership (two-step: transferOwnership nominates, acceptOwnership completes)
     function transferOwnership(address newOwner) external;
+
+    function acceptOwnership() external;
 
     function renounceOwnership() external;
 }

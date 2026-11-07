@@ -22,6 +22,9 @@ v0.2.0. It covers, in one upgrade window:
 4. **Deposits relay while the messenger is paused** — from
    `dogeos-v0.3.0-rc.5` (#71, `08c45a2`) the `L2DogeOsMessenger` pause freezes
    withdrawals only; see section 1.8.
+5. **Two-step Moat ownership** — `transferOwnership` only nominates a
+   `pendingOwner`, which must call `acceptOwnership()` to become the owner;
+   see section 2.1.
 
 No predeploy bytecode changes: the fee vault keeps its v0.2.0 code and is
 reconfigured purely through its owner setters. The only implementation swaps
@@ -505,9 +508,12 @@ cast call <L2_MOAT_PROXY_ADDR> 'MESSENGER()(address)'           --rpc-url "$L2_R
 cast call <L2_MOAT_PROXY_ADDR> 'withdrawalFee()(uint256)'       --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'minWithdrawalAmount()(uint256)' --rpc-url "$L2_RPC"
 cast call <L2_MOAT_PROXY_ADDR> 'owner()(address)'               --rpc-url "$L2_RPC"
+cast call <L2_MOAT_PROXY_ADDR> 'pendingOwner()(address)'        --rpc-url "$L2_RPC"
 ```
 
 Compare these values with the pre-upgrade snapshot printed in Step 6.
+`pendingOwner()` must return `0x0000000000000000000000000000000000000000`: the
+upgrade adds that slot empty, and the owner is unchanged.
 `messenger()` and `MESSENGER()` must both return the messenger from the
 snapshot.
 
@@ -818,6 +824,22 @@ now takes an implementation upgrade. `messenger()` still exists and returns
 This means a new implementation contract must be deployed per network. The
 implementation address can differ even when the proxy address is the same.
 
+#### Two-step ownership
+
+`transferOwnership(newOwner)` no longer moves ownership. It records `newOwner`
+as `pendingOwner` and emits `OwnershipTransferStarted`; the current owner keeps
+every owner power until `newOwner` calls `acceptOwnership()`, which emits
+`OwnershipTransferred` and clears `pendingOwner`. A later `transferOwnership`
+replaces the nomination. The zero address is rejected, so to drop a nomination
+the owner nominates a different address, or itself and then accepts.
+`renounceOwnership()` also clears any nomination.
+
+After this upgrade, a Moat ownership transfer (for example to a Safe) takes two
+transactions: the owner calls `transferOwnership(<new owner>)`, then the new owner
+calls `acceptOwnership()` (zero value, calldata `0x79ba5097`). The new owner must
+exist on L2 and hold DOGE for gas. The transfer is complete only when
+`owner()` returns the new owner and `pendingOwner()` returns the zero address.
+
 #### ABI changes
 
 Additions to `IMoat`:
@@ -832,6 +854,10 @@ Additions to `IMoat`:
 - `function withdrawToDogeAddress(string) external payable;`
 - `function MESSENGER() external view returns (address);`
 - `event FeeExemptionUpdated(address indexed account, bool exempt);`
+- `function pendingOwner() external view returns (address);`
+- `function acceptOwnership() external;`
+- `event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);`
+- `error ErrorCallerNotPendingOwner();`
 
 `L2DogeOsMessenger` removals: the `FEE_VAULT()` getter and the fee vault
 constructor argument.
@@ -864,12 +890,14 @@ The Moat contract layout is preserved and safe for proxy upgrade:
 | `0x02`-`0x32` | `__gap` from `ReentrancyGuardUpgradeable`                                                                   |
 | `0x33`-`0x38` | `messenger`, deprecated verifier slot, `withdrawalFee`, `minWithdrawalAmount`, `feeRecipient`, `depositFee` |
 | `0x39` (57)   | **new in v0.3.0:** `feeExemptCallers` mapping — appended after the previously-last variable                 |
+| `0x3A` (58)   | **new in v0.3.0:** `pendingOwner` — appended after `feeExemptCallers`; zero until a nomination              |
 
 `P2PKH_PREFIX`, `P2SH_PREFIX`, `MESSENGER`, and `SATOSHI_TO_WEI` live in bytecode
 as immutables/constants and consume no storage slots. Slot `0x33` (`messenger`)
 is now a deprecated slot; it keeps its old value (it is never cleared) so a
-rollback reads the same address. The only layout change is
-the appended mapping, so no storage migration is required.
+rollback reads the same address. The only layout changes are
+the appended mapping and the appended `pendingOwner` slot, so no storage
+migration is required.
 
 No `initialize` re-run is required because the proxy is already initialized.
 
@@ -1025,7 +1053,13 @@ Caveats:
 - Do not roll back the relayer unless you are certain no envelope withdrawals
   are in flight.
 - Storage is preserved across both directions (the appended
-  `feeExemptCallers` slot is simply ignored by the old implementation).
+  `feeExemptCallers` and `pendingOwner` slots are simply ignored by the old
+  implementation).
+- Check `pendingOwner()` is zero before rolling back. If a nomination is open,
+  have the nominee accept it, or have the owner nominate itself and accept, which
+  clears it. The old implementation can't clear the slot, so a
+  nomination left pending through a rollback becomes acceptable again after the
+  next forward upgrade, even if ownership changed in between.
 - If rollback is permanent, the P2SH entry points disappear from the ABI, so
   SDKs and frontends must revert to the old interface.
 - **Rolling back the Moat while the new messenger is live breaks ALL

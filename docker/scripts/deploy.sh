@@ -56,4 +56,5 @@ echo "deploying on L2"
 # Foundry is pinned to the deploy image version in CI. --batch is Tempo-specific.
 forge script scripts/deterministic/DeployScroll.s.sol:DeployScroll --rpc-url "$L2_RPC_ENDPOINT"  --batch-size "$BATCH_SIZE" --sig "run(string,string)" "L2" "verify-config" --broadcast "$@" --json
 
+echo "Moat ownership is two-step: OWNER_ADDR must still call acceptOwnership() on the Moat proxy (see ACTION REQUIRED above and the README)."
 echo "=== SCRIPT END ==="
