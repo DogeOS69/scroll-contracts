@@ -39,7 +39,7 @@ extract() { sed -n "s/^$1 *= *\"\\([^\"]*\\)\".*/\\1/p" "$2"; }
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 fail() {
-    echo "$1"
+    echo "$1" >&2
     exit 1
 }
 
@@ -87,10 +87,10 @@ probe_relay() {
         "$PROBE_ADDR" "$MOAT" 0 "$(cast max-uint)" "$MESSAGE" \
         --from "$ALIAS" "$@" --trace --rpc-url "$RPC_URL" 2>&1) || true
     if printf '%s\n' "$OUT" | grep -q 'emit RelayedMessage(' &&
-        ! printf '%s\n' "$OUT" | grep -q 'FailedRelayedMessage(\|Transaction failed\|\[Revert\]'; then
+        ! printf '%s\n' "$OUT" | grep -Eq 'FailedRelayedMessage\(|Transaction failed|\[Revert\]'; then
         echo ok
     else
-        printf '%s\n' "$OUT" | grep -m 1 '\[Revert\]\|FailedRelayedMessage\|Error' || echo "no RelayedMessage in the trace"
+        printf '%s\n' "$OUT" | grep -E -m 1 '\[Revert\]|FailedRelayedMessage|Error' || echo "no RelayedMessage in the trace"
     fi
 }
 
@@ -106,7 +106,7 @@ echo "paused:          $PAUSED -> $TARGET"
 if [ "$TARGET" = "true" ]; then
     RELAY=$(probe_relay live)
     echo "deposit relay as the chain is (simulated): $RELAY"
-    [ "$RELAY" = "ok" ] || fail "the relay probe fails even unpaused; fix the RPC or addresses before pausing"
+    [ "$RELAY" = "ok" ] || fail "the relay probe fails on the current state (wrong RPC or addresses, or a pre-rc.5 messenger that is already paused)"
     # The override must really set paused(), or the probe below would prove nothing.
     FORCED=$(cast call "$MESSENGER" 'paused()(bool)' --override-state-diff "$MESSENGER:$PAUSED_SLOT:1" --rpc-url "$RPC_URL")
     [ "$FORCED" = "true" ] || fail "slot $PAUSED_SLOT is not the paused flag of this implementation (paused() = $FORCED)"

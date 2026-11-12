@@ -51,7 +51,7 @@ WITHDRAW_VALUE=10000000000000000000
 DEPOSIT_VALUE=5000000000000000000
 
 fail() {
-    echo "DRY RUN FAILED: $1"
+    echo "DRY RUN FAILED: $1" >&2
     exit 1
 }
 
@@ -81,6 +81,9 @@ until cast chain-id --rpc-url "$RPC" >/dev/null 2>&1; do
     [ "$i" -lt 60 ] || fail "anvil did not start: $(cat "$ANVIL_LOG")"
     sleep 1
 done
+# The listener must be our child: one that failed to bind exits right away.
+sleep 2
+kill -0 "$ANVIL_PID" 2>/dev/null || fail "anvil exited (port $ANVIL_PORT in use?): $(cat "$ANVIL_LOG")"
 
 get() { sed -n "s/^$1 *= *\"\\([^\"]*\\)\".*/\\1/p" "$CONFIG_CONTRACTS"; }
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
