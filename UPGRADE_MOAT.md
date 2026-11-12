@@ -647,6 +647,11 @@ implementations, including rc.1 to rc.4, still guard `relayMessage`.
   recovery needed the node to re-inject identical calldata. A relay during a
   pause now runs as usual, and each message executes at most once: a
   successful relay is marked executed and a replay is rejected.
+- **Pause and unpause** with
+  `scripts/deterministic/shell/submit-dogeos-messenger-pause.sh pause|unpause`
+  (preflight by default; `OWNER_PRIVATE_KEY=... BROADCAST=1` to send). Before
+  pausing, it simulates a deposit relay with the paused flag forced on and
+  refuses to pause an implementation that would block it.
 - **To stop deposits, stop the sequencer from including L1 messages.** The
   messenger pause is not a deposit stop. In `dogeos-rollup-node`:
   - `rollupNodeAdmin_disableAutomaticSequencing` (needs

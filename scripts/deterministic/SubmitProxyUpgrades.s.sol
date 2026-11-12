@@ -85,8 +85,21 @@ contract SubmitMoatProxyUpgrade is ProxyUpgradeScriptBase {
             inputs.implementation,
             contractsCfg.readAddress(".L2_DOGEOS_MESSENGER_PROXY_ADDR")
         );
+        _requireSamePrefixes(inputs.proxy, inputs.implementation);
 
         _runUpgrade("Moat proxy", inputs);
+    }
+
+    /// @dev The Dogecoin address prefixes are immutables picked from CHAIN_ID_L1 when the
+    ///      implementation is deployed. An upgrade must not change the network they decode.
+    function _requireSamePrefixes(address proxy, address implementation) private view {
+        bytes1 p2pkh = IMoat(implementation).P2PKH_PREFIX();
+        bytes1 p2sh = IMoat(implementation).P2SH_PREFIX();
+        console.log("new impl P2PKH/P2SH prefixes:");
+        console.logBytes1(p2pkh);
+        console.logBytes1(p2sh);
+        require(p2pkh == IMoat(proxy).P2PKH_PREFIX(), "new implementation P2PKH_PREFIX != proxy's current one");
+        require(p2sh == IMoat(proxy).P2SH_PREFIX(), "new implementation P2SH_PREFIX != proxy's current one");
     }
 
     /// @dev The new implementation binds the messenger immutably (Moat.MESSENGER). It must be
