@@ -72,18 +72,18 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-anvil --fork-url "$FORK_URL" --port "$ANVIL_PORT" --silent >"$ANVIL_LOG" 2>&1 &
+anvil --fork-url "$FORK_URL" --port "$ANVIL_PORT" >"$ANVIL_LOG" 2>&1 &
 ANVIL_PID=$!
+# anvil logs "Listening on <addr>" only after it has bound the port, so that line
+# from our own child (not an RPC answer, which anything on the port could give)
+# is what proves the fork below is ours.
 i=0
-until cast chain-id --rpc-url "$RPC" >/dev/null 2>&1; do
+until grep -q "^Listening on .*:$ANVIL_PORT\$" "$ANVIL_LOG"; do
     i=$((i + 1))
     kill -0 "$ANVIL_PID" 2>/dev/null || fail "anvil exited (port $ANVIL_PORT in use?): $(cat "$ANVIL_LOG")"
-    [ "$i" -lt 60 ] || fail "anvil did not start: $(cat "$ANVIL_LOG")"
+    [ "$i" -lt 120 ] || fail "anvil did not start: $(cat "$ANVIL_LOG")"
     sleep 1
 done
-# The listener must be our child: one that failed to bind exits right away.
-sleep 2
-kill -0 "$ANVIL_PID" 2>/dev/null || fail "anvil exited (port $ANVIL_PORT in use?): $(cat "$ANVIL_LOG")"
 
 get() { sed -n "s/^$1 *= *\"\\([^\"]*\\)\".*/\\1/p" "$CONFIG_CONTRACTS"; }
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
