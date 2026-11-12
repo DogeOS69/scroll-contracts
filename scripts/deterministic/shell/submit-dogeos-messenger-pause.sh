@@ -10,11 +10,11 @@ set -eu
 # also refuse relayMessage, and a deposit the sequencer includes while they are
 # paused is consumed without being credited (UPGRADE_MOAT.md section 1.8).
 # Before pausing, this script therefore simulates a zero-value deposit relay to the
-# Moat with the paused flag forced on (eth_call with a state override) and refuses
-# to pause if that relay reverts. FORCE=1 skips that refusal.
+# Moat, first as the chain is (it must succeed, or the probe itself is broken) and
+# then with the paused flag forced on (eth_call with a state override), and refuses
+# to pause if the second relay reverts. FORCE=1 skips that refusal.
 #
-# RPC from volume/config.toml (or RPC_URL); addresses from
-# volume/config-contracts.toml.
+# RPC from volume/config.toml; addresses from volume/config-contracts.toml.
 # Inputs:
 #   BROADCAST=1             send the transaction (otherwise preflight only)
 #   OWNER_PRIVATE_KEY=0x... messenger owner key; required only when BROADCAST=1
@@ -58,19 +58,20 @@ esac
 require_command cast
 require_command python3
 
-RPC_URL="${RPC_URL:-$(extract EXTERNAL_RPC_URI_L2 "$CONFIG")}"
+RPC_URL=$(extract EXTERNAL_RPC_URI_L2 "$CONFIG")
 MESSENGER=$(extract L2_DOGEOS_MESSENGER_PROXY_ADDR "$CONFIG_CONTRACTS")
 MOAT=$(extract L2_MOAT_PROXY_ADDR "$CONFIG_CONTRACTS")
-[ "$RPC_URL" != "" ] || fail "EXTERNAL_RPC_URI_L2 in $CONFIG or RPC_URL is not set"
+[ "$RPC_URL" != "" ] || fail "EXTERNAL_RPC_URI_L2 in $CONFIG is not set"
 [ "$MESSENGER" != "" ] || fail "L2_DOGEOS_MESSENGER_PROXY_ADDR in $CONFIG_CONTRACTS is not set"
 [ "$MOAT" != "" ] || fail "L2_MOAT_PROXY_ADDR in $CONFIG_CONTRACTS is not set"
-[ "$(cast code "$MESSENGER" --rpc-url "$RPC_URL")" != "0x" ] || fail "messenger proxy has no code at $MESSENGER"
+CODE=$(cast code "$MESSENGER" --rpc-url "$RPC_URL") || fail "cannot read code at $MESSENGER from $RPC_URL"
+[ "$CODE" != "0x" ] || fail "messenger proxy has no code at $MESSENGER"
 
 # Simulates a zero-value deposit relay to the Moat while the messenger is paused
 # (forced through a state override when $1 = override, as is otherwise). Prints
 # "ok" when the relay would succeed, or the revert.
 probe_relay() {
-    COUNTERPART=$(cast call "$MESSENGER" 'counterpart()(address)' --rpc-url "$RPC_URL")
+    COUNTERPART=$(cast call "$MESSENGER" 'counterpart()(address)' --rpc-url "$RPC_URL") || return 1
     # AddressAliasHelper.applyL1ToL2Alias: the L1 messenger's L2 alias is the only relayer.
     ALIAS=$(python3 -c "import sys; print('0x%040x' % ((int(sys.argv[1], 16) + 0x1111000000000000000000000000000000001111) % 2**160))" "$COUNTERPART")
     MESSAGE=$(cast calldata 'handleL1Message(address,bytes32)' "$PROBE_ADDR" 0x0000000000000000000000000000000000000000000000000000000000000000)
@@ -99,6 +100,12 @@ echo "messenger owner: $OWNER"
 echo "paused:          $PAUSED -> $TARGET"
 
 if [ "$TARGET" = "true" ]; then
+    RELAY=$(probe_relay live)
+    echo "deposit relay as the chain is (simulated): $RELAY"
+    [ "$RELAY" = "ok" ] || fail "the relay probe fails even unpaused; fix the RPC or addresses before pausing"
+    # The override must really set paused(), or the probe below would prove nothing.
+    FORCED=$(cast call "$MESSENGER" 'paused()(bool)' --override-state-diff "$MESSENGER:$PAUSED_SLOT:1" --rpc-url "$RPC_URL")
+    [ "$FORCED" = "true" ] || fail "slot $PAUSED_SLOT is not the paused flag of this implementation (paused() = $FORCED)"
     RELAY=$(probe_relay override)
     echo "deposit relay while paused (simulated): $RELAY"
     if [ "$RELAY" != "ok" ]; then

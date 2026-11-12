@@ -96,10 +96,15 @@ CONFIG_CONTRACTS=/path/to/testnet/config-contracts.toml scripts/testnet-upgrade/
 Forks testnet L2 with anvil and runs the commands above with `BROADCAST=1`
 (signing with anvil's dev key after the fork hands it ownership). It checks:
 
-- proxy storage and wiring are unchanged across each upgrade;
-- while paused, a withdrawal is refused and a deposit is credited;
+- the pause script refuses testnet's messenger as deployed;
+- proxy storage and wiring are unchanged across each upgrade, and so are the
+  Moat's Dogecoin prefixes;
+- between the two upgrades (old Moat, new messenger) a withdrawal is queued;
+- while paused, a withdrawal reverts with `Pausable: paused` and a deposit is
+  credited;
 - after the unpause, a Moat withdrawal and a fee vault withdrawal (through the
-  adapter) are queued, and the Moat holds the withdrawal fee;
-- `sweepFees()` pays the held fees to `feeRecipient`.
+  adapter) are queued, the Moat holds the withdrawal fee, a deposit is credited,
+  and `sweepFees()` pays the held fees to `feeRecipient`.
 
-It touches nothing but the fork and deletes the `volume/` it creates.
+It sends transactions only to the fork and deletes the `volume/` it creates.
+Forge also writes its usual `broadcast/` and `cache/` records (gitignored).

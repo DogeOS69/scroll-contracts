@@ -9,14 +9,17 @@ set -eu
 #
 # Runs the real operator scripts in the README's order against the fork, with
 # BROADCAST=1:
-#   1. deploy + upgrade the L2DogeOsMessenger implementation (before the window)
-#   2. pause the messenger; check a withdrawal is refused and a deposit relays
+#   0. check the pause script refuses the messenger as deployed
+#   1. deploy + upgrade the L2DogeOsMessenger implementation (before the window);
+#      check a withdrawal through the old Moat is queued
+#   2. pause the messenger; check a withdrawal reverts on the pause and a deposit
+#      is credited
 #   3. deploy + upgrade the Moat implementation (reopening)
 #   4. unpause; check a Moat withdrawal and a fee vault withdrawal are queued, the
-#      Moat holds the fee, and sweepFees pays it
+#      Moat holds the fee, a deposit is credited, and sweepFees pays the fees
 # and checks after each upgrade that the proxy's storage and wiring are unchanged.
 #
-# Only the fork is touched. The scripts sign with anvil's well-known dev keys, so
+# Transactions go only to the fork. The scripts sign with anvil's well-known dev keys, so
 # the fork first moves ownership of the ProxyAdmin, messenger and Moat to that key
 # (impersonating the real owner) and funds it. volume/ is created for the run from
 # docker/templates/config.toml and removed afterwards; the script refuses to run
@@ -61,23 +64,46 @@ cleanup() {
     [ -z "${ANVIL_PID:-}" ] || kill "$ANVIL_PID" 2>/dev/null || true
     rm -rf "$VOLUME" "$ANVIL_LOG"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 anvil --fork-url "$FORK_URL" --port "$ANVIL_PORT" --silent >"$ANVIL_LOG" 2>&1 &
 ANVIL_PID=$!
 i=0
 until cast chain-id --rpc-url "$RPC" >/dev/null 2>&1; do
     i=$((i + 1))
+    kill -0 "$ANVIL_PID" 2>/dev/null || fail "anvil exited (port $ANVIL_PORT in use?): $(cat "$ANVIL_LOG")"
     [ "$i" -lt 60 ] || fail "anvil did not start: $(cat "$ANVIL_LOG")"
     sleep 1
 done
 
 get() { sed -n "s/^$1 *= *\"\\([^\"]*\\)\".*/\\1/p" "$CONFIG_CONTRACTS"; }
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-call() { cast call "$@" --rpc-url "$RPC"; }
+call() { cast call "$@" --rpc-url "$RPC" || fail "cast call $*"; }
+# A uint256 call result without cast's "[1e18]" annotation.
+uint() {
+    out=$(call "$@")
+    echo "${out%% *}"
+}
 rpc() { cast rpc "$@" --rpc-url "$RPC" >/dev/null; }
 math() { python3 -c "print($1)"; }
-eq() { [ "$(lower "$2")" = "$(lower "$3")" ] || fail "$1: expected $3, got $2"; echo "ok  $1"; }
+eq() {
+    [ "$3" != "" ] || fail "$1: empty expected value"
+    [ "$(lower "$2")" = "$(lower "$3")" ] || fail "$1: expected $3, got $2"
+    echo "ok  $1"
+}
+# Sends $2... from the user and requires a revert whose output contains $1.
+reverts() {
+    reason=$1
+    shift
+    if out=$(cast send "$@" --private-key "$USER_KEY" --legacy --rpc-url "$RPC" 2>&1); then
+        fail "expected a revert ($reason), but the transaction succeeded"
+    fi
+    case "$out" in
+    *"$reason"*) ;;
+    *) fail "expected a revert ($reason), got: $out" ;;
+    esac
+}
 
 PROXY_ADMIN=$(get L2_PROXY_ADMIN_ADDR)
 MESSENGER=$(get L2_DOGEOS_MESSENGER_PROXY_ADDR)
@@ -116,6 +142,7 @@ sed -e "s|^CHAIN_ID_L1 = .*|CHAIN_ID_L1 = $CHAIN_ID_L1|" \
     -e "s|^OWNER_ADDR = .*|OWNER_ADDR = \"$ADDR\"|" \
     -e "s|^L2_GAS_ORACLE_SENDER_ADDR = .*|L2_GAS_ORACLE_SENDER_ADDR = \"$ADDR\"|" \
     "$REPO_ROOT/docker/templates/config.toml" >"$VOLUME/config.toml"
+unset FORCE
 export DEPLOYER_PRIVATE_KEY="$KEY" OWNER_PRIVATE_KEY="$KEY" BROADCAST=1
 
 # Storage the upgrades must not touch: whole-slot reads of the deployed layout.
@@ -142,24 +169,36 @@ deposit() { # relays an L1 deposit of $2 wei to $1 through the messenger, as the
 
 # --- 1. messenger implementation (before the window) --------------------------
 echo ""
+echo "== step 0: the pause script refuses the deployed messenger"
+if out=$("$SHELL_DIR/submit-dogeos-messenger-pause.sh" pause 2>&1); then
+    fail "the pause script accepted the deployed messenger"
+fi
+case "$out" in
+*"refuses deposit relays while paused"*) echo "ok  pause refused: deposits would stop relaying" ;;
+*) fail "the pause script failed for another reason: $out" ;;
+esac
+
+echo ""
 echo "== step 1: messenger implementation"
 BEFORE=$(messenger_state)
 "$SHELL_DIR/deploy-dogeos-messenger-impl.sh"
 "$SHELL_DIR/submit-dogeos-messenger-proxy-upgrade.sh"
 eq "messenger proxy points at the new implementation" "$(cast implementation "$MESSENGER" --rpc-url "$RPC")" "$(sed -n 's/^L2_DOGEOS_MESSENGER_IMPLEMENTATION_ADDR *= *"\(.*\)".*/\1/p' "$VOLUME/config-contracts.toml")"
 eq "messenger storage and wiring unchanged" "$(messenger_state)" "$BEFORE"
+# Testnet stays longest in this state: old Moat, new messenger, not paused.
+INDEX=$(uint "$QUEUE" 'nextMessageIndex()(uint256)')
+cast send "$MOAT" 'withdrawToP2PKH(address)' "$P2PKH_TARGET" --value "$WITHDRAW_VALUE" \
+    --private-key "$USER_KEY" --legacy --rpc-url "$RPC" >/dev/null
+eq "old Moat + new messenger: withdrawal appended to the queue" "$(uint "$QUEUE" 'nextMessageIndex()(uint256)')" "$(math "$INDEX + 1")"
 
 # --- 2. pause: withdrawals refused, deposits relay ----------------------------
 echo ""
 echo "== step 2: withdrawals-only pause"
 "$SHELL_DIR/submit-dogeos-messenger-pause.sh" pause
-if cast send "$MOAT" 'withdrawToP2PKH(address)' "$P2PKH_TARGET" --value "$WITHDRAW_VALUE" \
-    --private-key "$USER_KEY" --legacy --rpc-url "$RPC" >/dev/null 2>&1; then
-    fail "a withdrawal went through while paused"
-fi
+reverts "Pausable: paused" "$MOAT" 'withdrawToP2PKH(address)' "$P2PKH_TARGET" --value "$WITHDRAW_VALUE"
 echo "ok  withdrawal refused while paused"
 DEPOSIT_TO=0x00000000000000000000000000000000000dE905
-DEPOSIT_FEE=$(call "$MOAT" 'depositFee()(uint256)' | cut -d' ' -f1)
+DEPOSIT_FEE=$(uint "$MOAT" 'depositFee()(uint256)')
 deposit "$DEPOSIT_TO" "$DEPOSIT_VALUE" 4242424242
 eq "deposit credited while paused" "$(cast balance "$DEPOSIT_TO" --rpc-url "$RPC")" "$(math "$DEPOSIT_VALUE - $DEPOSIT_FEE")"
 
@@ -167,28 +206,33 @@ eq "deposit credited while paused" "$(cast balance "$DEPOSIT_TO" --rpc-url "$RPC
 echo ""
 echo "== step 3: Moat implementation"
 BEFORE=$(moat_state)
+# The Dogecoin prefixes are immutables, chosen from CHAIN_ID_L1 at deploy time.
+PREFIXES=$(call "$MOAT" 'P2PKH_PREFIX()(bytes1)')$(call "$MOAT" 'P2SH_PREFIX()(bytes1)')
 "$SHELL_DIR/deploy-moat-impl.sh"
 "$SHELL_DIR/submit-moat-proxy-upgrade.sh"
 eq "Moat proxy points at the new implementation" "$(cast implementation "$MOAT" --rpc-url "$RPC")" "$(sed -n 's/^L2_MOAT_IMPLEMENTATION_ADDR *= *"\(.*\)".*/\1/p' "$VOLUME/config-contracts.toml")"
 eq "Moat storage unchanged" "$(moat_state)" "$BEFORE"
 eq "Moat MESSENGER is the messenger proxy" "$(call "$MOAT" 'MESSENGER()(address)')" "$MESSENGER"
+eq "Moat Dogecoin prefixes unchanged" "$(call "$MOAT" 'P2PKH_PREFIX()(bytes1)')$(call "$MOAT" 'P2SH_PREFIX()(bytes1)')" "$PREFIXES"
 
 # --- 4. unpause: withdrawals resume, fees held then swept ---------------------
 echo ""
 echo "== step 4: unpause"
 "$SHELL_DIR/submit-dogeos-messenger-pause.sh" unpause
-INDEX=$(call "$QUEUE" 'nextMessageIndex()(uint256)' | cut -d' ' -f1)
+INDEX=$(uint "$QUEUE" 'nextMessageIndex()(uint256)')
 MOAT_BALANCE=$(cast balance "$MOAT" --rpc-url "$RPC")
-WITHDRAWAL_FEE=$(call "$MOAT" 'withdrawalFee()(uint256)' | cut -d' ' -f1)
+WITHDRAWAL_FEE=$(uint "$MOAT" 'withdrawalFee()(uint256)')
 cast send "$MOAT" 'withdrawToP2PKH(address)' "$P2PKH_TARGET" --value "$WITHDRAW_VALUE" \
     --private-key "$USER_KEY" --legacy --rpc-url "$RPC" >/dev/null
-eq "withdrawal appended to the queue" "$(call "$QUEUE" 'nextMessageIndex()(uint256)' | cut -d' ' -f1)" "$(math "$INDEX + 1")"
+eq "withdrawal appended to the queue" "$(uint "$QUEUE" 'nextMessageIndex()(uint256)')" "$(math "$INDEX + 1")"
 eq "withdrawal fee held by the Moat" "$(cast balance "$MOAT" --rpc-url "$RPC")" "$(math "$MOAT_BALANCE + $WITHDRAWAL_FEE")"
 FEE_VAULT=$(get L2_TX_FEE_VAULT_ADDR)
-cast send "$FEE_VAULT" 'withdraw(uint256)' "$(call "$FEE_VAULT" 'minWithdrawAmount()(uint256)' | cut -d' ' -f1)" \
+cast send "$FEE_VAULT" 'withdraw(uint256)' "$(uint "$FEE_VAULT" 'minWithdrawAmount()(uint256)')" \
     --private-key "$USER_KEY" --legacy --rpc-url "$RPC" >/dev/null
-eq "fee vault withdrawal through the adapter appended to the queue" "$(call "$QUEUE" 'nextMessageIndex()(uint256)' | cut -d' ' -f1)" "$(math "$INDEX + 2")"
+eq "fee vault withdrawal through the adapter appended to the queue" "$(uint "$QUEUE" 'nextMessageIndex()(uint256)')" "$(math "$INDEX + 2")"
+BALANCE=$(cast balance "$DEPOSIT_TO" --rpc-url "$RPC")
 deposit "$DEPOSIT_TO" "$DEPOSIT_VALUE" 4242424243
+eq "deposit credited by the new Moat" "$(cast balance "$DEPOSIT_TO" --rpc-url "$RPC")" "$(math "$BALANCE + $DEPOSIT_VALUE - $DEPOSIT_FEE")"
 HELD=$(cast balance "$MOAT" --rpc-url "$RPC")
 RECIPIENT=$(call "$MOAT" 'feeRecipient()(address)')
 RECIPIENT_BEFORE=$(cast balance "$RECIPIENT" --rpc-url "$RPC")
