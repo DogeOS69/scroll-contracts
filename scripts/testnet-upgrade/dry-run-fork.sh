@@ -59,6 +59,11 @@ fail() {
 [ ! -e "$VOLUME" ] || fail "$VOLUME exists; move it away first (this run creates and deletes it)"
 for c in anvil cast forge python3; do command -v "$c" >/dev/null || fail "missing command: $c"; done
 
+# A second anvil on a busy port exits, and the readiness check below would then
+# talk to whatever already listens there.
+if cast chain-id --rpc-url "$RPC" >/dev/null 2>&1; then
+    fail "something already serves $RPC; stop it or set ANVIL_PORT"
+fi
 ANVIL_LOG=$(mktemp)
 cleanup() {
     [ -z "${ANVIL_PID:-}" ] || kill "$ANVIL_PID" 2>/dev/null || true

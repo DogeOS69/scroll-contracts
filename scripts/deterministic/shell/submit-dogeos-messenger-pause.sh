@@ -68,8 +68,9 @@ CODE=$(cast code "$MESSENGER" --rpc-url "$RPC_URL") || fail "cannot read code at
 [ "$CODE" != "0x" ] || fail "messenger proxy has no code at $MESSENGER"
 
 # Simulates a zero-value deposit relay to the Moat while the messenger is paused
-# (forced through a state override when $1 = override, as is otherwise). Prints
-# "ok" when the relay would succeed, or the revert.
+# (forced through a state override when $1 = override, as is otherwise). The
+# messenger catches a failed Moat call and emits FailedRelayedMessage, so success
+# means the traced call emits RelayedMessage. Prints "ok", or why not.
 probe_relay() {
     COUNTERPART=$(cast call "$MESSENGER" 'counterpart()(address)' --rpc-url "$RPC_URL") || return 1
     # AddressAliasHelper.applyL1ToL2Alias: the L1 messenger's L2 alias is the only relayer.
@@ -81,12 +82,15 @@ probe_relay() {
         set --
     fi
     # The nonce is far above any real message, so the probe's hash is unused.
-    if OUT=$(cast call "$MESSENGER" 'relayMessage(address,address,uint256,uint256,bytes)' \
+    # cast exits 0 on a traced revert, so the trace itself decides.
+    OUT=$(cast call "$MESSENGER" 'relayMessage(address,address,uint256,uint256,bytes)' \
         "$PROBE_ADDR" "$MOAT" 0 "$(cast max-uint)" "$MESSAGE" \
-        --from "$ALIAS" "$@" --rpc-url "$RPC_URL" 2>&1); then
+        --from "$ALIAS" "$@" --trace --rpc-url "$RPC_URL" 2>&1) || true
+    if printf '%s\n' "$OUT" | grep -q 'emit RelayedMessage(' &&
+        ! printf '%s\n' "$OUT" | grep -q 'FailedRelayedMessage(\|Transaction failed\|\[Revert\]'; then
         echo ok
     else
-        echo "$OUT" | tail -n 1
+        printf '%s\n' "$OUT" | grep -m 1 '\[Revert\]\|FailedRelayedMessage\|Error' || echo "no RelayedMessage in the trace"
     fi
 }
 
